@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.Volo" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#B7613F</item>
+        <item name="android:navigationBarColor">#F4F5F1</item>
+        <item name="android:statusBarColor">#F4F5F1</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

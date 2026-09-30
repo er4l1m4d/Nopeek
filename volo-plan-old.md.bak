@@ -1,0 +1,169 @@
+# Volo — Phase-by-Phase Build Plan
+
+## Phase 0: Environment & Tooling Setup
+- [ ] Install Android Studio (free) with Kotlin + Jetpack Compose
+- [ ] Install Rust toolchain (free) — Rustup
+- [ ] Install Anchor CLI via AV tool (free) — `cargo install --git https://github.com/coral-xyz/anchor aved`
+- [ ] Install Solana CLI (free) — `sh -c "$(curl -sSfL https://release.solana.com/stable/install)"`
+- [ ] Create free Solana CLI wallet (devnet)
+- [ ] Get devnet SOL from faucet: `solana airdrop 2`
+- [ ] Set up free Supabase project (supabase.com — free tier)
+- [ ] Install VS Code + extensions (free)
+- [ ] Clone/create GitHub repo (public, free) for code
+- [ ] Get free Loom/Cloudflare R2 storage or use GitHub for demo video uploads
+
+## Phase 1: Android App Skeleton
+- [ ] Create new Android project in Android Studio (Empty Compose Activity)
+- [ ] Set up navigation (Jetpack Navigation Compose)
+- [ ] Create basic screens: Home, Challenge Create, Active Challenge, Profile
+- [ ] Set up light theme with clean aesthetic (Apple Screen Time inspiration)
+- [ ] Add basic UI components: buttons, text fields, cards
+- [ ] Implement ring + bar progress indicators (use MPAndroidChart or custom canvas)
+- [ ] Set up Seeker verification badge UI (placeholder for now)
+
+## Phase 2: Wallet Connection & Identity
+- [ ] Add Solana Mobile Wallet Adapter dependency
+- [ ] Implement Seed Vault / MWA connection flow
+- [ ] Show connected wallet address in Profile
+- [ ] Display `.skr` domain resolution UI (if Seeker device connected)
+- [ ] Implement "Connect Wallet" button on Home screen
+
+## Phase 3: Usage Tracking Engine
+- [ ] Request `PACKAGE_USAGE_STATS` permission
+- [ ] Integrate `UsageStatsManager` to query app usage
+- [ ] Build target app selection (any installed app)
+- [ ] Calculate per-day screen time in minutes (midnight local reset)
+- [ ] Store local usage data
+- [ ] Set up WorkManager for 15-minute sync intervals
+
+## Phase 4: Challenge Creation Flow
+- [ ] Build Challenge Create screen UI:
+  - App selection dropdown (from installed apps)
+  - Time limit presets + custom (15/30/60/120 + custom minutes)
+  - Challenge window presets (1h/4h/12h/24h/7d)
+  - Stake amount input (default 5 USDC)
+  - Opponent field (free-text for .skr username or wallet address)
+- [ ] Validate all inputs before proceeding
+- [ ] Show confirmation screen with challenge summary
+
+## Phase 5: Smart Contract Development (Anchor)
+- [ ] Scaffold Anchor program structure (`anchor init volo`)
+- [ ] Define `Challenge` account struct:
+  - creator, opponent (pubkeys)
+  - token_mint (USDC devnet)
+  - stake_amount (u64)
+  - target_app (String)
+  - limit_seconds (u32)
+  - challenge_window_seconds (u32)
+  - start_time (i64)
+  - end_time (i64)
+  - status (enum: CREATED/JOINED/SETTLED/CANCELLED)
+  - result (enum: NO_RESULT/USER_A_WON/USER_B_WON/BOTH_PASS/BOTH_FAIL)
+- [ ] Define PDA for escrow vault (derived from challenge pubkey)
+- [ ] Implement `create_challenge()` instruction
+- [ ] Implement `join_challenge()` instruction
+- [ ] Implement `settle_challenge()` instruction (oracle-gated)
+- [ ] Implement `refund_unjoined()` instruction (1-hour TTL)
+- [ ] Add token transfer logic (CPI to transfer USDC to/from escrow)
+- [ ] Build and deploy to devnet (`anchor build && anchor deploy`)
+- [ ] Run `anchor test` for local verification
+
+## Phase 6: Backend Oracle (Supabase)
+- [ ] Set up Supabase project
+- [ ] Create Postgres table for challenge results:
+  - challenge_id (foreign key to Solana)
+  - creator_result (PASS/FAIL)
+  - opponent_result (PASS/FAIL)
+  - timestamp
+- [ ] Create Postgres table for oracle-auth:
+  - oracle_wallet_pubkey (authorized resolver)
+- [ ] Deploy Supabase Function (Edge Function) for `/settle` endpoint:
+  - Receives usage report from Android app
+  - Verifies challenge exists on-chain
+  - Stores result in Postgres
+  - Returns signed settlement payload (or triggers settlement)
+- [ ] Set up Supabase Auth (email/password or anonymous, free tier)
+- [ ] Create `/oracle-status` endpoint to check if oracle is live
+
+## Phase 7: Android ↔ Solana Integration
+- [ ] Add Solana web3 dependencies (web3-solana, rpc-core, borsh)
+- [ ] Implement anchor-client or manual IDL-based interaction from Kotlin
+- [ ] Connect Challenge Create → `create_challenge()` on Solana
+- [ ] Handle USDC allowance/approval flow before deposit
+- [ ] Call `join_challenge()` for opponent
+- [ ] Display challenge status from on-chain data
+- [ ] Implement claim/refund flows
+
+## Phase 8: Settlement Flow
+- [ ] Android app sends usage report to Supabase Oracle
+- [ ] Oracle validates report format + timing
+- [ ] Oracle stores result in Postgres
+- [ ] Oracle (or user-triggered) calls `settle_challenge()` on Solana
+- [ ] App listens for settlement event (poll for now, websocket later)
+- [ ] Display final result screen with reward/loss
+
+## Phase 9: SKR Integration
+- [ ] Check if connected wallet holds/stakes SKR (query SPL token balance)
+- [ ] Unlock "Open Duels" feature if user stakes 10 SKR
+- [ ] Display SKR tier badge in Profile
+- [ ] Create Open Duel flow (random matching — simplified for hackathon)
+- [ ] Implement SKR deposit for open duels (deposit 10 SKR, get refund on completion)
+
+## Phase 10: Seeker Identity
+- [ ] Query Seeker Genesis Token (if device is Seeker)
+- [ ] Show "Verified Seeker" badge (subtle checkmark on profile + challenges)
+- [ ] Display `.skr` domain name on challenge screens
+- [ ] (Fallback: regular wallet address if not Seeker device)
+
+## Phase 11: Demo Day Preparation
+- [ ] Create real 1-minute demo scenario:
+  - Create challenge for TikTok with 1-min limit in 5-min window
+  - Stake 1 USDC
+  - Record 55 seconds of real TikTok usage (PASS)
+  - Opponent exceeds 1 min (FAIL)
+  - Show automatic settlement (10 USDC reward)
+- [ ] Test full flow on Android device (real usage data)
+- [ ] Generate APK (`Build > Build Bundle(s) / APK(s)`)
+- [ ] Record demo video (3-5 minutes max)
+- [ ] Create pitch deck (10-15 slides)
+- [ ] Write demo script for judges
+
+## Phase 12: Submission & Polish
+- [ ] Final testing on real Android device
+- [ ] Edge case testing (app crash, network loss, etc.)
+- [ ] Polish UI animations (use built-in Compose animations)
+- [ ] Final APK build + GitHub release
+- [ ] Submit to Solana Mobile hackathon portal
+- [ ] Upload demo video (YouTube unlisted — free)
+- [ ] Upload pitch deck (Google Slides — free)
+
+---
+
+## Free Tools Used Throughout
+
+| Purpose | Tool |
+|---------|------|
+| Android IDE | Android Studio (free) |
+| Solana dev | Solana CLI, Anchor, Rust (all free) |
+| Backend | Supabase (free tier) |
+| Code editor | VS Code (free) |
+| Version control | Git + GitHub (free) |
+| Video recording | Android Studio screen recorder |
+| Video hosting | YouTube (unlisted) |
+| Slides | Google Slides (free) |
+| Design | Figma (free tier) |
+| Devnet USDC | Circle faucet |
+| Devnet SOL | `solana airdrop` |
+
+## Timeline (11 Days)
+
+| Days | Phases |
+|------|--------|
+| 1-2 | Phase 0, 1, 2 |
+| 2-3 | Phase 3, 4 |
+| 3-5 | Phase 5, 6 |
+| 5-6 | Phase 7, 8 |
+| 6-7 | Phase 9, 10 |
+| 7-9 | Phase 11 |
+| 9-10 | Phase 12, polish |
+| 10-11 | Final review + submission |
