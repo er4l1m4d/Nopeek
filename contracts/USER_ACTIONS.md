@@ -68,6 +68,19 @@ else for Phase 5 is already written locally.
 - [ ] Tamper path: revoke Usage Access mid-window — expected: challenge row gets
       a red VERIFY chip (STATUS_PENDING_VERIFICATION).
 
+## Phase 11: demo day (11.1 Steps 3–4 + 11.2)
+
+- [ ] Fund Wallet A (creator): devnet SOL + ≥ 2 USDC in Phantom (Wallet A = your
+      connected wallet). Fund Wallet B (opponent, second Phantom account): devnet
+      SOL + ≥ 1 USDC. No second person needed.
+- [ ] 11.1 Step 3 scenario: run 55 s (PASS) vs 70 s (FAIL) per
+      `assets/demo-script.md`; expected: automatic settlement, User A +2 USDC.
+- [ ] 11.1 Step 4: tap **Settle** on the ended row → approve in wallet →
+      expected: balance up, row shows SETTLED.
+- [ ] 11.2 Steps 1–2: record the 3-minute demo following `assets/demo-script.md`.
+- [ ] 11.2 Step 4: upload video (Unlisted) + deck PDF; save links to
+      `submission-links.txt`.
+
 ## Later phases also gated on you (heads-up)
 
 - Phase 0.2–0.3: devnet SOL airdrop + USDC faucet (plan's Goerli steps are obsolete).

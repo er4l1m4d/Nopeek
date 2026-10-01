@@ -921,28 +921,32 @@
 - Consumes: All phases 0-10 working
 - Produces: One-click demo setup
 
-- [ ] Step 1: Pre-create demo challenge
+- [x] Step 1: Pre-create demo challenge
  On app first launch (dev build):
  - Target app: "com.tiktok.android" (or any installed app)
  - Limit: 1 minute
  - Stake: 1 USDC
  - Window: 5 minutes
  Store pubkey in demo-config.json
+ _(shipped: app/src/main/assets/demo-config.json (plan path "assets/" = Android assets for runtime reads) + data/demo/DemoSeeder — FLAG_DEBUGGABLE builds only, one-shot SharedPreferences guard, inserts id=demo-challenge on first launch; pure demoChallengeFrom() tested. Deviation: assets are read-only after install, so the on-chain pubkey lands in Room (challenges.challengePubkey) instead of the JSON — config keeps a null template + note)_
 
-- [ ] Step 2: Two test wallet addresses
+- [x] Step 2: Two test wallet addresses
  - Wallet A (creator): funds via Phantom
  - Wallet B (opponent): pre-funded
  Both known -> no second person needed
+ _(config + script done: Wallet A = the connected wallet; Wallet B documented in demo-config.json / assets/demo-script.md; ⏳ funding both on devnet is yours — USER_ACTIONS Phase 11)_
 
 - [ ] Step 3: Demo usage scenario
  For demo purposes:
  - User A: simulate 55 seconds usage -> PASS
  - User B: simulate 70 seconds usage -> FAIL
  Show automatic settlement -> User A wins 2 USDC
+ _(⏳ pending: live run — procedure written up in assets/demo-script.md, oracle pass/fail matrix already covered by 6.1 tests)_
 
 - [ ] Step 4: Trigger settlement
  Tap "Settle Challenge" -> calls /settle -> signs tx -> shows result
  Expected: User A balance increases by 1 USDC
+ _(⏳ pending: on-device test — the Settle button + /settle + MWA flow shipped in Phase 8; plan name "Settle Challenge" = our "Settle" chip on ended ACTIVE rows)_
 
 ### Task 11.2: Record Demo Video + Pitch Deck
 
@@ -957,6 +961,7 @@
 - [ ] Step 1: Screen record setup
  Enable "Screen recording" in Developer Options
  Or use Android Studio -> Tools -> Screen Record
+ _(⏳ pending: your device — steps written into assets/demo-script.md Setup)_
 
 - [ ] Step 2: Record 3-minute demo
  Capture:
@@ -965,8 +970,9 @@
  3. Simulate usage (55s for creator, 70s for opponent)
  4. Settle -> show 2 USDC reward
  5. Verify tx on Solscan via deep link
+ _(⏳ pending: your recording — full timed script in assets/demo-script.md)_
 
-- [ ] Step 3: Write 10-slide pitch deck
+- [x] Step 3: Write 10-slide pitch deck
  Slide 1: Title + tagline: "Volo -- Financial Accountability for Screen Time"
  Slide 2: Problem -- $1B lost to attention economy annually
  Slide 3: Product -- Stake USDC -> challenge a friend -> stay off TikTok
@@ -977,11 +983,13 @@
  Slide 8: Seeker integration -- visual mockup of Genesis Token badge
  Slide 9: Market -- 150k Seeker users + growing attention economy
  Slide 10: Ask -- $10K SKR prize + dApp Store placement
+ _(shipped: assets/pitch-deck-outline.md — all 10 slides with speaker notes)_
 
 - [ ] Step 4: Upload deliverables
  YouTube: Upload video as "Unlisted"
  Google Drive: Upload pitch deck PDF
  Save links to: submission-links.txt
+ _(⏳ pending: uploads are yours — save links to submission-links.txt)_
 
 ---
 
