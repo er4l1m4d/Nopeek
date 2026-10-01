@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,6 +41,7 @@ import com.volo.app.ui.theme.SurfaceMuted
 internal fun statusLabel(localStatus: String): String = when (localStatus) {
     "CREATED" -> "PENDING"
     "ACTIVE" -> "ACTIVE"
+    "PENDING_VERIFICATION" -> "VERIFY"
     "BOTH_FAIL_LOCKED" -> "LOCKED"
     "SETTLED" -> "SETTLED"
     "REFUNDED" -> "REFUNDED"
@@ -48,13 +50,26 @@ internal fun statusLabel(localStatus: String): String = when (localStatus) {
 
 internal fun statusColors(localStatus: String): Pair<Color, Color> = when (localStatus) {
     "ACTIVE" -> Celadon to Ink
-    "BOTH_FAIL_LOCKED" -> Clay to Color.White
+    "PENDING_VERIFICATION", "BOTH_FAIL_LOCKED" -> Clay to Color.White
     "CREATED" -> Copper to Color.White
     else -> SurfaceMuted to Muted
 }
 
+/**
+ * Plan 8.2: an ACTIVE challenge whose window has ended is ready for the
+ * user-signed on-chain settle transaction (pure — tested).
+ */
+internal fun canSettle(entity: ChallengeEntity, nowMs: Long): Boolean =
+    entity.localStatus == "ACTIVE" &&
+        entity.challengePubkey != null &&
+        nowMs > entity.endTime
+
 @Composable
-fun ChallengesScreen(onOpenDuel: () -> Unit) {
+fun ChallengesScreen(
+    onOpenDuel: () -> Unit,
+    onOpenRecovery: (String) -> Unit = {},
+    onSettle: (ChallengeEntity) -> Unit = {},
+) {
     val context = LocalContext.current
     val challenges by remember {
         AppDatabase.getInstance(context).challengeDao().observeActive()
@@ -83,9 +98,20 @@ fun ChallengesScreen(onOpenDuel: () -> Unit) {
                 fontSize = 13.sp,
             )
         } else {
+            val now = System.currentTimeMillis()
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 challenges.forEach { entity ->
-                    ChallengeEntityRow(entity, onClick = onOpenDuel)
+                    ChallengeEntityRow(
+                        entity = entity,
+                        onClick = {
+                            if (entity.localStatus == "BOTH_FAIL_LOCKED" && entity.challengePubkey != null) {
+                                onOpenRecovery(entity.challengePubkey)
+                            } else {
+                                onOpenDuel()
+                            }
+                        },
+                        onSettle = if (canSettle(entity, now)) onSettle else null,
+                    )
                 }
             }
         }
@@ -93,7 +119,11 @@ fun ChallengesScreen(onOpenDuel: () -> Unit) {
 }
 
 @Composable
-private fun ChallengeEntityRow(entity: ChallengeEntity, onClick: () -> Unit) {
+private fun ChallengeEntityRow(
+    entity: ChallengeEntity,
+    onClick: () -> Unit,
+    onSettle: ((ChallengeEntity) -> Unit)? = null,
+) {
     val (label, background, foreground) = statusPresentation(entity.localStatus)
     val detailColor = if (entity.localStatus == "ACTIVE") Copper else Muted
     Row(
@@ -126,6 +156,20 @@ private fun ChallengeEntityRow(entity: ChallengeEntity, onClick: () -> Unit) {
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
             )
+        }
+        if (onSettle != null) {
+            Text(
+                "Settle",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Copper)
+                    .clickable { onSettle(entity) }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+            Spacer(Modifier.width(8.dp))
         }
         StatusChip(label, background, foreground)
     }

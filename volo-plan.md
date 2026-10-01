@@ -776,18 +776,22 @@
 - Consumes: Phase 3 usage engine + Phase 6 API
 - Produces: Reports in Supabase
 
-- [ ] Step 1: Build report payload
+- [x] Step 1: Build report payload
  Send only: challengePubkey, walletPubkey, usedSeconds, window times, tamperSignals
+ _(shipped: pure reportPayload() in data/usage/OracleReportApi.kt — exact 5 plan fields (6 keys incl. both window times), ISO-8601 UTC windows, tamperSignals as name array; 5 unit tests incl. exact-key-set assertion)_
 
-- [ ] Step 2: Submit to Oracle
+- [x] Step 2: Submit to Oracle
  POST to SUPABASE_URL/functions/v1/oracle/submit-report
+ _(shipped: OracleReportApi.submit via HttpURLConnection; wired into existing postReport() stub so UsageWorker needs no call-site change. VoloBackend.SUPABASE_URL is a PROJECT-REF placeholder until user creates the Supabase project — submit() skips gracefully while unconfigured)_
 
-- [ ] Step 3: Handle tamper signals
+- [x] Step 3: Handle tamper signals
  If present -> mark challenge as STATUS_PENDING_VERIFICATION
+ _(shipped: flagForVerification() = TamperSignals.isCompromised(); UsageWorker sets localStatus=PENDING_VERIFICATION before submitting; ChallengesScreen/dao.observeActive extended to still show flagged rows with a red VERIFY chip, while the polling query deliberately excludes them so a chain status can't overwrite the flag)_
 
 - [ ] Step 4: Test submission
  Run worker -> check Supabase shows row
  Expected: usage_reports table has new entry
+ _(⏳ pending: needs user's live Supabase project + URL configuration — see contracts/USER_ACTIONS.md Phase 6)_
 
 ### Task 8.2: Automatic Settlement Trigger
 
@@ -798,10 +802,11 @@
 - Consumes: Phase 6 /settle endpoint + Phase 7.1 tx signing
 - Produces: Settlement executed
 
-- [ ] Step 1: Poll for readiness
+- [x] Step 1: Poll for readiness
  After end_time -> check settlement_results table for SETTLED=true
+ _(shipped: SettlementClient — PostgREST GET settlement_results first, then past end_time when no row exists: idempotent POST /register-challenge (oracle challenges row must exist or /settle 404s — the gap flagged in the 6.1 annotation) followed by POST /settle (409 falls back to the row); pure isSettlementReady = window over AND (settled OR bothFail), 6 unit tests + register contract test; driven every 5s by ChallengeRepository.checkSettlements. Added a public-read RLS policy on settlement_results (migration not yet applied) + SUPABASE_ANON_KEY placeholder for PostgREST)_
 
-- [ ] Step 2: Trigger settlement
+- [x] Step 2: Trigger settlement
  ```kotlin
  suspend fun settleChallenge(challengePubkey: String): Result<String> {
    val oracleResult = supabaseClient.getSettlementResult(challengePubkey)
@@ -809,9 +814,11 @@
    return sendTransaction(tx)
  }
  ```
+ _(shipped: ChallengeRepository.settleWithUser(entity, mwaSender) — sync oracle result -> derive both ATAs -> SettleChallengeParams(creatorResult/opponentResult codes) -> ChallengeSender.settleChallenge -> MWA sign (feePayer = oracle = connected wallet, per USER_ACTIONS Phase 5) -> RPC send -> localStatus=SETTLED. Deviations: hand-rolled HttpURLConnection instead of a Supabase SDK; on-chain tx can't sign itself — MWA needs the user present, so ended ACTIVE rows show a "Settle" button (oracle computation itself stays automatic in the poll loop); Result<String> matches the plan signature)_
 
-- [ ] Step 3: Handle both-fail scenario
+- [x] Step 3: Handle both-fail scenario
  If oracle returns bothFail=true -> show Recovery Lock screen
+ _(shipped: bothFail=true flips localStatus to BOTH_FAIL_LOCKED in the poll loop; the row stays visible (red LOCKED chip) and navigates to the new RecoveryLockScreen (Duel palette, lock icon, challenge pubkey, back); also short-circuits settleWithUser. 10 new tests: SettlementLogicTest 9 + canSettle 1)_
 
 ---
 

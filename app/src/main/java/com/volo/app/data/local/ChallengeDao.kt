@@ -18,7 +18,10 @@ interface ChallengeDao {
     @Query("SELECT * FROM challenges WHERE localStatus IN ('CREATED', 'ACTIVE') ORDER BY startTime DESC")
     suspend fun getActiveChallenges(): List<ChallengeEntity>
 
-    @Query("SELECT * FROM challenges WHERE localStatus IN ('CREATED', 'ACTIVE') ORDER BY startTime DESC")
+    // Screen query also shows tamper-flagged and both-fail-locked rows; the polling
+    // query deliberately excludes PENDING_VERIFICATION / BOTH_FAIL_LOCKED so the
+    // flag or lock is not overwritten by a chain status.
+    @Query("SELECT * FROM challenges WHERE localStatus IN ('CREATED', 'ACTIVE', 'PENDING_VERIFICATION', 'BOTH_FAIL_LOCKED') ORDER BY startTime DESC")
     fun observeActive(): Flow<List<ChallengeEntity>>
 
     @Query("SELECT * FROM challenges ORDER BY startTime DESC")

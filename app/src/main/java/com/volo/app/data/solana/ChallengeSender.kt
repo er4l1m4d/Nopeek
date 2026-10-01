@@ -36,6 +36,16 @@ internal class ChallengeSender(
         sender = sender,
     )
 
+    suspend fun settleChallenge(
+        params: SettleChallengeParams,
+        sender: ActivityResultSender,
+    ): Result<String> = send(
+        txProvider = { client.buildSettleChallenge(params) },
+        feePayer = params.oracle,
+        instructions = listOf(ProgramInstructions.settleChallenge(idl, params)),
+        sender = sender,
+    )
+
     suspend fun refundUnjoined(
         params: RefundUnjoinedParams,
         sender: ActivityResultSender,

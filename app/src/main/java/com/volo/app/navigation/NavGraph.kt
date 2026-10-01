@@ -19,10 +19,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -35,6 +37,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
 import com.volo.app.ui.screens.ActivityScreen
+import kotlinx.coroutines.launch
 import com.volo.app.ui.screens.ChallengesScreen
 import com.volo.app.ui.screens.CreateScreen
 import com.volo.app.ui.screens.DuelScreen
@@ -72,7 +75,31 @@ fun VoloApp() {
                     HomeScreen(onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) })
                 }
                 composable(NavRoutes.CHALLENGES) {
-                    ChallengesScreen(onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) })
+                    val context = LocalContext.current
+                    val scope = rememberCoroutineScope()
+                    val mwaSender = LocalActivityResultSender.current
+                    ChallengesScreen(
+                        onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) },
+                        onOpenRecovery = { pk -> navController.navigate(NavRoutes.recoveryLock(pk)) },
+                        onSettle = { entity ->
+                            if (mwaSender != null) {
+                                scope.launch {
+                                    com.volo.app.data.repositories.ChallengeRepository.getInstance(context)
+                                        .settleWithUser(entity, mwaSender)
+                                        .onFailure {
+                                            android.widget.Toast
+                                                .makeText(context, it.message ?: "Settlement failed.", android.widget.Toast.LENGTH_LONG)
+                                                .show()
+                                        }
+                                        .onSuccess {
+                                            android.widget.Toast
+                                                .makeText(context, "Settled on-chain: ${it.take(8)}…", android.widget.Toast.LENGTH_SHORT)
+                                                .show()
+                                        }
+                                }
+                            }
+                        },
+                    )
                 }
                 composable(NavRoutes.CREATE_CHALLENGE) {
                     CreateScreen(onCreated = { navController.navigateToTab(NavRoutes.CHALLENGES) })
@@ -84,6 +111,15 @@ fun VoloApp() {
                     arguments = listOf(navArgument("pubkey") { type = NavType.StringType })
                 ) { backStack ->
                     DuelScreen(pubkey = backStack.arguments?.getString("pubkey").orEmpty(), onBack = { navController.popBackStack() })
+                }
+                composable(
+                    route = NavRoutes.RECOVERY_LOCK,
+                    arguments = listOf(navArgument("pubkey") { type = NavType.StringType })
+                ) { backStack ->
+                    com.volo.app.ui.screens.RecoveryLockScreen(
+                        pubkey = backStack.arguments?.getString("pubkey").orEmpty(),
+                        onBack = { navController.popBackStack() },
+                    )
                 }
             }
             if (selected != null) {

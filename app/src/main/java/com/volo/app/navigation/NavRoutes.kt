@@ -19,10 +19,13 @@ object NavRoutes {
     const val CHALLENGES = "challenges"
     const val CREATE_CHALLENGE = "create_challenge"
     const val ACTIVE_CHALLENGE = "active_challenge/{pubkey}"
+    const val RECOVERY_LOCK = "recovery_lock/{pubkey}"
     const val ACTIVITY = "activity"
     const val PROFILE = "profile"
 
     fun activeChallenge(pubkey: String) = "active_challenge/$pubkey"
+
+    fun recoveryLock(pubkey: String) = "recovery_lock/$pubkey"
 
     fun All(): List<String> = listOf(HOME, CREATE_CHALLENGE, ACTIVE_CHALLENGE, PROFILE)
 }

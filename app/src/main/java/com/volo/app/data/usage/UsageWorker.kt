@@ -90,6 +90,19 @@ internal class UsageWorker(
             submittedAt = System.currentTimeMillis()
         )
 
+        // Plan 8.1 Step 3: tamper signals present -> mark the challenge for verification.
+        if (flagForVerification(signals)) {
+            try {
+                kotlinx.coroutines.runBlocking {
+                    com.volo.app.data.local.AppDatabase.getInstance(applicationContext)
+                        .challengeDao()
+                        .updateStatus(parsed.challengePubkey, "PENDING_VERIFICATION")
+                }
+            } catch (_: Exception) {
+                // Room unavailable in this run — the next periodic cycle retries.
+            }
+        }
+
         postReport(report)
         return Result.success()
     }

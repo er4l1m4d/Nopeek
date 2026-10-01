@@ -1,10 +1,20 @@
 package com.volo.app.data.repositories
 
 import android.content.Context
+import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
 import com.volo.app.data.local.AppDatabase
 import com.volo.app.data.local.ChallengeDao
+import com.volo.app.data.local.ChallengeEntity
+import com.volo.app.data.solana.ChallengeSender
 import com.volo.app.data.solana.IdlParser
 import com.volo.app.data.solana.ProgramClient
+import com.volo.app.data.solana.ProgramInstructions
+import com.volo.app.data.solana.SettleChallengeParams
+import com.volo.app.data.solana.SettlementClient
+import com.volo.app.data.solana.SolanaConfig
+import com.volo.app.data.solana.VoloIdl
+import com.volo.app.data.wallet.Base58
+import com.volo.app.data.wallet.walletManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,9 +43,12 @@ fun resolveNextStatus(localStatus: String, onChainStatus: Int): String? {
 class ChallengeRepository internal constructor(
     private val dao: ChallengeDao,
     private val client: ProgramClient,
+    private val idl: VoloIdl,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: Job? = null
+    private val settlementClient = SettlementClient()
+    private val challengeSender by lazy { ChallengeSender(client, idl) }
 
     fun startPolling(intervalMs: Long = POLL_INTERVAL_MS) {
         if (pollingJob?.isActive == true) return
@@ -66,6 +79,62 @@ class ChallengeRepository internal constructor(
                 // RPC unreachable / account not deployed yet — retry on the next tick.
             }
         }
+        checkSettlements(active)
+    }
+
+    /**
+     * Plan 8.2 Step 1: past the window, poll settlement_results (triggering the
+     * oracle once when no row exists). Both-fail flips the local status for the
+     * Recovery Lock screen (Step 3); other outcomes need the user-signed on-chain
+     * settle tx, which [settleWithUser] sends from the UI.
+     */
+    private suspend fun checkSettlements(active: List<ChallengeEntity>) {
+        val now = System.currentTimeMillis()
+        for (entity in active) {
+            if (now <= entity.endTime) continue
+            if (entity.localStatus == "PENDING_VERIFICATION") continue
+            try {
+                val settlement = settlementClient.sync(entity) ?: continue
+                if (settlement.bothFail) dao.updateStatus(entity.challengePubkey ?: continue, "BOTH_FAIL_LOCKED")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Oracle unreachable — try again next tick.
+            }
+        }
+    }
+
+    /**
+     * Plan 8.2 Step 2: fetch/trigger the oracle outcome, then build, MWA-sign
+     * (oracle wallet = the connected wallet, per USER_ACTIONS Phase 5) and send
+     * the on-chain settle transaction.
+     */
+    suspend fun settleWithUser(entity: ChallengeEntity, mwaSender: ActivityResultSender): Result<String> {
+        val pubkey = entity.challengePubkey
+            ?: return Result.failure(IllegalStateException("Challenge has no on-chain account yet."))
+        val oracle = walletManager.walletAddress
+            ?: return Result.failure(IllegalStateException("Connect your wallet first — the oracle wallet signs settlement."))
+        val creator = entity.creatorWallet
+            ?: return Result.failure(IllegalStateException("Challenge is missing its creator wallet."))
+
+        val settlement = settlementClient.sync(entity)
+            ?: return Result.failure(IllegalStateException("Settlement not ready yet — usage reports still pending."))
+        if (settlement.bothFail) {
+            dao.updateStatus(pubkey, "BOTH_FAIL_LOCKED")
+            return Result.failure(IllegalStateException("Both players failed — stake locked for recovery."))
+        }
+
+        val mint = Base58.decode(SolanaConfig.USDC_MINT) ?: return Result.failure(IllegalStateException("Bad mint"))
+        val params = SettleChallengeParams(
+            challenge = pubkey,
+            oracle = oracle,
+            creatorToken = Base58.encode(ProgramInstructions.ataAddress(Base58.decode(creator) ?: return Result.failure(IllegalStateException("Bad creator")), mint).address),
+            opponentToken = Base58.encode(ProgramInstructions.ataAddress(Base58.decode(entity.opponentWallet) ?: return Result.failure(IllegalStateException("Bad opponent")), mint).address),
+            creatorResult = settlement.creatorResult,
+            opponentResult = settlement.opponentResult,
+        )
+        return challengeSender.settleChallenge(params, mwaSender)
+            .onSuccess { dao.updateStatus(pubkey, "SETTLED") }
     }
 
     companion object {
@@ -79,8 +148,9 @@ class ChallengeRepository internal constructor(
                 instance ?: run {
                     val app = context.applicationContext
                     val json = app.assets.open("idl.json").bufferedReader().use { it.readText() }
-                    val client = ProgramClient(IdlParser.parse(json))
-                    ChallengeRepository(AppDatabase.getInstance(app).challengeDao(), client)
+                    val idl = IdlParser.parse(json)
+                    val client = ProgramClient(idl)
+                    ChallengeRepository(AppDatabase.getInstance(app).challengeDao(), client, idl)
                         .also { instance = it }
                 }
             }

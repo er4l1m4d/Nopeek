@@ -113,4 +113,7 @@ fun detectTamperSignals(
     )
 }
 
-fun postReport(report: UsageReport) {}
+/** Plan 8.1 Step 2: submit to the oracle's POST /submit-report (no-op until backend configured). */
+fun postReport(report: UsageReport) {
+    OracleReportApi.submit(report)
+}

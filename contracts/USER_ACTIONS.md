@@ -51,6 +51,23 @@ else for Phase 5 is already written locally.
       then `/settle` — check `settlement_results` row matches the matrix in
       `contracts/tests/manual-test-cases.md` (cases 7–10).
 
+## Phase 8: settlement flow (8.1 Step 4 + on-device verification)
+
+- [ ] Configure the app backend: `app/src/main/java/com/volo/app/data/usage/OracleReportApi.kt`
+      -> `VoloBackend.SUPABASE_URL` (your project ref) and `VoloBackend.SUPABASE_ANON_KEY`
+      (Settings -> API keys -> anon public). Rebuild after editing.
+- [ ] 8.1 Step 4: run the app through a challenge window end (or trigger the
+      UsageWorker), then check the `usage_reports` table has the new row.
+- [ ] On-device settle: after a challenge window ends, open the Challenges tab —
+      an ended ACTIVE row shows a **Settle** button; tap it and approve the
+      transaction in the wallet. Expected: row flips to SETTLED and
+      `settlement_results` has a row.
+- [ ] Both-fail path: submit reports above limit from BOTH sides (or skip both),
+      then settle — expected: red **LOCKED** chip; tapping the row opens the
+      Recovery Lock screen.
+- [ ] Tamper path: revoke Usage Access mid-window — expected: challenge row gets
+      a red VERIFY chip (STATUS_PENDING_VERIFICATION).
+
 ## Later phases also gated on you (heads-up)
 
 - Phase 0.2–0.3: devnet SOL airdrop + USDC faucet (plan's Goerli steps are obsolete).

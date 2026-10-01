@@ -50,3 +50,10 @@ create table if not exists settlement_results (
 alter table challenges enable row level security;
 alter table usage_reports enable row level security;
 alter table settlement_results enable row level security;
+
+-- Public read-only settlement status (plan 8.2 Step 1: the app polls for
+-- SETTLED=true / both_fail after the window). Rows are pubkey + verdicts only,
+-- no PII. Writes stay service-role only (used by the oracle function).
+create policy "settlement_results public read"
+  on settlement_results for select
+  using (true);
