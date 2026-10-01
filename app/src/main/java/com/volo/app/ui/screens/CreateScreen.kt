@@ -21,20 +21,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.volo.app.data.Challenge
 import com.volo.app.data.challenge.ChallengeDraft
 import com.volo.app.data.challenge.parseOpponent
 import com.volo.app.data.challenge.validateChallengeInput
 import com.volo.app.data.challenge.message
+import com.volo.app.data.local.AppDatabase
+import com.volo.app.data.local.toEntity
 import com.volo.app.data.wallet.WalletState
 import com.volo.app.data.wallet.walletManager
+import kotlinx.coroutines.launch
+import java.util.UUID
 import com.volo.app.ui.PrimaryButton
 import com.volo.app.ui.SelectChip
 import com.volo.app.ui.components.AppSelector
@@ -65,6 +72,9 @@ fun CreateScreen(onCreated: () -> Unit) {
     var opponent by remember { mutableStateOf("") }
     var windowSeconds by remember { mutableStateOf<Long?>(null) }
     var showReview by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val walletConnected = walletManager.state is WalletState.Connected
     val draft = ChallengeDraft(targetPackage, limitMinutes, stakeAmountRaw, opponent, windowSeconds)
@@ -153,7 +163,22 @@ fun CreateScreen(onCreated: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     showReview = false
-                    onCreated()
+                    val now = System.currentTimeMillis()
+                    val challenge = Challenge(
+                        id = UUID.randomUUID().toString(),
+                        creatorWallet = walletManager.walletAddress,
+                        opponentWallet = requireNotNull(resolvedOpponent),
+                        targetApp = requireNotNull(targetPackage),
+                        limitSeconds = requireNotNull(limitMinutes) * 60,
+                        stakeAmountRaw = stakeAmountRaw,
+                        windowSeconds = requireNotNull(windowSeconds),
+                        startTime = now,
+                        endTime = now + requireNotNull(windowSeconds) * 1000L
+                    )
+                    scope.launch {
+                        AppDatabase.getInstance(context).challengeDao().insert(challenge.toEntity())
+                        onCreated()
+                    }
                 }) { Text("Confirm") }
             },
             dismissButton = {

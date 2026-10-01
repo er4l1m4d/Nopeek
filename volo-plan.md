@@ -454,34 +454,40 @@
 - Consumes: Phase 1 navigation + Phase 2 wallet state
 - Produces: Valid challenge input -> confirmation screen
 
-- [ ] Step 1: Create AppSelector dropdown
+- [x] Step 1: Create AppSelector dropdown
  Load installed apps:
    pm.getInstalledApplications(0).filter { not system app }
  Sort by label -> show in DropdownMenu
  Allow any app selection (no hardcoded list)
+ _(shipped: ui/components/AppSelector.kt, FLAG_SYSTEM filter, label-sorted — ledger 4.1)_
 
-- [ ] Step 2: Create LimitSelector
+- [x] Step 2: Create LimitSelector
  Presets: [15 min, 30 min, 60 min, 120 min] + Custom option
  Custom -> dialog with numeric input field
+ _(shipped: chips 15m/30m/1h/2h + Custom → AlertDialog numeric input)_
 
-- [ ] Step 3: Create StakeInput
+- [x] Step 3: Create StakeInput
  Default: 5.00 USDC
  Display format: USDUSD amount / 1_000_000
  Show wallet USDC balance below input
+ _(shipped: default 5.00, decimal-masked field → raw base units; USDC balance fetch deferred to Phase 7 — shows wallet-connected status instead, no fake balance)_
 
-- [ ] Step 4: Add opponent field
+- [x] Step 4: Add opponent field
  Text field accepts:
    - Raw wallet address (base58 validation)
    - .skr domain (mocked resolution)
  Show resolved pubkey below field
+ _(shipped: Base58.decode (32-byte check) + deterministic sha256 mock for .skr — real resolution when external services land per Row 6; ChallengeValidationTest 17/17)_
 
-- [ ] Step 5: Add window selector
+- [x] Step 5: Add window selector
  Options: [1 hour, 4 hours, 12 hours, 24 hours, 7 days]
  Store as windowSeconds Long
+ _(shipped: chip row, windowSeconds Long state)_
 
-- [ ] Step 6: Validation + confirmation
+- [x] Step 6: Validation + confirmation
  Validate all inputs -> show AlertDialog with summary
  On Confirm -> store locally + advance to Phase 5
+ _(shipped: validateChallengeInput inline errors + Confirm AlertDialog with summary; "store locally" lands at 4.2 Room — Confirm advances navigation now; commit 0882566)_
 
 ### Task 4.2: Local State Storage
 
