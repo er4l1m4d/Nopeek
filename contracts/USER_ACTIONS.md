@@ -81,9 +81,24 @@ else for Phase 5 is already written locally.
 - [ ] 11.2 Step 4: upload video (Unlisted) + deck PDF; save links to
       `submission-links.txt`.
 
+## Phase 12: release + submission (12.1 Step 3 done for you)
+
+- [x] GitHub release created (branch `plan-execution` + tag `v1.0` pushed):
+      https://github.com/er4l1m4d/Volo/releases/tag/v1.0 — `app-release.apk`
+      attached (signed, R8-minified, **1.38 MB**, apksigner verified).
+- [ ] 12.2 Step 2: install `app-release.apk` on a **second Android phone** →
+      app runs → connects wallet → shows demo challenge.
+- [ ] 12.2 Step 3: portal submission — APK link (release URL), demo video,
+      deck PDF, public repo link. The checklist's first checkbox (APK uploaded
+      + link ready) is satisfied by the release URL above.
+- [ ] Supabase RLS migration: run `supabase/migrations/20261001_volo_init.sql`
+      (adds public-read on `settlement_results`) if you haven't yet — Phase 8
+      settlement sync needs it.
+
 ## Later phases also gated on you (heads-up)
 
-- Phase 0.2–0.3: devnet SOL airdrop + USDC faucet (plan's Goerli steps are obsolete).
+- Phase 0.2–0.3: devnet SOL airdrop + USDC faucet (plan's Goerli steps are obsolete;
+  0.3 Step 1 done — correct mint `4zMMC9s…` saved to `contracts/program/USDC_MINT.txt`).
 - Phase 0.4: create the Supabase project + enable auth.
 - Phase 6.1 Steps 4–5: set function env vars + deploy oracle function.
 - Device tests: 2.2 Step 4 (Phantom connect), 3.1 Step 3 (permission toggle),
