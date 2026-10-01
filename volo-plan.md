@@ -1004,20 +1004,23 @@
 - Consumes: All code complete
 - Produces: Release-ready APK
 
-- [ ] Step 1: Generate signed APK
+- [x] Step 1: Generate signed APK
  Build -> Generate Signed Bundle / APK
  Keystore: Volo.keystore (create new, save in repo)
  Build variant: Release (Minify enabled)
+ _(shipped: Volo.keystore generated at repo root (demo creds volodemo123/volo — plan says save in repo; noted as anti-pattern for production in build.gradle.kts), release buildType signed + isMinifyEnabled, versionName 1.0.0. apkverify: apksigner verify OK (CN=Volo Demo))_
 
-- [ ] Step 2: Reduce APK size
+- [x] Step 2: Reduce APK size
  ProGuard rules + resource shrinking:
  - android:extractNativeLibs="false" in manifest
  Target APK size < 20 MB
+ _(shipped: proguard-android-optimize + app/proguard-rules.pro (MWA keeps), isShrinkResources, extractNativeLibs="false". Result: app-release.apk = 1,446,257 bytes = **1.38 MB** — target met with room to spare. Bonus find during 12.2 Step 1: manifest was missing INTERNET + PACKAGE_USAGE_STATS permissions — release would have had no network/usage access; both added and verified via aapt dump)_
 
 - [ ] Step 3: Upload to GitHub
  Create release at github.com/[repo]/releases/tag/v1.0
  Upload app-release.apk
  Copy release URL
+ _(⏳ pushed/created after commit — see below)_
 
 ### Task 12.2: Final Verification + Error Log Review
 
@@ -1025,13 +1028,15 @@
 - Read: volo-errors.md
 - Read: volo-plan.md
 
-- [ ] Step 1: Cross-check error log
+- [x] Step 1: Cross-check error log
  Re-read volo-errors.md -> mark each item verified or updated
  Add any new errors encountered
+ _(shipped: 15-row status table (verified/fixed vs reference vs updated) + 7 new entries for errors actually hit this build: MWA transact arity, Room suspend-in-Worker, org.json stub, disk-full lint, keytool v1-only check, missing INTERNET permission, navigationevent exclusion. Found & fixed 2 real bugs: missing PACKAGE_USAGE_STATS + INTERNET in the manifest)_
 
 - [ ] Step 2: Test on second device
  If possible, install APK on another Android phone
  Expected: App runs -> connects wallet -> shows demo challenge
+ _(⏳ pending: needs a second physical device)_
 
 - [ ] Step 3: Submit to hackathon portal
  Final checklist:
@@ -1040,6 +1045,7 @@
  [x] Pitch deck -> Google Slides shareable link
  [x] Source code -> public GitHub repo
  [x] Error log + README updated
+ _(⏳ pending: portal submission is yours — error log updated ✓, README pre-existing ✓, repo/release URL comes from 12.1 Step 3)_
 
 ---
 
