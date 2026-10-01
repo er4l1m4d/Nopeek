@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ChallengeDao {
@@ -16,6 +17,9 @@ interface ChallengeDao {
 
     @Query("SELECT * FROM challenges WHERE localStatus IN ('CREATED', 'ACTIVE') ORDER BY startTime DESC")
     suspend fun getActiveChallenges(): List<ChallengeEntity>
+
+    @Query("SELECT * FROM challenges WHERE localStatus IN ('CREATED', 'ACTIVE') ORDER BY startTime DESC")
+    fun observeActive(): Flow<List<ChallengeEntity>>
 
     @Query("SELECT * FROM challenges ORDER BY startTime DESC")
     suspend fun getAll(): List<ChallengeEntity>

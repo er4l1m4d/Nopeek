@@ -750,15 +750,18 @@
 - Consumes: ProgramClient.getChallenge()
 - Produces: Real-time UI updates
 
-- [ ] Step 1: Poll challenge account
+- [x] Step 1: Poll challenge account
  Every 5 seconds via RPC getAccountInfo(challengePDA)
+ _(shipped: ChallengeRepository.startPolling — 5s loop over Room's CREATED/ACTIVE rows, getChallenge (getAccountInfo), cancellation-safe, swallows RPC errors until next tick; started once in MainActivity.onCreate)_
 
-- [ ] Step 2: Update Room database
+- [x] Step 2: Update Room database
  Compare status field, update UI state
+ _(shipped: pure resolveNextStatus(onChain 0..4 -> CREATED/ACTIVE/SETTLED/REFUNDED/BOTH_FAIL_LOCKED, null = unchanged) + dao.updateStatus; 3 unit tests; no schema change — status column only, per plan)_
 
-- [ ] Step 3: Show status in UI
+- [x] Step 3: Show status in UI
  ActiveChallengeScreen observes LiveData from Room
  Color-coded indicators: green=passing, red=exceeded, yellow=pending
+ _(app has no ActiveChallengeScreen — ChallengesScreen is the list it means; observes Room via Flow/collectAsState instead of LiveData (Compose-idiomatic). Colors: ACTIVE=Celadon/green, CREATED=Copper/yellow-pending, BOTH_FAIL_LOCKED=Clay/red, settled/refunded=muted. Usage-based passing vs exceeded (red-while-active) needs per-challenge usage persistence -> lands with Phase 8 report submission; annotate there.)_
 
 ---
 
