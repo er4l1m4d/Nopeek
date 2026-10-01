@@ -872,36 +872,41 @@
 - Consumes: Phase 2 wallet address
 - Produces: Mock identity verification (real hardware deferred)
 
-- [ ] Step 1: Define SeekerIdentityProvider interface
+- [x] Step 1: Define SeekerIdentityProvider interface
  Methods:
  - verifyGenesisToken(wallet: String): IdentityVerificationResult
  - resolveDomain(skrDomain: String): String?
 
  Sealed classes:
  - VerifiedSeeker / Unverified / Error
+ _(shipped: data/identity/IdentityProvider.kt — SeekerIdentityProvider interface + IdentityVerificationResult sealed interface with all three variants)_
 
-- [ ] Step 2: Implement mock provider
+- [x] Step 2: Implement mock provider
  MockSeekerProvider.kt:
  - verifyGenesisToken always returns Unverified (no hardware)
  - resolveDomain returns known demo addresses for .skr domains:
-   "alice.skr" -> "6o9DpPwoNMyfJx2Bw6rFByrZ2Z3r5qF7hJ8eD3aK9nB1mC5x"
-   "bob.skr" -> "9fG8jK2hL4mN7pQ1rT6sW3xY8bV5cD2eF9gH7jK4lM1nQ3r"
+ "alice.skr" -> "6o9DpPwoNMyfJx2Bw6rFByrZ2Z3r5qF7hJ8eD3aK9nB1mC5x"
+ "bob.skr" -> "9fG8jK2hL4mN7pQ1rT6sW3xY8bV5cD2eF9gH7jK4lM1nQ3r"
+ _(shipped: data/identity/MockSeekerProvider.kt (object) + handleFor reverse lookup for badges. Deviation — plan's printed addresses were not valid Solana pubkeys (bob's contains 'l', outside base58; alice's decodes to 35 bytes): kept plan prefixes, completed to valid 32-byte keys ("…K9nB", "…K4ABC"), test asserts decode size == 32. Unknown handles still fall back to Phase 2's SHA mock so validation doesn't regress)_
 
-- [ ] Step 3: Inject in WalletManager
+- [x] Step 3: Inject in WalletManager
  WalletManager uses MockSeekerProvider by default
  Replaceable via DI in future when Seeker hardware available
+ _(shipped: WalletManager.identityProvider var = MockSeekerProvider; swap point documented in docs/seeker-future-integration.md)_
 
-- [ ] Step 4: Placeholder badge in UI
+- [x] Step 4: Placeholder badge in UI
  In ProfileScreen:
  "Seeker Status: Not Verified (requires Seeker hardware)"
  In challenge screens:
  "Opponent: alice.skr [Unverified]"
+ _(shipped: seekerStatusLabel() derives the Profile row from the provider; ChallengesScreen opponentSubtitle() shows "Opponent: alice.skr [Unverified] · 20m limit" for known handles, short address otherwise; 7 tests incl. subtitle + parseOpponent routing)_
 
-- [ ] Step 5: Document future integration
+- [x] Step 5: Document future integration
  Create `docs/seeker-future-integration.md`:
  - Replace MockSeekerProvider with SeedVaultIdentityProvider
  - Add Genesis Token verification via solana-mobile SDK
  - Add Secure Element signing for high-security features
+ _(shipped: docs/seeker-future-integration.md covering all three + .skr real-resolution notes)_
 
 ---
 

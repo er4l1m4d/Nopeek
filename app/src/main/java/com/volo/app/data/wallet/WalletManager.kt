@@ -5,6 +5,8 @@ import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
 import com.solana.mobilewalletadapter.clientlib.ConnectionIdentity
 import com.solana.mobilewalletadapter.clientlib.MobileWalletAdapter
 import com.solana.mobilewalletadapter.clientlib.TransactionResult
+import com.volo.app.data.identity.MockSeekerProvider
+import com.volo.app.data.identity.SeekerIdentityProvider
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -12,6 +14,12 @@ import kotlinx.coroutines.CancellationException
  * Sign-in uses the wallet's own UI; this only tracks the resulting state.
  */
 internal class WalletManager {
+
+    /**
+     * Plan 10.1 Step 3: MockSeekerProvider by default (no hardware); replaceable
+     * via DI once a real Seeker identity provider lands (docs/seeker-future-integration.md).
+     */
+    var identityProvider: SeekerIdentityProvider = MockSeekerProvider
 
     var state: WalletState = WalletState.Disconnected
         private set

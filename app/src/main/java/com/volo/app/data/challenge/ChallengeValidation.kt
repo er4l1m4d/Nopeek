@@ -1,5 +1,6 @@
 package com.volo.app.data.challenge
 
+import com.volo.app.data.identity.MockSeekerProvider
 import com.volo.app.data.wallet.Base58
 import java.security.MessageDigest
 
@@ -33,13 +34,14 @@ fun ChallengeInputError.message(): String = when (this) {
 
 /**
  * Opponent input is either a raw base58 Solana pubkey (32 bytes) or a `.skr` handle.
- * `.skr` resolution is mocked: deterministic SHA-256 -> base58 pubkey until the real
- * resolution path lands (ledger Row 6 gates external services).
+ * Known demo handles resolve through MockSeekerProvider (plan 10.1); unknown handles
+ * fall back to the deterministic SHA-256 -> base58 mock from Phase 2 validation.
  */
 fun parseOpponent(input: String): String? {
     val trimmed = input.trim()
     if (trimmed.isEmpty()) return null
     if (trimmed.endsWith(".skr", ignoreCase = true)) {
+        MockSeekerProvider.resolveDomain(trimmed)?.let { return it }
         val name = trimmed.dropLast(".skr".length)
         if (name.isEmpty()) return null
         return mockResolveSkr(trimmed)

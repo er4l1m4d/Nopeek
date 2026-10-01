@@ -118,7 +118,7 @@ fun ProfileScreen(onOpenDuels: () -> Unit = {}) {
                 onClick = { if (skrOpen == true) onOpenDuels() },
             )
         }
-        ProfileRow("Seeker status", "Verification unavailable on this device")
+        ProfileRow("Seeker Status", seekerStatusLabel())
         ProfileRow(
             label = "Usage access",
             value = usageState.label(),
@@ -127,6 +127,15 @@ fun ProfileScreen(onOpenDuels: () -> Unit = {}) {
         ProfileRow("Privacy", "Review what Volo measures")
     }
 }
+
+/** Plan 10.1 Step 4: "Seeker Status: Not Verified (requires Seeker hardware)". */
+internal fun seekerStatusLabel(): String =
+    when (walletManager.identityProvider.verifyGenesisToken(walletManager.walletAddress.orEmpty())) {
+        is com.volo.app.data.identity.IdentityVerificationResult.VerifiedSeeker -> "Verified Seeker"
+        is com.volo.app.data.identity.IdentityVerificationResult.Error -> "Verification error"
+        com.volo.app.data.identity.IdentityVerificationResult.Unverified ->
+            "Not Verified (requires Seeker hardware)"
+    }
 
 /** Plan 9.1 Step 3: SKR >= 10 -> "Open Duels: Available" badge, else locked. */
 @Composable

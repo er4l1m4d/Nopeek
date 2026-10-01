@@ -56,6 +56,20 @@ internal fun statusColors(localStatus: String): Pair<Color, Color> = when (local
 }
 
 /**
+ * Plan 10.1 Step 4: challenge rows badge known .skr opponents as
+ * "Opponent: alice.skr [Unverified]"; raw wallets keep the short-address line.
+ */
+internal fun opponentSubtitle(opponentWallet: String, limitSeconds: Int): String {
+    val handle = com.volo.app.data.identity.MockSeekerProvider.handleFor(opponentWallet)
+    val left = if (handle != null) {
+        "Opponent: $handle [Unverified]"
+    } else {
+        "vs ${opponentWallet.take(4)}…${opponentWallet.takeLast(4)}"
+    }
+    return "$left · ${limitSeconds / 60}m limit"
+}
+
+/**
  * Plan 8.2: an ACTIVE challenge whose window has ended is ready for the
  * user-signed on-chain settle transaction (pure — tested).
  */
@@ -145,8 +159,7 @@ private fun ChallengeEntityRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                "vs ${entity.opponentWallet.take(4)}…${entity.opponentWallet.takeLast(4)} · " +
-                    "${entity.limitSeconds / 60}m limit",
+                opponentSubtitle(entity.opponentWallet, entity.limitSeconds),
                 color = Muted,
                 fontSize = 12.sp,
             )
