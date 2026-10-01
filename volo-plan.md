@@ -123,10 +123,11 @@
 - Consumes: Phase 0.2 devnet wallet
 - Produces: >100 USDC in devnet associated token account
 
-- [ ] **Step 1: Find USDC mint for devnet**
+- [x] **Step 1: Find USDC mint for devnet**
  ⛔ blocked — no SOL; plan's Goerli faucet steps obsolete, re-verify current path when unfunded (ledger Row 5)
  Known devnet USDC mint: `Ejmc1UB4EsES5h32u8Fp1avkX4rM2e4HFEh3o4HkF2sX`
  Save to `contracts/program/USDC_MINT.txt`
+ _(shipped: mint found + saved to contracts/program/USDC_MINT.txt. **Corrected**: Circle's official docs list Solana Devnet USDC = `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (verified 2026-10-01) — plan's `Ejmc1UB4...` is stale; code already uses the correct one (SolanaConfig.USDC_MINT). Steps 2–3 (faucet) still pending wallet funding)_
 
 - [ ] **Step 2: Request tokens from Circle Devnet Faucet**
  1. Go to: https://faucet.circle.com/usdc-ethereum
@@ -1016,11 +1017,11 @@
  Target APK size < 20 MB
  _(shipped: proguard-android-optimize + app/proguard-rules.pro (MWA keeps), isShrinkResources, extractNativeLibs="false". Result: app-release.apk = 1,446,257 bytes = **1.38 MB** — target met with room to spare. Bonus find during 12.2 Step 1: manifest was missing INTERNET + PACKAGE_USAGE_STATS permissions — release would have had no network/usage access; both added and verified via aapt dump)_
 
-- [ ] Step 3: Upload to GitHub
+- [x] Step 3: Upload to GitHub
  Create release at github.com/[repo]/releases/tag/v1.0
  Upload app-release.apk
  Copy release URL
- _(⏳ pushed/created after commit — see below)_
+ _(shipped: tag v1.0 pushed with app-release.apk — https://github.com/er4l1m4d/Volo/releases/tag/v1.0 ; branch plan-execution pushed)_
 
 ### Task 12.2: Final Verification + Error Log Review
 
