@@ -43,6 +43,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.navigation:navigation-compose:2.9.2")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.solanamobile:mobile-wallet-adapter-clientlib:2.1.1")
+    implementation("com.solanamobile:mobile-wallet-adapter-common:2.1.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }
