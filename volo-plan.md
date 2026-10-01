@@ -59,19 +59,21 @@
 - Consumes: Android Studio 2025.3.2 (installed)
 - Produces: SDK with API 33 + Build Tools only
 
-- [ ] **Step 1: Configure SDK location**
+- [x] **Step 1: Configure SDK location**
  Open Android Studio -> Settings -> Appearance & Behavior -> System Settings -> Android SDK
  Set SDK path to: `C:\Users\hp\AppData\Local\Android\Sdk`
  Click "SDK Platform" tab
 
-- [ ] **Step 2: Install SDK Platform 33**
+- [x] **Step 2: Install SDK Platform 33**
+ _(installed 33 + 35; API 35 required by compileSdk-35 env ruling — ledger 1.1)_
  In SDK Manager:
  - Check "Show Package Details"
  - Check ONLY: API 33 (Android 13.0) -> Build-Tools 33.0.0
  - Uncheck ALL other packages (no emulator, no system images, no NDK)
  Click "Apply" + "OK" to install
 
-- [ ] **Step 3: Verify footprint**
+- [x] **Step 3: Verify footprint**
+ _(verified: platforms 33+35, build-tools 33+34, no emulator — ledger 0.1)_
  Run: `dir "$env:LOCALAPPDATA\Android\Sdk" /s /d`
  Expected: Only these directories:
  - platforms\android-33
@@ -91,7 +93,7 @@
 - Consumes: Git Bash at `C:\Program Files\Git\git-bash.exe`
 - Produces: Solana CLI wallet with 2 SOL on devnet
 
-- [ ] **Step 1: Install Solana CLI 1.17.0**
+- [x] **Step 1: Install Solana CLI 1.17.0**
  In Git Bash:
  ```bash
  sh -c "$(curl -sSfL https://release.solana.com/v1.17.0/install)"
@@ -101,6 +103,7 @@
  Expected: `solana --version` returns `solana-cli 1.17.0`
 
 - [ ] **Step 2: Create devnet wallet + fund**
+ ⛔ blocked — wallet `6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj` created, airdrop rate-limited (0 SOL); see ledger Row 9
  ```bash
  solana config set --url https://api.devnet.solana.com
  solana-keygen new --no-bip39-passphrase --silent --force
@@ -121,6 +124,7 @@
 - Produces: >100 USDC in devnet associated token account
 
 - [ ] **Step 1: Find USDC mint for devnet**
+ ⛔ blocked — no SOL; plan's Goerli faucet steps obsolete, re-verify current path when unfunded (ledger Row 5)
  Known devnet USDC mint: `Ejmc1UB4EsES5h32u8Fp1avkX4rM2e4HFEh3o4HkF2sX`
  Save to `contracts/program/USDC_MINT.txt`
 
@@ -150,6 +154,7 @@
 - Produces: Live project URL + anon key
 
 - [ ] **Step 1: Create Supabase project**
+ ⛔ blocked — interactive signup required; local artifacts + checklist deferred (ledger Row 6)
  Go to https://supabase.com/dashboard
  Click "New Project":
  Name: `volo-accounts`
@@ -246,16 +251,18 @@
 - Consumes: Phase 0 Android SDK
 - Produces: Runnable empty Compose app on physical phone
 
-- [ ] Step 1: Create new project in Android Studio
+- [x] Step 1: Create new project in Android Studio
+ _(retrofitted into existing approved app `com.volo.app` instead of new `com.volofinal.volofinal` project — ledger Row 1)_
   File -> New -> Empty Compose Activity
   Name: Volo | Package: com.volofinal.volofinal | Language: Kotlin | Min SDK: 33
   UNCHECK Enable Night Mode
 
-- [ ] Step 2: Define data models
+- [x] Step 2: Define data models
  Create Models.kt with Challenge, UsageReport, SettlementResult data classes
  (See detailed definition in original brainstorm)
 
-- [ ] Step 3: Verify app compiles + runs
+- [x] Step 3: Verify app compiles + runs
+ _(APK built and installed on user's physical phone)_
  Connect phone via USB -> Run in Android Studio -> select physical device
  Expected: White screen with Hello Android text
 
@@ -270,16 +277,20 @@
 - Consumes: Phase 1.1 project
 - Produces: NavHost with 4 routes
 
-- [ ] Step 1: Add Navigation dependency
+- [x] Step 1: Add Navigation dependency
+ _(navigation-compose:2.9.2, newer than 2.7.7)_
  In build.gradle.kts: implementation androidx.navigation:navigation-compose:2.7.7
 
-- [ ] Step 2: Create NavGraph.kt
+- [x] Step 2: Create NavGraph.kt
+ _(shipped as `navigation/NavGraph.kt` + `NavRoutes.kt`; 5 destinations: home, challenges, create_challenge, activity, profile + active_challenge/{pubkey} full-screen — ledger 1.2)_
  Four routes: home, create_challenge, active_challenge/{pubkey}, profile
 
-- [ ] Step 3: Set up light theme
+- [x] Step 3: Set up light theme
+ _(mineral-ink + oxidized-copper palette per approved UI spec instead of #6366F1 indigo — ledger Row 1)_
  Primary: #6366F1 | Secondary: #8B5CF6 | Background: #FFFFFF
 
-- [ ] Step 4: Verify navigation works
+- [x] Step 4: Verify navigation works
+ _(tested on phone during prototype review + NavRoutesTest 3/3)_
  Run app then tap between screens
  Expected: Each screen displays its name
 
@@ -297,17 +308,20 @@
 - Consumes: Phase 1 project with navigation
 - Produces: Project compiles with Solana Mobile SDK
 
-- [ ] Step 1: Add dependencies
+- [x] Step 1: Add dependencies
+ _(shipped `com.solanamobile:mobile-wallet-adapter-clientlib:2.1.1` + `-common`; web3j dropped, seedvault omitted — ledger Row 3 / 2.1)_
  In `app/build.gradle.kts` (Module level):
    implementation 'com.solanamobile:seedvault:1.0.1'
    implementation 'com.solanamobile:mobile-wallet-adapter:1.2.0'
    implementation 'com.solanamobile:mobile-wallet-adapter-client:1.2.0'
    implementation 'org.web3j:core:5.0.0'
 
-- [ ] Step 2: Add intent filter
+- [x] Step 2: Add intent filter
+ _(singleTask added + `<queries>` entry for `solana-wallet` scheme)_
  In AndroidManifest.xml: add `android:launchMode="singleTask"` to MainActivity
 
-- [ ] Step 3: Verify project syncs
+- [x] Step 3: Verify project syncs
+ _(assembleDebug BUILD SUCCESSFUL)_
  Click "Sync Now" in Android Studio
  Expected: No Gradle errors
 
@@ -321,25 +335,36 @@
 - Consumes: Phase 2.1 dependencies
 - Produces: "Connect Wallet" button shows wallet address
 
-- [ ] Step 1: Create WalletManager singleton
+- [x] Step 1: Create WalletManager singleton
+ Create WalletManager.kt with:
+   - connect(activity: Activity): Result<String>
+   - signTransaction(txn: Transaction): Result<String>
+   - walletAddress property
+ _(shipped: connect/disconnect via MWA ktx, WalletState sealed states, walletAddress getter; signTransaction deferred to Phase 7 tx work — ledger 2.2)_
  Create WalletManager.kt with:
    - connect(activity: Activity): Result<String>
    - signTransaction(txn: Transaction): Result<String>
    - walletAddress property
 
-- [ ] Step 2: Implement connect()
+- [x] Step 2: Implement connect()
+ Use MobileWalletAdapter with ConnectionSpecification
+ Handle: NoMatchingWalletFound, UserCanceled exceptions
+ Store Account object for session reuse
+ _(shipped: MWA `connect(sender)` → TransactionResult; NoWalletFound/Cancel/Failure → AssociationOutcome; account retained in Connected state)_
  Use MobileWalletAdapter with ConnectionSpecification
  Handle: NoMatchingWalletFound, UserCanceled exceptions
  Store Account object for session reuse
 
-- [ ] Step 3: Hook up to HomeScreen UI
+- [x] Step 3: Hook up to HomeScreen UI
  Button onClick: trigger wallet connection via MWA
  Update UI based on result (Connected state shows address)
+ _(hooked on ProfileScreen wallet row instead of HomeScreen, per approved UI spec — ledger 2.2; Disconnect + error states also wired)_
 
 - [ ] Step 4: Test wallet connection
  Install Phantom or Solflare on phone
  Click "Connect Wallet" -> select wallet -> approve connection
  Expected: Screen shows devnet wallet address
+ ⏳ pending on-device test (user step); code + tests complete (commit 226d356)
 
 ---
 
@@ -354,20 +379,23 @@
 - Consumes: Physical phone in developer mode
 - Produces: Detectable Usage Access permission state
 
-- [ ] Step 1: Create UsagePermissionHelper
+- [x] Step 1: Create UsagePermissionHelper
  Object with:
    isGranted(context: Context): Boolean
    requestPermission(activity: Activity)
+ _(shipped: `state(context)` via AppOpsManager.checkOpNoThrow + `settingsIntent()`; pure `usagePermissionStateForMode` mapping tested — UsagePermissionStateTest 6/6)_
 
-- [ ] Step 2: Add permission screen
+- [x] Step 2: Add permission screen
  When user clicks "Start Tracking":
    - If not granted: show rationale -> open Settings.ACTION_USAGE_ACCESS_SETTINGS
    - Track permission state via AppOpsManager.checkOpNoThrow
+ _(shipped inline on ProfileScreen "Usage access" row (state text + tap-to-open Settings); no separate screen — ledger 3.1)_
 
 - [ ] Step 3: Handle result + verify
  After user returns from settings, re-check permission
  Show success/failure Toast
  Test on phone: toggle off/on permission manually
+ _(re-check implemented via lifecycle ON_RESUME observer; toast + on-device toggle test pending — user step)_
 
 ### Task 3.2: UsageStatsManager + WorkManager
 

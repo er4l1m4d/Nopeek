@@ -18,19 +18,28 @@ import androidx.compose.material.icons.outlined.Wallet
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.volo.app.data.usage.UsagePermissionHelper
 import com.volo.app.data.wallet.WalletState
 import com.volo.app.data.wallet.walletManager
 import com.volo.app.navigation.LocalActivityResultSender
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.volo.app.ui.theme.Clay
 import com.volo.app.ui.theme.Copper
 import com.volo.app.ui.theme.DuelMuted
@@ -44,6 +53,17 @@ fun ProfileScreen() {
     val scope = rememberCoroutineScope()
     val walletState = walletManager.state
 
+    val context = LocalContext.current
+    var usageState by remember { mutableStateOf(UsagePermissionHelper.state(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) usageState = UsagePermissionHelper.state(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Profile", color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold)
         WalletRow(
@@ -53,7 +73,11 @@ fun ProfileScreen() {
         )
         ProfileRow("Seeker status", "Verification unavailable on this device")
         ProfileRow("SKR balance", "Not connected")
-        ProfileRow("Usage access", "Enabled")
+        ProfileRow(
+            label = "Usage access",
+            value = usageState.label(),
+            onClick = { runCatching { context.startActivity(UsagePermissionHelper.settingsIntent()) } }
+        )
         ProfileRow("Privacy", "Review what Volo measures")
     }
 }
@@ -112,8 +136,13 @@ private fun shorten(address: String): String =
     if (address.length <= 12) address else "${address.take(4)}…${address.takeLast(6)}"
 
 @Composable
-private fun ProfileRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun ProfileRow(label: String, value: String, onClick: (() -> Unit)? = null) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).let { row ->
+            if (onClick != null) row.clickable(onClick = onClick) else row
+        }.padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(Modifier.weight(1f)) { Text(label, color = Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp); Text(value, color = Muted, fontSize = 12.sp) }
         Icon(Icons.Outlined.ArrowForward, contentDescription = "Open $label", tint = Muted, modifier = Modifier.size(18.dp))
     }
