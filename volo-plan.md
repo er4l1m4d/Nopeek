@@ -621,26 +621,31 @@
 - Consumes: Phase 0.4 Supabase setup
 - Produces: Live API endpoints
 
-- [ ] Step 1: Add submit-report handler
+- [x] Step 1: Add submit-report handler
  POST /submit-report validates JSON and inserts into usage_reports table
+ _(shipped: validation of camelCase payload from 8.1 Step 1 — challengePubkey/walletPubkey/usedSeconds/window times/tamperSignals; base58 + range checks; 400 on invalid, insert via service role. Also added /register-challenge (plan gap: nothing else ever wrote challenges, but 6.2 Step 1 reads limit from it; app calls it after on-chain create in Phase 7/8) and optional x-oracle-secret auth via ORACLE_API_SECRET env)_
 
-- [ ] Step 2: Add settle handler
+- [x] Step 2: Add settle handler
  POST /settle fetches both reports, determines results, stores in settlement_results
+ _(shipped: latest report per wallet; missing report -> UNVERIFIED; upsert settlement_results + challenges.status update; returns creatorResult/opponentResult codes for on-chain settle instruction (Phase 8.2))_
 
-- [ ] Step 3: Implement result logic
+- [x] Step 3: Implement result logic
  - If tamper_signals has PERMISSION_REVOKED or CLOCK_CHANGED -> UNVERIFIED
  - If used_seconds <= limit -> PASS
  - Else -> FAIL
+ _(shipped: supabase/functions/oracle/determine_result.ts, TDD — 12/12 node tests green (determine_result.test.ts); UNVERIFIED counts as FAIL for outcome but keeps code 3 on-chain)_
 
 - [ ] Step 4: Set environment variables
  In Supabase -> Settings -> Functions -> Environment:
  SUPABASE_URL = your-project-url
  SUPABASE_SERVICE_ROLE_KEY = your-service-role-key
+ ⏳ pending user (also set ORACLE_API_SECRET — checklist in contracts/USER_ACTIONS.md)
 
 - [ ] Step 5: Deploy function
  Deploy via Dashboard: Functions -> oracle -> Deploy
  Test: curl https://[project-ref].supabase.co/functions/v1/oracle/health
  Expected: returns alive status
+ ⏳ pending user (deploy artifacts ready in supabase/functions/oracle/)
 
 ### Task 6.2: Settlement Result Determination
 
@@ -651,15 +656,18 @@
 - Consumes: usage_reports table populated by app
 - Produces: settlement_results table updated
 
-- [ ] Step 1: Implement determineResult logic
+- [x] Step 1: Implement determineResult logic
  Read challenge limit from challenges table to compare with used_seconds
+ _(shipped: settle reads challenges.limit_seconds + latest usage_reports per wallet; same tested module as 6.1 Step 3)_
 
-- [ ] Step 2: Handle both-fail scenario
+- [x] Step 2: Handle both-fail scenario
  If both FAIL -> set both_fail=true -> status BOTH_FAIL_LOCKED
+ _(shipped: settleOutcome() bothFail flag + challenges.status = BOTH_FAIL_LOCKED; tests cover UNVERIFIED-as-fail edge)_
 
 - [ ] Step 3: Test result determination
  Submit fake reports with known usage seconds
  Verify settlement_results table updated correctly
+ ⏳ pending user (needs deployed project + SQL migration — see contracts/USER_ACTIONS.md; pure logic already covered by 12 local tests)
 
 ---
 

@@ -31,6 +31,26 @@ else for Phase 5 is already written locally.
 - [ ] Run the 16 cases in `contracts/tests/manual-test-cases.md` via the Call tab.
 - [ ] Report any FAIL that isn't listed as an expected rejection.
 
+## Phase 6: Supabase oracle (6.1 Steps 4–5 + 6.2 Step 3)
+
+- [ ] Create the Supabase project (0.4 — https://supabase.com, free tier).
+- [ ] SQL Editor → paste `supabase/migrations/20261001_volo_init.sql` → Run.
+- [ ] Settings → Functions → Environment: set
+      `SUPABASE_URL = https://<ref>.supabase.co`,
+      `SUPABASE_SERVICE_ROLE_KEY = <service-role key>`,
+      `ORACLE_API_SECRET = <random string>` (function rejects requests missing
+      header `x-oracle-secret` once this is set — remove it if you want it open).
+- [ ] Functions → `oracle` → deploy `supabase/functions/oracle/` (Dashboard
+      "Deploy from source" or `supabase functions deploy oracle`). Also disable
+      "Verify JWT" for this function (the app sends its own secret header, not a
+      Supabase JWT).
+- [ ] Test: `curl https://<ref>.supabase.co/functions/v1/oracle/health`
+      Expected: `{"status":"alive", ...}` (add `-H "x-oracle-secret: ..."` if set).
+- [ ] 6.2 Step 3 test: call `/register-challenge` with a fake base58 challenge
+      pubkey, then `/submit-report` with known `usedSeconds` above/below limit,
+      then `/settle` — check `settlement_results` row matches the matrix in
+      `contracts/tests/manual-test-cases.md` (cases 7–10).
+
 ## Later phases also gated on you (heads-up)
 
 - Phase 0.2–0.3: devnet SOL airdrop + USDC faucet (plan's Goerli steps are obsolete).
