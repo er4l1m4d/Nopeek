@@ -19,12 +19,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.volo.app.ui.theme.Copper
+import com.volo.app.ui.theme.Ink
 
 @Composable
 fun StatusChip(label: String, background: Color, content: Color) {
     Text(
         label, color = content, fontSize = 10.sp, letterSpacing = .8.sp, fontWeight = FontWeight.Bold,
         modifier = Modifier.clip(CircleShape).background(background).padding(horizontal = 10.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
+fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (selected) Color.White else Ink,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) Copper else Color.White)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp)
     )
 }
 

@@ -23,4 +23,22 @@ internal object Base58 {
         if (num > ZERO) digits.append(ALPHABET[num.toInt()])
         return "1".repeat(leadingZeros) + digits.reverse().toString()
     }
+
+    fun decode(text: String): ByteArray? {
+        if (text.isEmpty()) return null
+        val leadingOnes = text.takeWhile { it == '1' }.count()
+        var num = BigInteger.ZERO
+        for (ch in text) {
+            val idx = ALPHABET.indexOf(ch)
+            if (idx < 0) return null
+            num = num.multiply(BASE).add(BigInteger.valueOf(idx.toLong()))
+        }
+        val magnitude = if (num == ZERO) {
+            ByteArray(0)
+        } else {
+            val raw = num.toByteArray()
+            if (raw.size > 1 && raw[0] == 0.toByte()) raw.copyOfRange(1, raw.size) else raw
+        }
+        return ByteArray(leadingOnes) + magnitude
+    }
 }

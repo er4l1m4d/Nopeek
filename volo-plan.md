@@ -407,31 +407,36 @@
 - Consumes: Phase 3.1 permission system
 - Produces: Aggregate usage seconds + tamper signals
 
-- [ ] Step 1: Create UsageTracker
+- [x] Step 1: Create UsageTracker
  Track MOVE_TO_FOREGROUND / MOVE_TO_BACKGROUND events per package
  Calculate: totalMs = sum of (background_timestamp - foreground_timestamp)
  Convert to usedSeconds = totalMs / 1000
+ _(shipped as pure `aggregateUsage` with window clipping + unclosed-session handling; UsageAggregatorTest 9/9 — ledger 3.2)_
 
-- [ ] Step 2: Implement tamper signal detection
+- [x] Step 2: Implement tamper signal detection
    PERMISSION_REVOKED: AppOpsManager.checkOpNoThrow returns DENY
    CLOCK_CHANGED: System.currentTimeMillis() jumped backward >5 min
    REPORT_LATE: Current time vs scheduled window_end exceeds grace period
+ _(shipped as pure `detectTamperSignals`; clock jump tracked via SharedPreferences 5-min threshold in UsageWorker; grace default 60s)_
 
-- [ ] Step 3: Create UsageWorker
+- [x] Step 3: Create UsageWorker
  Extends Worker class:
    doWork(): fetch challenge params from Room DB -> query usage -> POST to oracle
    Handle network retry: 3 attempts, exponential backoff
+ _(shipped: params via WorkManager input data until Room lands at 4.2 — ledger Row 2; real POST + retry deferred to 8.2 where the network call exists; `postReport` is a stub now)_
 
-- [ ] Step 4: Schedule WorkManager
+- [x] Step 4: Schedule WorkManager
  scheduleDailySync():
    - PeriodicWorkRequest: 15-minute intervals
    - Constraints: Required network connected
    - Input data: challenge_pubkey, target_package, window_start/end
+ _(shipped as `UsageWorker.scheduleUsageSync` — unique periodic work per challenge pubkey, ExistingPeriodicWorkPolicy.UPDATE; invoked when challenge creation lands in 4.x)_
 
 - [ ] Step 5: Test on phone
  Start tracking TikTok for 5 min -> force-stop TikTok -> return to Volo
  Click Sync Now manually
  Expected: Shows real usage seconds
+ ⏳ pending on-device test (user step); code complete — commit 48c2eb9
 
 ---
 
