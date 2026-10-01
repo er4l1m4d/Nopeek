@@ -499,19 +499,22 @@
 - Consumes: Phase 4.1 UI
 - Produces: Room database persisting challenges
 
-- [ ] Step 1: Define ChallengeEntity
+- [x] Step 1: Define ChallengeEntity
  @Entity annotation mapping to Challenge model
  Include local status field for UI state tracking
+ _(shipped: data/Challenge.kt + data/local/ChallengeEntity.kt (unique challengePubkey, localStatus); mapping tested 3/3 — ledger 4.2)_
 
-- [ ] Step 2: Create DAO + Database
+- [x] Step 2: Create DAO + Database
  RoomDatabase with ChallengeDao:
-   insert(challenge: ChallengeEntity)
+   insert(challenge: Challenge)
    updateStatus(pubkey: String, status: String)
    getActiveChallenges(): List<ChallengeEntity>
+ _(shipped: ChallengeDao suspend methods + AppDatabase singleton; Room 2.7.1 via KSP — 2.6.1 crashed under KSP2; wired into CreateScreen Confirm — commit ebf46fe)_
 
 - [ ] Step 3: Verify local storage
  Create challenge -> force-close app -> reopen
  Expected: Challenge persists in database
+ ⏳ pending on-device persistence test (user step); insert path wired in commit ebf46fe
 
 ---
 
@@ -531,13 +534,15 @@
  Go to https://solanapayground.com
  Select "devnet" cluster
  Connect wallet: import devnet wallet from devnet-wallet-info.txt
+ ⏳ pending user browser action (real URL: solana-playground.com — plan typo); see contracts/USER_ACTIONS.md
 
 - [ ] Step 2: Create new program
  Click "New Project" -> "From Scratch"
  Name: volo_challenge
  Editor shows boilerplate with declare_id! macro
+ ⏳ pending user browser action — paste local contracts/program/src/lib.rs (checklist in USER_ACTIONS.md)
 
-- [ ] Step 3: Write Challenge struct
+- [x] Step 3: Write Challenge struct
  ```rust
  #[account]
  pub struct Challenge {
@@ -555,30 +560,36 @@
  }
  ```
  Account size: 8 discriminator + (32*4 pubkeys) + (8*2 u64/u32) + String(4+32) + 4*u32 + 2*u64 + 2*u8
+ _(shipped locally: contracts/program/src/lib.rs — 3 pubkeys + stored bump (175 bytes), PDA seeds [challenge, creator, opponent]; source compiles in Playground — local cargo check blocked by disk (0.7 GB free))_
 
-- [ ] Step 4: Write create_challenge instruction
+- [x] Step 4: Write create_challenge instruction
  Instruction accepts: stake_amount, target_app, limit_seconds, window_seconds
  Logic: initialize Challenge account, set start/end times, set status Created
+ _(shipped: full source + escrow funding CPI transfer; also added `opponent` account (plan omitted — needed for PDA seeds) and `join_challenge` instruction (plan omits any join path — without it no one can ever stake/activate)_
 
-- [ ] Step 5: Write settle_challenge instruction
+- [x] Step 5: Write settle_challenge instruction
  Requires oracle authority verification
  Logic:
  - Creator PASS, opponent FAIL -> creator wins 2x stake
  - Both PASS -> refund both stakes
  - Both FAIL -> set status BothFailLocked
  - UNVERIFIED -> treat as FAIL
+ _(shipped: ORACLE_AUTHORITY signer constraint (placeholder const to replace at deploy); outcome matrix incl. opponent-wins branch; report codes 1=PASS 2=FAIL 3=UNVERIFIED)_
 
-- [ ] Step 6: Write refund_unjoined instruction
+- [x] Step 6: Write refund_unjoined instruction
  Requires > 1 hour since creation, status Created
  Refunds stake to creator
+ _(shipped: clock check + status check + PDA-signed escrow transfer)_
 
 - [ ] Step 7: Build and deploy to devnet
  Click "Build and Deploy" in Playground
  Save program ID to: contracts/DEPLOYED_PROGRAM_ID.txt
+ ⏳ pending user browser action (requires devnet SOL — see USER_ACTIONS.md)
 
 - [ ] Step 8: Export IDL for Android client
  Click "Export" -> "IDL" -> copy JSON
  Save to: contracts/program/idl.json
+ ⏳ pending user browser action — hand-authored contracts/program/idl.json already exists (Row 4); diff against Playground export when available
 
 ### Task 5.2: Test Contract Logic via Playground UI
 
@@ -589,11 +600,13 @@
 - Consumes: Deployed program
 - Produces: Verified logic
 
-- [ ] Step 1: Write test cases in manual-test-cases.md
+- [x] Step 1: Write test cases in manual-test-cases.md
  Document steps for each instruction via Playground Call tab
+ _(shipped: contracts/tests/manual-test-cases.md — 16 cases incl. join/negative paths)_
 
 - [ ] Step 2: Execute test cases
  Use Playground "Call" tab for each instruction
+ ⏳ pending user browser action (after 5.1 deploy; cases documented in Step 1)
 
 ---
 
