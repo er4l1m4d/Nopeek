@@ -19,6 +19,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -32,6 +33,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
 import com.volo.app.ui.screens.ActivityScreen
 import com.volo.app.ui.screens.ChallengesScreen
 import com.volo.app.ui.screens.CreateScreen
@@ -42,6 +44,8 @@ import com.volo.app.ui.theme.Copper
 import com.volo.app.ui.theme.Duel
 import com.volo.app.ui.theme.Muted
 import com.volo.app.ui.theme.Paper
+
+val LocalActivityResultSender = staticCompositionLocalOf<ActivityResultSender?> { null }
 
 private enum class Destination(val label: String, val route: String) {
     Home("Home", NavRoutes.HOME),

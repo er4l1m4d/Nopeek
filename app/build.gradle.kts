@@ -30,6 +30,22 @@ android {
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+
+    configurations.all {
+        // Ruling (ledger Row 3): clientlib-ktx 2.1.1 transitively demands androidx activity 1.13 /
+        // core 1.18 (compileSdk 36 + AGP 8.9.1). Pin to the versions this project already builds
+        // with; the ktx APIs used (registerForActivityResult, lifecycle.whenResumed) exist here.
+        resolutionStrategy {
+            force("androidx.activity:activity:1.10.1")
+            force("androidx.activity:activity-ktx:1.10.1")
+            force("androidx.activity:activity-compose:1.10.1")
+            force("androidx.core:core:1.15.0")
+            force("androidx.core:core-ktx:1.15.0")
+        }
+        // navigationevent (AGP 8.9.1+, Kotlin 2.1 classes) breaks the Kotlin 2.0.21 analyzer and
+        // is not referenced by the ktx association APIs we use.
+        exclude(group = "androidx.navigationevent")
+    }
 }
 
 dependencies {
@@ -44,6 +60,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.2")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.solanamobile:mobile-wallet-adapter-clientlib:2.1.1")
+    implementation("com.solanamobile:mobile-wallet-adapter-clientlib-ktx:2.1.1")
     implementation("com.solanamobile:mobile-wallet-adapter-common:2.1.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
