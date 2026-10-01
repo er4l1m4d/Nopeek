@@ -22,6 +22,7 @@ object NavRoutes {
     const val RECOVERY_LOCK = "recovery_lock/{pubkey}"
     const val ACTIVITY = "activity"
     const val PROFILE = "profile"
+    const val OPEN_DUELS = "open_duels"
 
     fun activeChallenge(pubkey: String) = "active_challenge/$pubkey"
 

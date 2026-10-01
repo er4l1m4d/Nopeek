@@ -78,7 +78,7 @@ class ProgramClient(
         return TransactionCompiler.compileTransaction(blockhash, params.creator, listOf(ix))
     }
 
-    private fun rpc(method: String, params: JSONArray): JSONObject {
+    internal fun rpc(method: String, params: JSONArray): JSONObject {
         val body = JSONObject()
             .put("jsonrpc", "2.0")
             .put("id", 1)

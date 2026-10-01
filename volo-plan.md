@@ -834,24 +834,29 @@
 - Consumes: Phase 7.1 ProgramClient for RPC calls
 - Produces: SKR balance display + Open Duels feature gate
 
-- [ ] Step 1: Query SKR token balance
+- [x] Step 1: Query SKR token balance
  spl-token accounts for wallet -> find SKR mint balance
  SKR mint on devnet: check SolanaFM for official devnet address
+ _(shipped: TokenBalanceApi over ProgramClient's RPC (getBalance + getTokenAccountBalance on the wallet's ATA; missing ATA = 0); SKR mint taken from Solana Mobile official docs: SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3; 4 parse/format unit tests)_
 
-- [ ] Step 2: Display in Profile
+- [x] Step 2: Display in Profile
  Show: Wallet address, SOL balance, USDC balance, SKR balance
+ _(shipped: ProfileScreen rows — wallet address (short form; WalletRow also shows it), SOL (9dp), USDC, SKR balances with "Loading…" until the fetch returns; fetched via LaunchedEffect on connect)_
 
-- [ ] Step 3: Gate Open Duels
+- [x] Step 3: Gate Open Duels
  If SKR balance >= 10 -> show "Open Duels: Available" badge
  Else -> show "Unlock by staking 10 SKR" locked badge
+ _(shipped: OpenDuelsGateRow — Celadon available badge (clickable) vs muted locked badge, exact plan wording via openDuelsLabel(); threshold test covers exact-10, decimals-agnostic)_
 
-- [ ] Step 4: Create placeholder Open Duels screen
+- [x] Step 4: Create placeholder Open Duels screen
  Behind gate, shows: "Feature unlocked in full release"
- No actual matching logic â€” just demonstrates the gating mechanism
+ No actual matching logic — just demonstrates the gating mechanism
+ _(shipped: OpenDuelsScreen (Paper palette, trophy icon, exact copy) behind new route open_duels)_
 
 - [ ] Step 5: Verify on phone
  Connect wallet -> profile shows SKR balance
  Expected: Correct gate condition displayed
+ _(⏳ pending: device test — needs connected wallet with devnet SKR)_
 
 ---
 

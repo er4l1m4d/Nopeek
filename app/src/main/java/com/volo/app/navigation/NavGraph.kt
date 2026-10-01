@@ -105,7 +105,12 @@ fun VoloApp() {
                     CreateScreen(onCreated = { navController.navigateToTab(NavRoutes.CHALLENGES) })
                 }
                 composable(NavRoutes.ACTIVITY) { ActivityScreen() }
-                composable(NavRoutes.PROFILE) { ProfileScreen() }
+                composable(NavRoutes.PROFILE) {
+                    ProfileScreen(onOpenDuels = { navController.navigate(NavRoutes.OPEN_DUELS) })
+                }
+                composable(NavRoutes.OPEN_DUELS) {
+                    com.volo.app.ui.screens.OpenDuelsScreen(onBack = { navController.popBackStack() })
+                }
                 composable(
                     route = NavRoutes.ACTIVE_CHALLENGE,
                     arguments = listOf(navArgument("pubkey") { type = NavType.StringType })

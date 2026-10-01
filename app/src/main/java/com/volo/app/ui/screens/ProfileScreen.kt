@@ -19,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,15 +41,17 @@ import com.volo.app.navigation.LocalActivityResultSender
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.volo.app.ui.theme.Celadon
 import com.volo.app.ui.theme.Clay
 import com.volo.app.ui.theme.Copper
 import com.volo.app.ui.theme.DuelMuted
 import com.volo.app.ui.theme.Ink
 import com.volo.app.ui.theme.Muted
+import com.volo.app.ui.theme.SurfaceMuted
 import kotlinx.coroutines.launch
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(onOpenDuels: () -> Unit = {}) {
     val sender = LocalActivityResultSender.current
     val scope = rememberCoroutineScope()
     val walletState = walletManager.state
@@ -64,6 +67,26 @@ fun ProfileScreen() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Plan 9.1: SOL / USDC / SKR balances for the connected wallet.
+    val tokenApi = remember {
+        val json = context.assets.open("idl.json").bufferedReader().use { it.readText() }
+        com.volo.app.data.solana.TokenBalanceApi(
+            com.volo.app.data.solana.ProgramClient(com.volo.app.data.solana.IdlParser.parse(json))
+        )
+    }
+    val connectedAddress = (walletState as? WalletState.Connected)?.address
+    var balances by remember { mutableStateOf<com.volo.app.data.solana.TokenBalances?>(null) }
+    LaunchedEffect(connectedAddress) {
+        if (connectedAddress == null) {
+            balances = null
+        } else {
+            balances = tokenApi.getAll(connectedAddress)
+        }
+    }
+    val skrOpen = balances?.let {
+        com.volo.app.data.solana.openDuelsGate(it.skrRaw, it.skrDecimals)
+    }
+
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Profile", color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold)
         WalletRow(
@@ -71,14 +94,77 @@ fun ProfileScreen() {
             onConnect = { sender?.let { scope.launch { walletManager.connect(it) } } },
             onDisconnect = { sender?.let { scope.launch { walletManager.disconnect(it) } } }
         )
+        if (connectedAddress != null) {
+            val b = balances
+            ProfileRow(
+                "Wallet address",
+                "${connectedAddress.take(4)}…${connectedAddress.takeLast(6)}",
+            )
+            ProfileRow(
+                "SOL balance",
+                if (b == null) "Loading…" else "${com.volo.app.data.solana.formatUiAmount(b.solLamports, 9)} SOL",
+            )
+            ProfileRow(
+                "USDC balance",
+                if (b == null) "Loading…" else com.volo.app.data.solana.formatUiAmount(b.usdcRaw, b.usdcDecimals),
+            )
+            ProfileRow(
+                "SKR balance",
+                if (b == null) "Loading…" else com.volo.app.data.solana.formatUiAmount(b.skrRaw, b.skrDecimals),
+            )
+            OpenDuelsGateRow(
+                open = skrOpen == true,
+                known = skrOpen != null,
+                onClick = { if (skrOpen == true) onOpenDuels() },
+            )
+        }
         ProfileRow("Seeker status", "Verification unavailable on this device")
-        ProfileRow("SKR balance", "Not connected")
         ProfileRow(
             label = "Usage access",
             value = usageState.label(),
             onClick = { runCatching { context.startActivity(UsagePermissionHelper.settingsIntent()) } }
         )
         ProfileRow("Privacy", "Review what Volo measures")
+    }
+}
+
+/** Plan 9.1 Step 3: SKR >= 10 -> "Open Duels: Available" badge, else locked. */
+@Composable
+private fun OpenDuelsGateRow(open: Boolean, known: Boolean, onClick: () -> Unit) {
+    val background = when {
+        !known -> Color.White
+        open -> Celadon
+        else -> SurfaceMuted
+    }
+    val textColor = when {
+        !known -> Muted
+        open -> Ink
+        else -> Muted
+    }
+    val label = when {
+        !known -> "Open Duels"
+        open -> com.volo.app.data.solana.openDuelsLabel(open = true)
+        else -> com.volo.app.data.solana.openDuelsLabel(open = false)
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(background)
+            .clickable(enabled = open, onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            color = textColor,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            modifier = Modifier.weight(1f),
+        )
+        if (open) {
+            Icon(Icons.Outlined.ArrowForward, contentDescription = "Open Duels", tint = Ink, modifier = Modifier.size(18.dp))
+        }
     }
 }
 
