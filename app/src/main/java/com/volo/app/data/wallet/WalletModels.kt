@@ -21,6 +21,21 @@ sealed interface AssociationOutcome {
 
 data class AccountInfo(val publicKey: ByteArray, val label: String?)
 
+/** Library-independent view of a signTransaction attempt (Phase 7.2). */
+sealed interface SignOutcome {
+    data class Signed(val transaction: ByteArray) : SignOutcome
+    data object NoWallet : SignOutcome
+    data object Cancelled : SignOutcome
+    data class Failed(val message: String) : SignOutcome
+}
+
+fun signFailureOutcome(message: String): SignOutcome =
+    if (message.lowercase().let { it.contains("reject") || it.contains("cancel") }) {
+        SignOutcome.Cancelled
+    } else {
+        SignOutcome.Failed(message)
+    }
+
 fun resolveOutcome(outcome: AssociationOutcome): WalletState = when (outcome) {
     is AssociationOutcome.Authorized ->
         if (outcome.accounts.isEmpty()) {

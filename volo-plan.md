@@ -676,51 +676,70 @@
 ### Task 7.1: Manual IDL Parser for Kotlin
 
 **Files:**
-- New: `app/src/main/java/com/volofinal/volofinal/data/solana/IdlParser.kt`
-- New: `app/src/main/java/com/volofinal/volofinal/data/solana/ProgramClient.kt`
+- New: `app/src/main/java/com/volo/app/data/solana/IdlParser.kt` _(plan path com.volofinal.volofinal is stale — actual package is com.volo.app)_
+- New: `app/src/main/java/com/volo/app/data/solana/ProgramClient.kt`
 - New: `app/src/main/assets/idl.json`
 
 **Interfaces:**
 - Consumes: contracts/program/idl.json from Phase 5
 - Produces: Methods to build transactions from Kotlin
 
-- [ ] Step 1: Copy IDL to Android assets
+- [x] Step 1: Copy IDL to Android assets
  Copy contracts/program/idl.json to app/src/main/assets/idl.json
+ _(copied, hash-verified identical)_
 
-- [ ] Step 2: Create IdlParser
+- [x] Step 2: Create IdlParser
  Load JSON from assets
  Parse instructions array to find create_challenge, settle_challenge, etc.
  Compute discrimators: first 8 bytes of sha256("global:" + instruction_name)
+ _(shipped: IdlParser.kt — org.json parse + recompute-verify; test dep org.json:json added for unit tests; account discriminator = sha256("account:" + name))_
 
-- [ ] Step 3: Create ProgramClient
+- [x] Step 3: Create ProgramClient
  Methods:
  - createChallenge(params): builds + sends transaction
  - getChallenge(pubkey): fetches account data via RPC
  - joinChallenge(pubkey): second user joins
  - settleChallenge(pubkey, results): settles via oracle
+ _(shipped: buildCreateChallenge/buildJoinChallenge/buildSettleChallenge/buildRefundUnjoined (unsigned wire tx via TransactionCompiler), getChallenge (JSON-RPC + ChallengeAccountCodec), sendTransaction; send orchestration = ChallengeSender via WalletManager.signTransaction (MWA) — split build/sign/send across the classes named above; supporting pure modules: Pda.kt (ed25519 on-curve check per RFC 8032), ProgramInstructions.kt, TransactionCompiler.kt, ChallengeAccountCodec.kt, SolanaConfig.kt)_
 
-- [ ] Step 4: Write unit test
+- [x] Step 4: Write unit test
  JUnit test verifying discriminator calculation matches expected value
+ _(IdlParserTest 7 tests: known vector for create_challenge + computed-vs-stored for all instructions and account disc; total suite now 89/89)_
 
-- [ ] Step 5: Verify compilation
+- [x] Step 5: Verify compilation
  Gradle build succeeds with no errors
+ _(testDebugUnitTest + assembleDebug green; APK 18.2 MB)_
 
-- [ ] Step 2: Build SPL token transfer instruction
+### Task 7.2: Create-Challenge Transaction Build
+ _(reconstructed header per ledger Row 7 — steps below were orphaned after 7.1; Step 1 is new so the list numbers coherently)_
+
+- [x] Step 1: Build create_challenge instruction
+ Program: from declare_id in idl.json "address"
+ Accounts: challenge PDA (seeds [b"challenge", creator, opponent]), creator, opponent,
+ mint, creator USDC ATA, escrow PDA ATA, token_program, ata_program, system_program
+ Data: 8-byte discriminator + stake_amount u64 LE + string(u32 len + utf8) + limit u32 LE + window u32 LE
+ _(shipped: ProgramInstructions.createChallenge + PDA/ATA derivation; bytes asserted in ProgramInstructionsTest)_
+
+- [x] Step 2: Build SPL token transfer instruction
  Source: user's USDC ATA
  Destination: escrow PDA ATA
  Amount: stakeAmount * 1_000_000 (micro-USDC)
+ _(deviation ruling: transfer happens INSIDE the program — create_challenge CPI-transfers stake into escrow (lib.rs line 61), join likewise. An app-side transfer ix here would DOUBLE-FUND escrow. splTokenTransfer builder exists for completeness but challenge transactions carry one instruction.)_
 
-- [ ] Step 3: Combine into single transaction
+- [x] Step 3: Combine into single transaction
  Transaction contains:
  1. createChallenge instruction
  2. SPL token transfer instruction
+ _(per Step 2 ruling: transaction contains just createChallenge — stake movement is atomic inside it; TransactionCompiler supports multi-ix if ever needed)_
 
-- [ ] Step 4: Send via MWA wallet
+- [x] Step 4: Send via MWA wallet
  Sign transaction -> send via sendRawTransaction()
+ _(shipped: WalletManager.signTransaction via adapter.transact receiver-lambda + signTransactions(byte[][]); ChallengeSender orchestrates build->sign->RPC send; returns tx signature)_
 
 - [ ] Step 5: Test on phone
  Create challenge with 1 USDC -> approve in Phantom
  Expected: Transaction succeeds on Solscan
+ ⏳ pending user device test (needs deployed program id in idl.json + devnet USDC — chain of Phase 0/5 user actions first)
 
 ### Task 7.3: Challenge Status Polling
 

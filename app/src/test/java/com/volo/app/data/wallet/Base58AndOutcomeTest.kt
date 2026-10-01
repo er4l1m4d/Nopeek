@@ -72,3 +72,19 @@ class WalletOutcomeTest {
         assertEquals(WalletState.Error("boom"), state)
     }
 }
+
+class SignOutcomeTest {
+
+    @Test
+    fun rejection_mapsToCancelled() {
+        assertTrue(signFailureOutcome("User rejected the request") is SignOutcome.Cancelled)
+        assertTrue(signFailureOutcome("Operation cancelled") is SignOutcome.Cancelled)
+    }
+
+    @Test
+    fun otherFailures_keepMessage() {
+        val outcome = signFailureOutcome("boom")
+        assertTrue(outcome is SignOutcome.Failed)
+        assertEquals("boom", (outcome as SignOutcome.Failed).message)
+    }
+}

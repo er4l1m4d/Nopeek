@@ -1,0 +1,110 @@
+{
+  "address": "11111111111111111111111111111111",
+  "metadata": {
+    "name": "volo_challenge",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "create_challenge",
+      "discriminator": [170, 244, 47, 1, 1, 15, 173, 239],
+      "accounts": [
+        { "name": "challenge", "writable": true, "signer": true },
+        { "name": "creator", "writable": true, "signer": true },
+        { "name": "opponent" },
+        { "name": "mint" },
+        { "name": "creator_token", "writable": true },
+        { "name": "escrow", "writable": true },
+        { "name": "token_program" },
+        { "name": "associated_token_program" },
+        { "name": "system_program" }
+      ],
+      "args": [
+        { "name": "stake_amount", "type": "u64" },
+        { "name": "target_app", "type": "string" },
+        { "name": "limit_seconds", "type": "u32" },
+        { "name": "window_seconds", "type": "u32" }
+      ]
+    },
+    {
+      "name": "join_challenge",
+      "discriminator": [41, 104, 214, 73, 32, 168, 76, 79],
+      "accounts": [
+        { "name": "challenge", "writable": true },
+        { "name": "opponent", "writable": true, "signer": true },
+        { "name": "opponent_token", "writable": true },
+        { "name": "escrow", "writable": true },
+        { "name": "token_program" },
+        { "name": "associated_token_program" }
+      ],
+      "args": []
+    },
+    {
+      "name": "settle_challenge",
+      "discriminator": [242, 58, 232, 150, 127, 199, 11, 204],
+      "accounts": [
+        { "name": "challenge", "writable": true },
+        { "name": "oracle", "signer": true },
+        { "name": "escrow", "writable": true },
+        { "name": "creator_token", "writable": true },
+        { "name": "opponent_token", "writable": true },
+        { "name": "token_program" },
+        { "name": "associated_token_program" }
+      ],
+      "args": [
+        { "name": "creator_result", "type": "u8" },
+        { "name": "opponent_result", "type": "u8" }
+      ]
+    },
+    {
+      "name": "refund_unjoined",
+      "discriminator": [195, 214, 57, 248, 204, 113, 152, 8],
+      "accounts": [
+        { "name": "challenge", "writable": true },
+        { "name": "creator", "writable": true, "signer": true },
+        { "name": "escrow", "writable": true },
+        { "name": "creator_token", "writable": true },
+        { "name": "token_program" },
+        { "name": "associated_token_program" }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    { "name": "Challenge", "discriminator": [119, 250, 161, 121, 119, 81, 22, 208] }
+  ],
+  "errors": [
+    { "code": 6000, "name": "InvalidStake", "msg": "Stake amount must be greater than zero" },
+    { "code": 6001, "name": "TargetAppTooLong", "msg": "Target app label exceeds 32 bytes" },
+    { "code": 6002, "name": "InvalidWindow", "msg": "Window and limit must be greater than zero" },
+    { "code": 6003, "name": "NotCreated", "msg": "Challenge is not in Created status" },
+    { "code": 6004, "name": "NotActive", "msg": "Challenge is not in Active status" },
+    { "code": 6005, "name": "NotOpponent", "msg": "Signer is not the challenge opponent" },
+    { "code": 6006, "name": "NotOracle", "msg": "Signer is not the oracle authority" },
+    { "code": 6007, "name": "TooEarlyToRefund", "msg": "Refund is only allowed more than 1 hour after creation" },
+    { "code": 6008, "name": "ResultOutOfRange", "msg": "Report result code out of range" }
+  ],
+  "types": [
+    {
+      "name": "Challenge",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "creator", "type": "publicKey" },
+          { "name": "opponent", "type": "publicKey" },
+          { "name": "token_mint", "type": "publicKey" },
+          { "name": "stake_amount", "type": "u64" },
+          { "name": "target_app", "type": "string" },
+          { "name": "limit_seconds", "type": "u32" },
+          { "name": "window_seconds", "type": "u32" },
+          { "name": "start_time", "type": "i64" },
+          { "name": "end_time", "type": "i64" },
+          { "name": "status", "type": "u8" },
+          { "name": "result", "type": "u8" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ]
+}
