@@ -10,3 +10,7 @@ app/build/
 *.apk
 *.aab
 .kotlin/
+# Signing secrets - never commit (history scrubbed 2026-10-01)
+keystore.properties
+Volo.keystore
+*.keystore

@@ -1009,7 +1009,7 @@
  Build -> Generate Signed Bundle / APK
  Keystore: Volo.keystore (create new, save in repo)
  Build variant: Release (Minify enabled)
- _(shipped: Volo.keystore generated at repo root (demo creds [REDACTED]/volo — plan says save in repo; noted as anti-pattern for production in build.gradle.kts), release buildType signed + isMinifyEnabled, versionName 1.0.0. apkverify: apksigner verify OK (CN=Volo Demo))_
+ _(shipped: Volo.keystore generated (demo creds local-only — password never in repo; keystore relocated to ~/.android + credentials moved to untracked keystore.properties during pre-public scrub), release buildType signed + isMinifyEnabled, versionName 1.0.0. apkverify: apksigner verify OK (CN=Volo Demo))_
 
 - [x] Step 2: Reduce APK size
  ProGuard rules + resource shrinking:

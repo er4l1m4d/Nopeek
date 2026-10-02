@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -19,12 +21,19 @@ android {
 
     signingConfigs {
         create("release") {
-            // Plan 12.1 Step 1: demo keystore saved in the repo (hackathon demo —
-            // never reuse this checked-in-credentials pattern for production).
-            storeFile = rootProject.file("Volo.keystore")
-            storePassword = "[REDACTED]"
-            keyAlias = "volo"
-            keyPassword = "[REDACTED]"
+            // Credentials live in untracked keystore.properties (gitignored); the
+            // keystore itself sits outside the repo (~/.android/Volo.keystore).
+            // Never hardcode passwords here — the history was scrubbed once already.
+            val propsFile = rootProject.file("keystore.properties")
+            if (propsFile.exists()) {
+                val props = Properties().apply {
+                    propsFile.inputStream().use { load(it) }
+                }
+                props.getProperty("storeFile")?.let { storeFile = rootProject.file(it) }
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
         }
     }
 
