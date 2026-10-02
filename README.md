@@ -1,24 +1,31 @@
 # Volo
 
-Native Android Compose prototype for the Volo accountability app.
+**Put money where your attention is.**
 
-## Current scope
+## What it is
 
-This first UI slice is demo-data only. It includes:
+Volo is an Android app that turns your screen-time promise into a real bet. You lock up some USDC (a digital dollar), challenge a friend to stay under a daily app limit, and the loser forfeits their stake to the winner.
 
-- Home dashboard with active duel, usage metrics, and verification state
-- Challenges list with active, pending, and completed examples
-- Create duel form shell
-- Dark immersive active-duel screen with user progress ring and opponent bar
-- Activity timeline
-- Profile with wallet, Seeker, SKR, and usage-access states
+Resolutions are free, so breaking them is free. Volo fixes that.
 
-Wallet, usage access, Supabase, Solana, oracle, and Seeker behavior are intentionally not connected yet.
+## How it works
 
-## Build environment
+Every challenge runs the same four steps:
 
-The project targets Android API 33 and expects Java 17. The current workspace has the Android SDK platform and build tools installed, but no Gradle distribution or Android Studio executable was available during initial verification. Open the project in Android Studio, allow it to provision the Gradle wrapper, then run the `app` configuration on a device or API 33 emulator.
+1. **Pick your battle**: choose an app (say, TikTok) and a daily limit (say, 30 minutes).
+2. **Lock your stake**: you put up USDC, your friend puts up the same. Both stakes are held safely until the challenge ends.
+3. **Live your life**: your phone quietly tracks how long you use the app during the challenge window. No screenshots, no honor system.
+4. **Settle up**: when the window closes, usage is checked automatically. Stay under your limit and you collect the pot. Blow it and your opponent takes your stake.
 
-The intended SDK path is:
+Today Volo runs on Solana’s devnet, so the stakes are test money: the same mechanics, but nothing real at risk yet.
 
-`C:\Users\hp\AppData\Local\Android\Sdk`
+There’s more inside too: open duels anyone can join, and a recovery lock in case both players fail.
+
+## How to use it
+
+Getting it onto your phone takes four steps:
+
+1. **Download the app**: grab **Volo-v1.0.0.apk** from the [latest release](https://github.com/er4l1m4d/Volo/releases/tag/v1.0).
+2. **Install it**: open the downloaded file. Your phone may show security warnings from Chrome, Play Protect, or MIUI; all expected. The [release notes](https://github.com/er4l1m4d/Volo/releases/tag/v1.0) list each warning and how to pass it.
+3. **Grant Usage access**: Volo needs to see how long you use other apps. Open Settings → Apps → Special access → Usage access.
+4. **Connect a wallet**: install Phantom or Solflare (both free), then connect from Volo’s Profile tab. You’re in.

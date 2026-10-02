@@ -9,3 +9,4 @@ app/build/
 *.zip
 *.apk
 *.aab
+.kotlin/

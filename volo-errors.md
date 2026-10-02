@@ -4,6 +4,63 @@
 
 ---
 
+## ✅ Status pass (plan 12.2 Step 1 — 2026-10-01)
+
+| Error / issue | Status |
+|---|---|
+| `PACKAGE_USAGE_STATS` permission denial | **✅ verified + fixed** — review showed the manifest declared no permissions at all; `<uses-permission>` added, grant flow works via Usage Access settings |
+| Unable to resolve Activity for Intent | ⏳ reference — not encountered (deep links use Activity context) |
+| `BadTokenException` (toast after destroy) | ⏳ reference — not encountered |
+| Fragment/view not attached | ⏳ reference — not applicable (pure Compose, no fragments) |
+| Anchor Rust version mismatch | ⏳ deferred — local `cargo check` blocked by disk (Row 6); Playground deploy is the user's check |
+| `invalid account provided` (PDA mismatch) | ⏳ pending on-device — seed math unit-tested (RFC 8032 on-curve check) |
+| IDL not found for program | ⏳ reference — IDL hand-authored locally (Row 4 ruling), `anchor idl` not run |
+| `insufficient funds for fee` | ⚠️ encountered as environment issue — devnet airdrop rate-limited (ledger 0.2/0.3) |
+| Supabase `permission denied` (RLS) | ⚠️ updated — RLS now: no client policies except a **public read** on `settlement_results` (8.2); writes are service-role only inside the function |
+| Edge Function 504 | ⏳ reference — oracle handlers are single queries, well under 10 s |
+| `NoClassDefFoundError: web3.jvm` | **⚠️ obsolete** — web3j dropped (ledger Row 1); txs built by hand per plan 7.1 |
+| `Cannot fit requested classes in single dex` | ⏳ reference — not encountered (debug + release both dex fine) |
+| `NullPointerException` UsageStatsManager | **✅ verified + fixed** — same root cause as item 1 (missing manifest permission) |
+| `403 Forbidden` Solana devnet RPC | ⏳ pending — public devnet endpoint until a dedicated provider is configured |
+| APK won't install | ⏳ reference — not encountered; release APK signature verified with apksigner |
+
+---
+
+## 🆕 New errors encountered (this build)
+
+### Error: MWA `transact` lambda "expected 2 parameters" (Phase 7.2)
+- **Cause**: `adapter.transact { ... }` closure is `AdapterOperations` receiver + **one** `authResult` parameter (MWA 2.x API).
+- **Fix**: `adapter.transact<ByteArray?>(sender) { signTransactions(arrayOf(tx)).signedPayloads.firstOrNull() }`. A 2-param lambda fails compilation.
+
+### Error: `Suspend function 'updateStatus' can only be called from...` (Phase 8.1)
+- **Cause**: `Worker.doWork()` is synchronous; Room DAO methods are `suspend`.
+- **Fix**: wrap in `runBlocking { ... }` inside `doWork()` (already on a background thread).
+
+### Error: unit tests throw `org.json` "not mocked" (Phase 7.1)
+- **Cause**: android.jar stubs replace `org.json` in local unit tests.
+- **Fix**: `testImplementation("org.json:json:20240303")`.
+
+### Error: `lintVitalAnalyzeRelease` fails with `IOException: There is not enough space on the disk`
+- **Cause**: C: drive nearly full — lint downloads extra analysis jars.
+- **Fix**: free disk (delete temp logs etc.) and retry. Local `cargo check` is blocked by the same condition (ledger Row 6).
+
+### Error: `keytool -printcert -jarfile` → "Not a signed jar file" on a signed APK
+- **Cause**: keytool only reads v1 (JAR) signatures; minSdk 26 releases are v2/v3 only.
+- **Fix**: verify with `apksigner verify --print-certs app-release.apk`.
+
+### Error: Release APK would ship with **no INTERNET permission**
+- **Cause**: AGP injects `INTERNET` only into debug manifests.
+- **Fix (found by this review):** declare `<uses-permission android:name="android.permission.INTERNET" />` in the main manifest.
+
+### Issue: `androidx.navigationevent` breaks Kotlin 2.0.21 analyzer
+- **Fix**: `exclude(group = "androidx.navigationevent")` + forced androidx activity/core pins (see `app/build.gradle.kts` comments).
+
+### Error: `IllegalStateException: LifecycleOwner ... attempting to register while current state is RESUMED` (crash at app launch, release build)
+- **Cause**: MWA `ActivityResultSender.<init>` calls `ComponentActivity.registerForActivityResult(...)` (verified by decompiling clientlib-ktx 2.1.1) — androidx forbids registering once the lifecycle is ≥ STARTED. `MainActivity` created it with `by lazy`, so first access happened during the **first composition** (stack: `onAttachedToWindow` → `getValue` → `<init>`) when the activity was already RESUMED.
+- **Fix**: construct eagerly in `onCreate` right after `super.onCreate()` (state = CREATED), matching Solana Mobile's official `solana-kotlin-compose-scaffold`.
+
+---
+
 ## ⚡ Android Errors
 
 ### Error: `Permission Denial: getRunningAppProcesses requires android.permission.PACKAGE_USAGE_STATS`
@@ -138,4 +195,4 @@
 
 ---
 
-Last updated: `Date goes here`
+Last updated: `2026-10-01` (plan 12.2 Step 1 status pass + new-error entries)

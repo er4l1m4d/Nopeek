@@ -1,0 +1,9 @@
+{
+  "targetApp": "com.tiktok.android",
+  "limitSeconds": 60,
+  "stakeAmountRaw": 1000000,
+  "windowSeconds": 300,
+  "opponentWallet": "9fG8jK2hL4mN7pQ1rT6sW3xY8bV5cD2eF9gH7jK4ABC",
+  "challengePubkey": null,
+  "notes": "Plan 11.1 demo template. Seeded once on first launch of a dev build (id=demo-challenge). opponentWallet = bob.skr mock address (UI badge demo); for the on-chain settle demo create a challenge with Wallet B's real address instead. challengePubkey stays null until a wallet signs create — the runtime pubkey lives in Room (challenges.challengePubkey)."
+}
