@@ -25,7 +25,7 @@ There’s more inside too: open duels anyone can join, and a recovery lock in ca
 
 Getting it onto your phone takes four steps:
 
-1. **Download the app**: grab the app file (APK) from the [latest release](https://github.com/er4l1m4d/Volo/releases/tag/v1.0).
-2. **Install it**: open the downloaded file. Your phone may ask you to allow installs from your browser; that’s expected.
+1. **Download the app**: grab **Volo-v1.0.0.apk** from the [latest release](https://github.com/er4l1m4d/Volo/releases/tag/v1.0).
+2. **Install it**: open the downloaded file. Your phone may show security warnings from Chrome, Play Protect, or MIUI; all expected. The [release notes](https://github.com/er4l1m4d/Volo/releases/tag/v1.0) list each warning and how to pass it.
 3. **Grant Usage access**: Volo needs to see how long you use other apps. Open Settings → Apps → Special access → Usage access.
 4. **Connect a wallet**: install Phantom or Solflare (both free), then connect from Volo’s Profile tab. You’re in.
