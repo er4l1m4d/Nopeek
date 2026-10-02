@@ -1021,7 +1021,7 @@
  Create release at github.com/[repo]/releases/tag/v1.0
  Upload app-release.apk
  Copy release URL
- _(shipped: tag v1.0 pushed with app-release.apk — https://github.com/er4l1m4d/Volo/releases/tag/v1.0 ; branch plan-execution pushed)_
+ _(shipped: tag v1.0 pushed with app-release.apk — https://github.com/er4l1m4d/Volo/releases/tag/v1.0 ; branch plan-execution pushed. 2026-10-01 rename: asset now **Volo-v1.0.0.apk** (generic name + Files-app display complaint), release notes + README carry install-warning guidance (Chrome/Play Protect/MIUI) + signing fingerprint; repo must be PUBLIC for link sharing — user flipping visibility themselves)_
 
 ### Task 12.2: Final Verification + Error Log Review
 
