@@ -55,6 +55,10 @@
 ### Issue: `androidx.navigationevent` breaks Kotlin 2.0.21 analyzer
 - **Fix**: `exclude(group = "androidx.navigationevent")` + forced androidx activity/core pins (see `app/build.gradle.kts` comments).
 
+### Error: `IllegalStateException: LifecycleOwner ... attempting to register while current state is RESUMED` (crash at app launch, release build)
+- **Cause**: MWA `ActivityResultSender.<init>` calls `ComponentActivity.registerForActivityResult(...)` (verified by decompiling clientlib-ktx 2.1.1) — androidx forbids registering once the lifecycle is ≥ STARTED. `MainActivity` created it with `by lazy`, so first access happened during the **first composition** (stack: `onAttachedToWindow` → `getValue` → `<init>`) when the activity was already RESUMED.
+- **Fix**: construct eagerly in `onCreate` right after `super.onCreate()` (state = CREATED), matching Solana Mobile's official `solana-kotlin-compose-scaffold`.
+
 ---
 
 ## ⚡ Android Errors
