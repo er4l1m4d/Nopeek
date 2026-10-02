@@ -14,10 +14,9 @@ import com.volo.app.ui.theme.VoloTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val mwaSender: ActivityResultSender by lazy { ActivityResultSender(this) }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val mwaSender = ActivityResultSender(this)
         ChallengeRepository.getInstance(this).startPolling()
         DemoSeeder.seedIfNeeded(this)
         setContent {
