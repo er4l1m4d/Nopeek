@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,16 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.volo.app.ui.icons.Phosphor
 import com.volo.app.ui.theme.VoloColors
 import com.volo.app.ui.theme.VoloDimens
 import com.volo.app.ui.theme.VoloTheme
 import com.volo.app.ui.theme.VoloType
 
-// NOTE: the trailing arrow is a TEMPORARY Material stand-in for Phosphor
-// ArrowRight (Regular). Task 7 vendors the Phosphor ImageVectors and swaps
-// it; the AutoMirrored variant is used deliberately — the non-mirrored
-// outlined ArrowForward is deprecated. This is the single sanctioned
-// Material-icon usage in this task.
+// Trailing glyph is the vendored Phosphor ArrowRight (Regular); the T5
+// Material stand-in is gone — no Material icon import remains in this file.
 
 @Composable
 fun DuelCard(
@@ -99,7 +95,7 @@ fun DuelCard(
                 }
             }
             Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                imageVector = Phosphor.ArrowRight,
                 contentDescription = null,
                 tint = VoloColors.copper,
             )

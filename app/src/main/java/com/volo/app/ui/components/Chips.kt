@@ -5,12 +5,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -19,15 +22,15 @@ import com.volo.app.ui.theme.VoloColors
 import com.volo.app.ui.theme.VoloTheme
 import com.volo.app.ui.theme.VoloType
 
-// NOTE: the brief calls for an optional leading Phosphor icon per status.
-// Phosphor ImageVectors are vendored in Task 7 (icons-phosphor was rejected by
-// the Task 0 spike); the icon slot lands there. Until then the chip is
-// label-only — never color-only, per the accessibility rule.
+// Status chips pair every tinted container with a text label (never
+// color-only) and accept an optional leading Phosphor glyph — T8+ screens
+// pass CheckCircle/WarningCircle/XCircle per status.
 
 @Composable
 fun StatusChip(
     variant: StatusVariant,
     modifier: Modifier = Modifier,
+    leading: ImageVector? = null,
 ) {
     Surface(
         modifier = modifier,
@@ -35,10 +38,19 @@ fun StatusChip(
         color = variant.container,
         contentColor = variant.content,
     ) {
-        Box(
+        Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            contentAlignment = Alignment.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         ) {
+            if (leading != null) {
+                Icon(
+                    imageVector = leading,
+                    contentDescription = null,
+                    tint = variant.content,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
             Text(
                 text = variant.label,
                 style = VoloType.label,

@@ -50,7 +50,10 @@ import com.volo.app.ui.theme.Paper
 
 val LocalActivityResultSender = staticCompositionLocalOf<ActivityResultSender?> { null }
 
-private enum class Destination(val label: String, val route: String) {
+// Task 7 made Destination internal (was private) so Shell.kt's navIcon and
+// NavIconMappingTest can read the entries. NavGraph behavior is unchanged —
+// the Task 16 rewire replaces BottomBar with VoloScaffold.
+internal enum class Destination(val label: String, val route: String) {
     Home("Home", NavRoutes.HOME),
     Challenges("Challenges", NavRoutes.CHALLENGES),
     Create("Create", NavRoutes.CREATE_CHALLENGE),
