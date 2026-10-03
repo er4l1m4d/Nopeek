@@ -1,6 +1,7 @@
 package com.volo.app.ui.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -26,7 +27,9 @@ val DuelSafe = Color(0xFFB9D5C5)
 val DuelRisk = Color(0xFFE0A268)
 val DuelFail = Color(0xFFE08373)
 
-private val VoloColors = lightColorScheme(
+// Kept until T16 deletes the light system: renamed from VoloColors because
+// object VoloColors (Tokens.kt) now owns that name in this package.
+private val VoloLightScheme = lightColorScheme(
     primary = Copper,
     onPrimary = Color.White,
     background = Paper,
@@ -36,7 +39,45 @@ private val VoloColors = lightColorScheme(
     outline = Line
 )
 
+private val VoloDarkScheme = darkColorScheme(
+    primary = VoloColors.copper,
+    onPrimary = VoloColors.bg,
+    primaryContainer = VoloColors.copperDeep,
+    onPrimaryContainer = VoloColors.text,
+    secondary = VoloColors.textMuted,
+    onSecondary = VoloColors.bg,
+    secondaryContainer = VoloColors.surfaceRaised,
+    onSecondaryContainer = VoloColors.text,
+    tertiary = VoloColors.safe,
+    onTertiary = VoloColors.bg,
+    tertiaryContainer = VoloColors.surfaceHigh,
+    onTertiaryContainer = VoloColors.textMuted,
+    error = VoloColors.fail,
+    onError = VoloColors.bg,
+    errorContainer = VoloColors.fail,
+    onErrorContainer = VoloColors.bg,
+    background = VoloColors.bg,
+    onBackground = VoloColors.text,
+    surface = VoloColors.surface,
+    onSurface = VoloColors.text,
+    surfaceVariant = VoloColors.surfaceRaised,
+    onSurfaceVariant = VoloColors.textMuted,
+    surfaceTint = VoloColors.copper,
+    inverseSurface = VoloColors.text,
+    inverseOnSurface = VoloColors.bg,
+    outline = VoloColors.line,
+    outlineVariant = VoloColors.surfaceHigh,
+    scrim = VoloColors.bg,
+    surfaceBright = VoloColors.surfaceHigh,
+    surfaceDim = VoloColors.bg,
+    surfaceContainer = VoloColors.surfaceRaised,
+    surfaceContainerHigh = VoloColors.surfaceRaised,
+    surfaceContainerHighest = VoloColors.surfaceHigh,
+    surfaceContainerLow = VoloColors.surface,
+    surfaceContainerLowest = VoloColors.bg,
+)
+
 @Composable
 fun VoloTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = VoloColors, typography = VoloTypography, content = content)
+    MaterialTheme(colorScheme = VoloDarkScheme, typography = VoloTypography, content = content)
 }
