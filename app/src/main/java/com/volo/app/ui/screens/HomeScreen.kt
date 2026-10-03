@@ -1,104 +1,174 @@
 package com.volo.app.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.volo.app.ui.StatusChip
-import com.volo.app.ui.theme.Celadon
-import com.volo.app.ui.theme.DuelMuted
-import com.volo.app.ui.theme.Ink
-import com.volo.app.ui.theme.Muted
+import com.volo.app.ui.components.DailyBarChart
+import com.volo.app.ui.components.DuelCard
+import com.volo.app.ui.components.EmptyState
+import com.volo.app.ui.components.InfoCard
+import com.volo.app.ui.components.MetricCard
+import com.volo.app.ui.components.SectionHeader
+import com.volo.app.ui.components.UsageState
+import com.volo.app.ui.components.usageVariant
+import com.volo.app.ui.icons.Phosphor
+import com.volo.app.ui.theme.VoloColors
+import com.volo.app.ui.theme.VoloDimens
+import com.volo.app.ui.theme.VoloTheme
+import com.volo.app.ui.theme.VoloType
 
 @Composable
-fun HomeScreen(onOpenDuel: () -> Unit) {
+fun HomeScreen(
+    onOpenDuel: () -> Unit,
+    hasActiveDuel: Boolean = true,
+) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(24.dp, 28.dp, 24.dp, 20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        modifier = Modifier.fillMaxSize().background(VoloColors.bg),
+        contentPadding = PaddingValues(
+            horizontal = VoloDimens.spaceXl,
+            vertical = VoloDimens.spaceXxl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXl),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Tuesday, September 29", color = Muted, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
-                Text("Stay in the frame.", color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Column(verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXs)) {
+                Text(
+                    text = "Tuesday, September 29",
+                    style = VoloType.monoSmall,
+                    color = VoloColors.textMuted,
+                )
+                Text(
+                    text = "Stay in the frame.",
+                    style = VoloType.headline,
+                    color = VoloColors.text,
+                )
             }
         }
-        item { DuelCard(onOpenDuel) }
+        if (hasActiveDuel) {
+            item {
+                DuelCard(
+                    status = usageVariant(UsageState.PASSING),
+                    title = "No doomscrolling after 9pm",
+                    opponent = "Instagram \u00B7 with Maya",
+                    usageText = "18m / 30m",
+                    stakeText = "5.00 USDC locked",
+                    onClick = onOpenDuel,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else {
+            item {
+                EmptyState(
+                    icon = Phosphor.Trophy,
+                    title = "No active duel",
+                    message = "You have no active duel right now. Create one to start a new challenge.",
+                    actionLabel = "Create a duel",
+                    onAction = onOpenDuel,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                MetricCard("18m", "of 30m used", Modifier.weight(1f))
-                MetricCard("5 days", "current streak", Modifier.weight(1f))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(VoloDimens.radiusCard),
+                color = VoloColors.surface,
+                contentColor = VoloColors.text,
+                border = BorderStroke(1.dp, VoloColors.line),
+            ) {
+                Column(
+                    modifier = Modifier.padding(VoloDimens.spaceLg),
+                    verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
+                ) {
+                    SectionHeader(
+                        eyebrow = "THIS WEEK",
+                        title = "Screen time",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    DailyBarChart(
+                        values = listOf(12f, 28f, 18f, 30f, 9f, 22f, 15f),
+                        labels = listOf("M", "T", "W", "T", "F", "S", "S"),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
-        item { VerificationCard() }
-    }
-}
-
-@Composable
-private fun DuelCard(onOpen: () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Ink).clickable(onClick = onOpen).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            StatusChip("PASSING", Celadon, Ink)
-            Text("ACTIVE DUEL", color = DuelMuted, fontSize = 11.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text("No doomscrolling after 9pm", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("Instagram · with Maya", color = DuelMuted, fontSize = 14.sp)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("18m / 30m", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 20.sp)
-                Text("5.00 USDC locked", color = DuelMuted, fontSize = 12.sp)
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
+            ) {
+                MetricCard(
+                    value = "18m",
+                    label = "of 30m used",
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+                MetricCard(
+                    value = "5 days",
+                    label = "current streak",
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
             }
-            Icon(Icons.Outlined.ArrowForward, contentDescription = "View duel", tint = Color(0xFFD17A54))
+        }
+        item {
+            InfoCard(
+                title = "Usage access is on",
+                subtitle = "Your next report is due in 42 minutes.",
+                modifier = Modifier.fillMaxWidth(),
+                leading = {
+                    Box(
+                        modifier = Modifier.size(40.dp).clip(CircleShape)
+                            .background(VoloColors.safe.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Phosphor.CheckCircle,
+                            contentDescription = null,
+                            tint = VoloColors.safe,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                },
+            )
         }
     }
 }
 
+@Preview(showBackground = true, backgroundColor = 0xFF10191D)
 @Composable
-private fun MetricCard(value: String, label: String, modifier: Modifier = Modifier) {
-    Column(modifier.clip(RoundedCornerShape(18.dp)).background(Color.White).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(value, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-        Text(label, color = Muted, fontSize = 12.sp)
+private fun HomeScreenPreview() {
+    VoloTheme {
+        HomeScreen(onOpenDuel = {})
     }
 }
 
+@Preview(showBackground = true, backgroundColor = 0xFF10191D)
 @Composable
-private fun VerificationCard() {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Celadon.copy(alpha = .55f)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.Shield, contentDescription = null, tint = Ink, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Usage access is on", color = Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text("Your next report is due in 42 minutes.", color = Muted, fontSize = 12.sp)
-        }
-        Icon(Icons.Outlined.ArrowForward, contentDescription = "Open usage settings", tint = Ink, modifier = Modifier.size(18.dp))
+private fun HomeScreenEmptyPreview() {
+    VoloTheme {
+        HomeScreen(onOpenDuel = {}, hasActiveDuel = false)
     }
 }
