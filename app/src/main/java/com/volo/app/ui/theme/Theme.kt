@@ -38,5 +38,5 @@ private val VoloColors = lightColorScheme(
 
 @Composable
 fun VoloTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = VoloColors, content = content)
+    MaterialTheme(colorScheme = VoloColors, typography = VoloTypography, content = content)
 }
