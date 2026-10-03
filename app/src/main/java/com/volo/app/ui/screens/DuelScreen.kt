@@ -1,77 +1,155 @@
 package com.volo.app.ui.screens
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.volo.app.ui.PrimaryButton
-import com.volo.app.ui.theme.Duel
-import com.volo.app.ui.theme.DuelCopper
-import com.volo.app.ui.theme.DuelLine
-import com.volo.app.ui.theme.DuelMuted
-import com.volo.app.ui.theme.DuelSafe
+import com.volo.app.ui.components.MetricRow
+import com.volo.app.ui.components.OpponentUsageBar
+import com.volo.app.ui.components.PrimaryButton
+import com.volo.app.ui.components.StatusChip
+import com.volo.app.ui.components.TapIconButton
+import com.volo.app.ui.components.UsageRing
+import com.volo.app.ui.components.UsageState
+import com.volo.app.ui.components.usageVariant
+import com.volo.app.ui.icons.Phosphor
+import com.volo.app.ui.theme.VoloColors
+import com.volo.app.ui.theme.VoloDimens
+import com.volo.app.ui.theme.VoloTheme
+import com.volo.app.ui.theme.VoloType
 
 @Composable
 fun DuelScreen(pubkey: String, onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Duel).padding(24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White) }
-        Text("ACTIVE DUEL · 24H WINDOW · $pubkey", color = DuelMuted, fontSize = 11.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.Bold)
-        Text("No doomscrolling\nafter 9pm", color = Color.White, fontSize = 34.sp, lineHeight = 37.sp, fontWeight = FontWeight.Bold)
-        Text("Instagram · with Maya", color = DuelMuted, fontSize = 15.sp)
-        Spacer(Modifier.height(8.dp))
-        Box(Modifier.fillMaxWidth().aspectRatio(1f).padding(horizontal = 20.dp), contentAlignment = Alignment.Center) { UsageRing() }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column { Text("YOUR USAGE", color = DuelMuted, fontSize = 10.sp, letterSpacing = 1.sp); Text("18m / 30m", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 17.sp) }
-            Column(horizontalAlignment = Alignment.End) { Text("MAYA'S REPORT", color = DuelMuted, fontSize = 10.sp, letterSpacing = 1.sp); Text("22m / 30m", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 17.sp) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(VoloColors.bg)
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                horizontal = VoloDimens.spaceXl,
+                vertical = VoloDimens.spaceXxl,
+            ),
+        verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceLg),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(VoloDimens.spaceSm),
+        ) {
+            TapIconButton(
+                contentDescription = "Back",
+                onClick = onBack,
+            ) {
+                Icon(
+                    imageVector = Phosphor.ArrowLeft,
+                    contentDescription = null,
+                    tint = VoloColors.text,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            Text(
+                text = pubkey,
+                style = VoloType.monoSmall,
+                color = VoloColors.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
         }
-        OpponentBar()
-        Spacer(Modifier.weight(1f))
-        PrimaryButton("Check usage", {})
-        Text("Last opponent report: 8 minutes ago", color = DuelMuted, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+        Column(verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXs)) {
+            Text(
+                text = "No doomscrolling after 9pm",
+                style = VoloType.display,
+                color = VoloColors.text,
+            )
+            Text(
+                text = "Instagram · with Maya",
+                style = VoloType.body,
+                color = VoloColors.textMuted,
+            )
+        }
+        StatusChip(
+            variant = usageVariant(UsageState.PASSING),
+            leading = Phosphor.CheckCircle,
+        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
+        ) {
+            UsageRing(
+                usedSeconds = 18 * 60,
+                limitSeconds = 30 * 60,
+                centerText = "18m / 30m",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = VoloDimens.spaceXxxl),
+            )
+            Text(
+                text = "ENDS IN 02:14:33",
+                style = VoloType.mono,
+                color = VoloColors.textMuted,
+                textAlign = TextAlign.Center,
+            )
+        }
+        OpponentUsageBar(
+            youLabel = "YOU",
+            youText = "18m / 30m",
+            youFraction = 0.6f,
+            opponentLabel = "MAYA",
+            opponentText = "22m / 30m",
+            opponentFraction = 22f / 30f,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = "Last report 8m ago",
+            style = VoloType.monoSmall,
+            color = VoloColors.textMuted,
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceSm)) {
+            MetricRow(
+                title = "Stake",
+                value = "5.00 USDC",
+                modifier = Modifier.fillMaxWidth(),
+            )
+            MetricRow(
+                title = "Window",
+                value = "24H",
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(modifier = Modifier.height(VoloDimens.spaceSm))
+        PrimaryButton(
+            label = "Check usage",
+            onClick = {},
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
+@Preview(showBackground = true, backgroundColor = 0xFF10191D)
 @Composable
-private fun UsageRing() {
-    Box(contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawArc(DuelLine, -90f, 360f, false, style = Stroke(14.dp.toPx(), cap = StrokeCap.Round))
-            drawArc(DuelCopper, -90f, 216f, false, style = Stroke(14.dp.toPx(), cap = StrokeCap.Round))
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("18m", color = Color.White, fontSize = 42.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold); Text("remaining 12m", color = DuelMuted, fontSize = 12.sp) }
-    }
-}
-
-@Composable
-private fun OpponentBar() {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(DuelLine)) { Box(Modifier.fillMaxWidth(.73f).height(8.dp).clip(CircleShape).background(DuelSafe)) }
+private fun DuelScreenPreview() {
+    VoloTheme {
+        DuelScreen(pubkey = "Hx8vQ9demoChallenge42", onBack = {})
     }
 }
