@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -55,7 +57,9 @@ fun UsageBreakdownBars(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier,
+        modifier = modifier.semantics {
+            contentDescription = items.joinToString(prefix = "Usage by app: ") { "${it.label} ${it.duration}" }
+        },
         verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
     ) {
         items.forEach { item ->
@@ -114,7 +118,13 @@ fun DailyBarChart(
     val shownLabels = labels.take(count)
     val max = shownValues.maxOrNull() ?: 0f
     Column(
-        modifier = modifier,
+        modifier = modifier.semantics {
+            contentDescription = if (count == 0) {
+                "Daily usage chart, no data"
+            } else {
+                shownLabels.zip(shownValues).joinToString(prefix = "Daily usage: ") { (day, value) -> "$day ${value}m" }
+            }
+        },
         verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceSm),
     ) {
         Canvas(
@@ -171,7 +181,14 @@ fun Sparkline(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(48.dp)
+            .semantics {
+                contentDescription = if (values.isEmpty()) {
+                    "Trend chart, no data"
+                } else {
+                    "Trend chart from ${values.first()} to ${values.last()}"
+                }
+            },
     ) {
         if (values.isEmpty()) return@Canvas
         if (values.size == 1) {

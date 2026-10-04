@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.volo.app.navigation.Destination
@@ -89,6 +91,7 @@ private fun RowScope.BottomTab(
             .weight(1f)
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clip(RoundedCornerShape(12.dp))
+            .semantics { this.selected = selected }
             .clickable(onClick = { onSelect(item) }, role = Role.Tab)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

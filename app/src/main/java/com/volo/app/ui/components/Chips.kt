@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -80,7 +81,9 @@ fun SelectChip(
         contentColor = if (selected) VoloColors.bg else VoloColors.textMuted,
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .padding(horizontal = 14.dp, vertical = 9.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(

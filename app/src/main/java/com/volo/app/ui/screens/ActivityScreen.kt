@@ -207,7 +207,9 @@ private fun ActivityEventRow(
             ) {
                 Icon(
                     imageVector = event.icon,
-                    contentDescription = event.label,
+                    // Decorative: the row's label Text already carries
+                    // event.label, so announcing both would duplicate it.
+                    contentDescription = null,
                     tint = VoloColors.copper,
                     modifier = Modifier.size(22.dp),
                 )

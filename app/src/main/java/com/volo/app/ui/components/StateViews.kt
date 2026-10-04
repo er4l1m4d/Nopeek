@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.semantics.invisibleToUser
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -108,7 +110,9 @@ fun LoadingSkeleton(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.height(height),
+        modifier = modifier
+            .height(height)
+            .semantics { invisibleToUser() },
         shape = RoundedCornerShape(VoloDimens.radiusCard),
         color = VoloColors.surfaceHigh,
     ) {

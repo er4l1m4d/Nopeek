@@ -1,8 +1,8 @@
 <resources>
-    <style name="Theme.Volo" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:colorAccent">#B7613F</item>
-        <item name="android:navigationBarColor">#F4F5F1</item>
-        <item name="android:statusBarColor">#F4F5F1</item>
-        <item name="android:windowLightStatusBar">true</item>
+    <style name="Theme.Volo" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#D17A54</item>
+        <item name="android:navigationBarColor">#10191D</item>
+        <item name="android:statusBarColor">#10191D</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>
