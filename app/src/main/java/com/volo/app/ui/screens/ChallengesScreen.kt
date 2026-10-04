@@ -1,58 +1,67 @@
 package com.volo.app.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.volo.app.data.local.AppDatabase
 import com.volo.app.data.local.ChallengeEntity
-import com.volo.app.ui.StatusChip
-import com.volo.app.ui.theme.Celadon
-import com.volo.app.ui.theme.Clay
-import com.volo.app.ui.theme.Copper
-import com.volo.app.ui.theme.Ink
-import com.volo.app.ui.theme.Muted
-import com.volo.app.ui.theme.SurfaceMuted
+import com.volo.app.ui.components.PrimaryButton
+import com.volo.app.ui.components.RowCard
+import com.volo.app.ui.components.SelectChip
+import com.volo.app.ui.components.StatusChip
+import com.volo.app.ui.components.StatusVariant
+import com.volo.app.ui.components.lifecycleVariant
+import com.volo.app.ui.icons.Phosphor
+import com.volo.app.ui.theme.VoloColors
+import com.volo.app.ui.theme.VoloDimens
+import com.volo.app.ui.theme.VoloType
 
-/** Plan 7.3 Step 3: status -> chip label/colors (green=passing, red=exceeded/fail, yellow=pending). */
-internal fun statusLabel(localStatus: String): String = when (localStatus) {
-    "CREATED" -> "PENDING"
-    "ACTIVE" -> "ACTIVE"
-    "PENDING_VERIFICATION" -> "VERIFY"
-    "BOTH_FAIL_LOCKED" -> "LOCKED"
-    "SETTLED" -> "SETTLED"
-    "REFUNDED" -> "REFUNDED"
-    else -> localStatus
+private enum class ChallengeFilter(val label: String) {
+    ACTIVE("Active"),
+    PENDING("Pending"),
+    COMPLETED("Completed"),
 }
 
-internal fun statusColors(localStatus: String): Pair<Color, Color> = when (localStatus) {
-    "ACTIVE" -> Celadon to Ink
-    "PENDING_VERIFICATION", "BOTH_FAIL_LOCKED" -> Clay to Color.White
-    "CREATED" -> Copper to Color.White
-    else -> SurfaceMuted to Muted
+private fun ChallengeFilter.matches(localStatus: String): Boolean = when (this) {
+    ChallengeFilter.ACTIVE ->
+        localStatus == "ACTIVE" ||
+            localStatus == "PENDING_VERIFICATION" ||
+            localStatus == "BOTH_FAIL_LOCKED"
+    ChallengeFilter.PENDING -> localStatus == "CREATED"
+    ChallengeFilter.COMPLETED ->
+        localStatus == "SETTLED" || localStatus == "REFUNDED"
+}
+
+private fun statusLeadingIcon(variant: StatusVariant): ImageVector? = when (variant.container) {
+    VoloColors.safe -> Phosphor.CheckCircle
+    VoloColors.risk -> Phosphor.WarningCircle
+    VoloColors.fail -> Phosphor.XCircle
+    else -> null
+}
+
+private fun windowLabel(windowSeconds: Long): String = when {
+    windowSeconds <= 0L -> "—"
+    windowSeconds % 86_400L == 0L -> "${windowSeconds / 86_400L}d window"
+    windowSeconds % 3_600L == 0L -> "${windowSeconds / 3_600L}h window"
+    windowSeconds % 60L == 0L -> "${windowSeconds / 60L}m window"
+    else -> "${windowSeconds}s window"
 }
 
 /**
@@ -88,33 +97,57 @@ fun ChallengesScreen(
     val challenges by remember {
         AppDatabase.getInstance(context).challengeDao().observeActive()
     }.collectAsState(initial = emptyList())
+    var filter by remember { mutableStateOf(ChallengeFilter.ACTIVE) }
+    val visible = remember(challenges, filter) {
+        challenges.filter { filter.matches(it.localStatus) }
+    }
 
-    val activeCount = challenges.count { it.localStatus == "ACTIVE" }
-    val pendingCount = challenges.count { it.localStatus == "CREATED" }
-
-    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 28.dp)) {
-        Text("Challenges", color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(20.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusChip("ACTIVE $activeCount", Copper, Color.White)
-            Text(
-                "Pending $pendingCount",
-                color = Muted,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                fontSize = 13.sp,
-            )
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(VoloColors.bg),
+        contentPadding = PaddingValues(
+            horizontal = VoloDimens.spaceXl,
+            vertical = VoloDimens.spaceXxl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceLg),
+    ) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd)) {
+                Text(
+                    text = "Challenges",
+                    style = VoloType.headline,
+                    color = VoloColors.text,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(VoloDimens.spaceSm)) {
+                    ChallengeFilter.entries.forEach { option ->
+                        SelectChip(
+                            label = option.label,
+                            selected = filter == option,
+                            onClick = { filter = option },
+                        )
+                    }
+                }
+            }
         }
-        Spacer(Modifier.height(16.dp))
         if (challenges.isEmpty()) {
-            Text(
-                "No active challenges yet. Create one from the Create tab.",
-                color = Muted,
-                fontSize = 13.sp,
-            )
+            item {
+                Text(
+                    text = "No challenges yet. Create one from the Create tab.",
+                    style = VoloType.bodySmall,
+                    color = VoloColors.textMuted,
+                )
+            }
+        } else if (visible.isEmpty()) {
+            item {
+                Text(
+                    text = "No ${filter.label.lowercase()} challenges yet.",
+                    style = VoloType.bodySmall,
+                    color = VoloColors.textMuted,
+                )
+            }
         } else {
             val now = System.currentTimeMillis()
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                challenges.forEach { entity ->
+            items(visible, key = { it.id }) { entity ->
+                Column(verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceSm)) {
                     ChallengeEntityRow(
                         entity = entity,
                         onClick = {
@@ -124,8 +157,15 @@ fun ChallengesScreen(
                                 onOpenDuel()
                             }
                         },
-                        onSettle = if (canSettle(entity, now)) onSettle else null,
+                        modifier = Modifier.fillMaxWidth(),
                     )
+                    if (canSettle(entity, now)) {
+                        PrimaryButton(
+                            label = "Settle",
+                            onClick = { onSettle(entity) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
@@ -136,59 +176,29 @@ fun ChallengesScreen(
 private fun ChallengeEntityRow(
     entity: ChallengeEntity,
     onClick: () -> Unit,
-    onSettle: ((ChallengeEntity) -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
-    val (label, background, foreground) = statusPresentation(entity.localStatus)
-    val detailColor = if (entity.localStatus == "ACTIVE") Copper else Muted
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                entity.targetApp,
-                color = Ink,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                opponentSubtitle(entity.opponentWallet, entity.limitSeconds),
-                color = Muted,
-                fontSize = 12.sp,
-            )
-            Text(
-                "${entity.stakeAmountRaw / 1_000_000} USDC stake",
-                color = detailColor,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-            )
-        }
-        if (onSettle != null) {
-            Text(
-                "Settle",
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Copper)
-                    .clickable { onSettle(entity) }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-        StatusChip(label, background, foreground)
-    }
-}
-
-private fun statusPresentation(localStatus: String): Triple<String, Color, Color> {
-    val (background, foreground) = statusColors(localStatus)
-    return Triple(statusLabel(localStatus), background, foreground)
+    val variant = lifecycleVariant(entity.localStatus)
+    RowCard(
+        title = entity.targetApp,
+        subtitle = "${opponentSubtitle(entity.opponentWallet, entity.limitSeconds)} · ${windowLabel(entity.windowSeconds)}",
+        onClick = onClick,
+        modifier = modifier,
+        trailing = {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXs),
+            ) {
+                Text(
+                    text = "${entity.stakeAmountRaw / 1_000_000} USDC stake",
+                    style = VoloType.monoSmall,
+                    color = VoloColors.textMuted,
+                )
+                StatusChip(
+                    variant = variant,
+                    leading = statusLeadingIcon(variant),
+                )
+            }
+        },
+    )
 }
