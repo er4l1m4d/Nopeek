@@ -3,7 +3,10 @@ package com.volo.app.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -12,12 +15,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.volo.app.ui.theme.Ink
-import com.volo.app.ui.theme.Muted
+import androidx.compose.ui.tooling.preview.Preview
+import com.volo.app.ui.theme.VoloColors
+import com.volo.app.ui.theme.VoloDimens
+import com.volo.app.ui.theme.VoloTheme
+import com.volo.app.ui.theme.VoloType
 import kotlin.math.roundToLong
 
 /**
@@ -27,11 +29,14 @@ import kotlin.math.roundToLong
 fun StakeInput(
     stakeAmountRaw: Long,
     onStakeChange: (Long) -> Unit,
-    walletConnected: Boolean
+    walletConnected: Boolean,
 ) {
     var text by remember { mutableStateOf(formatUsdc(stakeAmountRaw)) }
 
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceSm),
+    ) {
         OutlinedTextField(
             value = text,
             onValueChange = { input ->
@@ -43,10 +48,23 @@ fun StakeInput(
                     }
                 }
             },
-            label = { Text("Stake (USDC)") },
+            label = { Text("Stake") },
+            suffix = { Text("USDC", style = VoloType.monoSmall, color = VoloColors.textMuted) },
+            textStyle = VoloType.mono,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = VoloColors.text,
+                unfocusedTextColor = VoloColors.text,
+                focusedBorderColor = VoloColors.copper,
+                unfocusedBorderColor = VoloColors.line,
+                cursorColor = VoloColors.copper,
+                focusedLabelColor = VoloColors.textMuted,
+                unfocusedLabelColor = VoloColors.textMuted,
+                focusedSuffixColor = VoloColors.textMuted,
+                unfocusedSuffixColor = VoloColors.textMuted,
+            ),
         )
         Text(
             if (walletConnected) {
@@ -54,16 +72,25 @@ fun StakeInput(
             } else {
                 "Connect your wallet on Profile to stake"
             },
-            color = Muted,
-            fontSize = 12.sp
+            style = VoloType.bodySmall,
+            color = VoloColors.textMuted,
         )
         Text(
             "= ${formatUsdc(stakeAmountRaw)} USDC",
-            color = Ink,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold
+            style = VoloType.mono,
+            color = VoloColors.text,
         )
     }
 }
 
 fun formatUsdc(raw: Long): String = String.format("%.2f", raw / 1_000_000.0)
+
+@Preview(showBackground = true, backgroundColor = 0xFF10191D)
+@Composable
+private fun StakeInputPreview() {
+    VoloTheme {
+        Column(modifier = Modifier.padding(VoloDimens.spaceLg)) {
+            StakeInput(stakeAmountRaw = 5_000_000L, onStakeChange = {}, walletConnected = false)
+        }
+    }
+}

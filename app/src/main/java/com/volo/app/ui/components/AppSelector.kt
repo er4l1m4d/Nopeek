@@ -2,8 +2,8 @@ package com.volo.app.ui.components
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,14 +20,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.volo.app.ui.theme.Ink
-import com.volo.app.ui.theme.Muted
+import com.volo.app.ui.theme.VoloColors
+import com.volo.app.ui.theme.VoloDimens
+import com.volo.app.ui.theme.VoloTheme
+import com.volo.app.ui.theme.VoloType
 
 data class InstalledApp(val packageName: String, val label: String)
 
@@ -51,18 +51,35 @@ fun AppSelector(selectedPackage: String?, onSelected: (String) -> Unit) {
         FieldCard(label = "TARGET APP", value = selectedLabel, placeholder = selectedPackage == null) {
             expanded = true
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = VoloColors.surfaceRaised,
+            shape = RoundedCornerShape(VoloDimens.radiusCard),
+            border = BorderStroke(1.dp, VoloColors.line),
+        ) {
             Column(Modifier.heightIn(max = 320.dp)) {
                 if (apps.isEmpty()) {
-                    Text("No third-party apps found", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+                    Text(
+                        "No third-party apps found",
+                        style = VoloType.bodySmall,
+                        color = VoloColors.textMuted,
+                        modifier = Modifier.padding(VoloDimens.spaceLg),
+                    )
                 }
                 apps.forEach { app ->
                     DropdownMenuItem(
-                        text = { Text(app.label, fontSize = 14.sp) },
+                        text = {
+                            Text(
+                                app.label,
+                                style = VoloType.body,
+                                color = VoloColors.text,
+                            )
+                        },
                         onClick = {
                             onSelected(app.packageName)
                             expanded = false
-                        }
+                        },
                     )
                 }
             }
@@ -72,21 +89,43 @@ fun AppSelector(selectedPackage: String?, onSelected: (String) -> Unit) {
 
 @Composable
 fun FieldCard(label: String, value: String, placeholder: Boolean = false, onClick: (() -> Unit)? = null) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(16.dp),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(VoloDimens.radiusControl),
+        color = VoloColors.surfaceRaised,
+        contentColor = VoloColors.text,
+        border = BorderStroke(1.dp, VoloColors.line),
+        onClick = onClick ?: {},
+        enabled = onClick != null,
     ) {
-        Text(label.uppercase(), color = Muted, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
-        Text(
-            value,
-            color = if (placeholder) Muted else Ink,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Column(
+            modifier = Modifier.padding(VoloDimens.spaceLg),
+            verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXs),
+        ) {
+            Text(
+                label.uppercase(),
+                style = VoloType.label,
+                color = VoloColors.textMuted,
+            )
+            Text(
+                value,
+                style = VoloType.titleSmall,
+                color = if (placeholder) VoloColors.textMuted else VoloColors.text,
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF10191D)
+@Composable
+private fun FieldCardPreview() {
+    VoloTheme {
+        Column(
+            modifier = Modifier.padding(VoloDimens.spaceLg),
+            verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
+        ) {
+            FieldCard(label = "TARGET APP", value = "Instagram", onClick = {})
+            FieldCard(label = "TARGET APP", value = "Choose an app", placeholder = true, onClick = {})
+        }
     }
 }
