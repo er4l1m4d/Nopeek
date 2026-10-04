@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -293,6 +295,7 @@ private fun WalletCard(
                             )
                         }
                         is WalletState.Connected -> {
+                            val clipboard = LocalClipboardManager.current
                             Text(
                                 text = if (state.label != null) {
                                     "Wallet connected · ${state.label}"
@@ -314,10 +317,9 @@ private fun WalletCard(
                                 )
                                 TapIconButton(
                                     contentDescription = "Copy wallet address",
-                                    // Visual only: this screen previously had no
-                                    // clipboard wiring, and wallet logic is frozen
-                                    // for the rework — see task report.
-                                    onClick = {},
+                                    onClick = {
+                                        clipboard.setText(AnnotatedString(state.address))
+                                    },
                                 ) {
                                     Icon(
                                         imageVector = Phosphor.Copy,
@@ -401,7 +403,7 @@ private fun BalancesCard(
                 value = if (balances == null) {
                     "Loading…"
                 } else {
-                    formatUiAmount(balances.usdcRaw, balances.usdcDecimals)
+                    "${formatUiAmount(balances.usdcRaw, balances.usdcDecimals)} USDC"
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -410,7 +412,7 @@ private fun BalancesCard(
                 value = if (balances == null) {
                     "Loading…"
                 } else {
-                    formatUiAmount(balances.skrRaw, balances.skrDecimals)
+                    "${formatUiAmount(balances.skrRaw, balances.skrDecimals)} SKR"
                 },
                 modifier = Modifier.fillMaxWidth(),
             )

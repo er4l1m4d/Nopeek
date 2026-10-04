@@ -27,6 +27,7 @@ import com.volo.app.ui.components.RowCard
 import com.volo.app.ui.components.SelectChip
 import com.volo.app.ui.components.StatusChip
 import com.volo.app.ui.components.StatusVariant
+import com.volo.app.ui.components.formatUsdc
 import com.volo.app.ui.components.lifecycleVariant
 import com.volo.app.ui.icons.Phosphor
 import com.volo.app.ui.theme.VoloColors
@@ -43,7 +44,9 @@ private fun ChallengeFilter.matches(localStatus: String): Boolean = when (this) 
     ChallengeFilter.ACTIVE ->
         localStatus == "ACTIVE" ||
             localStatus == "PENDING_VERIFICATION" ||
-            localStatus == "BOTH_FAIL_LOCKED"
+            localStatus == "BOTH_FAIL_LOCKED" ||
+            // unknown future statuses surface under Active
+            localStatus !in setOf("CREATED", "SETTLED", "REFUNDED")
     ChallengeFilter.PENDING -> localStatus == "CREATED"
     ChallengeFilter.COMPLETED ->
         localStatus == "SETTLED" || localStatus == "REFUNDED"
@@ -190,7 +193,7 @@ private fun ChallengeEntityRow(
                 verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXs),
             ) {
                 Text(
-                    text = "${entity.stakeAmountRaw / 1_000_000} USDC stake",
+                    text = "${formatUsdc(entity.stakeAmountRaw)} USDC stake",
                     style = VoloType.monoSmall,
                     color = VoloColors.textMuted,
                 )

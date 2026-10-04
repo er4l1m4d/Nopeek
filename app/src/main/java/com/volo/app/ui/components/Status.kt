@@ -16,7 +16,9 @@ enum class UsageState {
     UNVERIFIED,
 }
 
-fun lifecycleVariant(localStatus: String): StatusVariant = when (localStatus) {
+fun lifecycleVariant(localStatus: String): StatusVariant {
+    if (localStatus.isBlank()) return StatusVariant("UNKNOWN", VoloColors.surfaceHigh, VoloColors.textMuted)
+    return when (localStatus) {
     "ACTIVE" -> StatusVariant("ACTIVE", VoloColors.safe, VoloColors.bg)
     "CREATED" -> StatusVariant("PENDING", VoloColors.copper, VoloColors.bg)
     "PENDING_VERIFICATION" -> StatusVariant("VERIFY", VoloColors.risk, VoloColors.bg)
@@ -24,6 +26,7 @@ fun lifecycleVariant(localStatus: String): StatusVariant = when (localStatus) {
     "SETTLED" -> StatusVariant("SETTLED", VoloColors.surfaceHigh, VoloColors.textMuted)
     "REFUNDED" -> StatusVariant("REFUNDED", VoloColors.surfaceHigh, VoloColors.textMuted)
     else -> StatusVariant(localStatus, VoloColors.surfaceHigh, VoloColors.textMuted)
+    }
 }
 
 fun usageVariant(state: UsageState): StatusVariant = when (state) {

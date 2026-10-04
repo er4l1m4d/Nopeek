@@ -40,7 +40,7 @@ fun StakeInput(
         OutlinedTextField(
             value = text,
             onValueChange = { input ->
-                if (input.isEmpty() || input.matches(Regex("^\\d{0,3}(\\.\\d{0,2})?$"))) {
+                if (input.isEmpty() || input.matches(Regex("^\\d{0,7}(\\.\\d{0,2})?$"))) {
                     text = input
                     val amount = input.toDoubleOrNull()
                     if (amount != null) {

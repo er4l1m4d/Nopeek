@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -80,6 +81,7 @@ fun UsageRing(
             text = centerText,
             style = VoloType.monoLarge,
             color = VoloColors.text,
+            modifier = Modifier.clearAndSetSemantics {},
         )
     }
 }
@@ -137,12 +139,13 @@ private fun UsageCompareRow(
                 text = label,
                 style = VoloType.monoSmall,
                 color = VoloColors.textMuted,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).clearAndSetSemantics {},
             )
             Text(
                 text = text,
                 style = VoloType.monoSmall,
                 color = VoloColors.text,
+                modifier = Modifier.clearAndSetSemantics {},
             )
         }
         Box(

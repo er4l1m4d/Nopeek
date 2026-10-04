@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,7 +78,7 @@ fun UsageBreakdownBars(
                         text = item.label,
                         style = VoloType.bodySmall,
                         color = VoloColors.text,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).clearAndSetSemantics {},
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -85,6 +86,7 @@ fun UsageBreakdownBars(
                         text = item.duration,
                         style = VoloType.monoSmall,
                         color = VoloColors.textMuted,
+                        modifier = Modifier.clearAndSetSemantics {},
                     )
                 }
                 Box(
@@ -164,7 +166,7 @@ fun DailyBarChart(
                     style = VoloType.monoSmall,
                     color = VoloColors.textMuted,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).clearAndSetSemantics {},
                     maxLines = 1,
                 )
             }
