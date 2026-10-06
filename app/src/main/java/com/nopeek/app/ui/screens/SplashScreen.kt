@@ -30,6 +30,7 @@ import com.nopeek.app.R
 import com.nopeek.app.ui.components.OutlineButton
 import com.nopeek.app.ui.components.PrimaryButton
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 import kotlinx.coroutines.delay
@@ -72,7 +73,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
                 text = "Don't peek.",
                 style = NopeekText.BodyMd,
                 color = colors.onSurfaceMuted,
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = NopeekSpace.S12),
             )
         }
     }
@@ -90,26 +91,26 @@ fun ChoiceScreen(onNew: () -> Unit, onExisting: () -> Unit) {
             .fillMaxSize()
             .background(colors.background)
             .statusBarsPadding()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = NopeekSpace.S16),
     ) {
         Text(
             text = "Welcome to Nopeek.",
             style = NopeekText.DisplayTitle,
             color = colors.onSurface,
-            modifier = Modifier.padding(top = 16.dp),
+            modifier = Modifier.padding(top = NopeekSpace.S16),
         )
         Text(
             text = "Have you dueled before?",
             style = NopeekText.BodyLg,
             color = colors.onSurfaceMuted,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = NopeekSpace.S8),
         )
         PrimaryButton(
             label = "I'm new to Nopeek",
             onClick = onNew,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 32.dp),
+                .padding(top = NopeekSpace.S32),
             hero = true,
         )
         OutlineButton(
@@ -117,7 +118,7 @@ fun ChoiceScreen(onNew: () -> Unit, onExisting: () -> Unit) {
             onClick = onExisting,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 12.dp, bottom = 24.dp),
+                .padding(top = NopeekSpace.S12, bottom = NopeekSpace.S24),
         )
     }
 }

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -25,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
 import com.nopeek.app.ui.theme.NopeekShape
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
@@ -39,9 +39,9 @@ fun EmptyState(
 ) {
     val colors = Nopeek.colors
     Column(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier.padding(NopeekSpace.S24),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
     ) {
         Icon(
             imageVector = icon,
@@ -65,9 +65,9 @@ fun InlineError(message: String, onRetry: (() -> Unit)? = null, modifier: Modifi
         contentColor = colors.danger,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = NopeekSpace.S16, vertical = NopeekSpace.S12),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
         ) {
             Text(text = message, style = NopeekText.BodyMd, color = colors.danger, modifier = Modifier.weight(1f))
             if (onRetry != null) {
@@ -104,7 +104,8 @@ fun ForfeitDialog(stakeLabel: String, opponentName: String, onConfirm: () -> Uni
             )
         },
         confirmButton = {
-            PrimaryButton(label = "Forfeit", onClick = onConfirm, container = colors.danger, content = colors.surface)
+            // Spec: danger is never a filled button - forfeit is outline-only.
+            OutlineButton(label = "Forfeit", onClick = onConfirm, ring = colors.danger, content = colors.danger)
         },
         dismissButton = {
             OutlineButton(label = "Cancel", onClick = onDismiss)
@@ -132,8 +133,8 @@ private fun EmptyStatePreview() {
 private fun InlineErrorPreview() {
     NopeekTheme {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(NopeekSpace.S16),
+            verticalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
         ) {
             InlineError(
                 message = "Couldn't load duels. Check your connection and try again.",
@@ -153,8 +154,8 @@ private fun InlineErrorPreview() {
 private fun LoadingSkeletonPreview() {
     NopeekTheme {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(NopeekSpace.S16),
+            verticalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
         ) {
             LoadingSkeleton(
                 height = 120.dp,

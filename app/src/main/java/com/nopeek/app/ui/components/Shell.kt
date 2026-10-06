@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -33,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import com.nopeek.app.navigation.Destination
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekShape
+import com.nopeek.app.ui.theme.NopeekSize
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
@@ -49,19 +51,19 @@ fun RowScope.BottomTab(item: Destination, selected: Boolean, onSelect: (Destinat
     Column(
         modifier = Modifier
             .weight(1f)
-            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-            .clip(CircleShape)
+            .sizeIn(minWidth = NopeekSize.Touch, minHeight = NopeekSize.Touch)
+            .clip(NopeekShape.Full)
             .semantics { this.selected = selected }
             .clickable(role = Role.Tab, onClick = { onSelect(item) })
-            .padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(top = NopeekSpace.S4),
+        verticalArrangement = Arrangement.spacedBy(NopeekSpace.S4),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
                 .width(64.dp)
                 .height(32.dp)
-                .clip(CircleShape)
+                .clip(NopeekShape.Full)
                 .background(if (selected) colors.primary else Color.Transparent),
             contentAlignment = Alignment.Center,
         ) {
@@ -90,7 +92,7 @@ fun NopeekBottomBar(current: Destination, onSelect: (Destination) -> Unit, modif
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .padding(horizontal = NopeekSpace.S8, vertical = NopeekSpace.S8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Destination.entries.forEach { item ->

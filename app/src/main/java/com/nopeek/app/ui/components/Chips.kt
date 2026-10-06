@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,6 +21,9 @@ import androidx.compose.ui.unit.dp
 import com.nopeek.app.ui.icons.Phosphor
 
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekShape
+import com.nopeek.app.ui.theme.NopeekSize
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
@@ -55,12 +57,12 @@ fun PresetChip(
         onClick = onClick,
         modifier = modifier,
         enabled = false,
-        shape = CircleShape,
+        shape = NopeekShape.Full,
         color = Color.Transparent,
         contentColor = if (selected) colors.you else colors.onSurface,
         border = BorderStroke(if (selected) 2.dp else 1.5.dp, if (selected) colors.you else colors.outline),
     ) {
-        Box(modifier = Modifier.height(48.dp).padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.height(NopeekSize.ButtonStd).padding(horizontal = NopeekSpace.S20), contentAlignment = Alignment.Center) {
             Text(text = label, style = NopeekText.TitleSm, color = if (selected) colors.you else colors.onSurface)
         }
     }
@@ -76,7 +78,7 @@ fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: 
 @Composable
 private fun StatusLabelPreview() {
     NopeekTheme {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(NopeekSpace.S16), verticalArrangement = Arrangement.spacedBy(NopeekSpace.S12)) {
             StatusLabel(variant = usageVariant(UsageState.PASSING), leading = Phosphor.CheckCircle)
             StatusLabel(variant = usageVariant(UsageState.AT_RISK), leading = Phosphor.WarningCircle)
             StatusLabel(variant = usageVariant(UsageState.FAILED), leading = Phosphor.XCircle)
@@ -89,7 +91,7 @@ private fun StatusLabelPreview() {
 @Composable
 private fun PresetChipPreview() {
     NopeekTheme {
-        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.padding(NopeekSpace.S16), horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S12)) {
             PresetChip(label = "30", selected = true, onClick = {})
             PresetChip(label = "60", selected = false, onClick = {})
             PresetChip(label = "120", selected = false, onClick = {})

@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,6 +28,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekShape
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
@@ -39,9 +39,9 @@ fun Radio(on: Boolean, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(24.dp)
-            .clip(CircleShape)
+            .clip(NopeekShape.Full)
             .background(if (on) colors.you else Color.Transparent)
-            .border(2.dp, if (on) Color.Transparent else colors.outline, CircleShape),
+            .border(2.dp, if (on) Color.Transparent else colors.outline, NopeekShape.Full),
         contentAlignment = Alignment.Center,
     ) {
         if (on) {
@@ -65,9 +65,9 @@ fun AppRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(role = Role.RadioButton, onClick = onClick)
-            .padding(top = 8.dp)
+            .padding(top = NopeekSpace.S8)
             .heightIn(min = 64.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AppTile(icon = icon, fallback = fallback)
@@ -86,7 +86,7 @@ fun ChecklistRow(title: String, subtitle: String, done: Boolean, modifier: Modif
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 72.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Radio(on = done)
@@ -104,14 +104,14 @@ fun PasteField(prompt: String, actionLabel: String, onAction: () -> Unit, modifi
         onClick = onAction,
         modifier = modifier.height(56.dp),
         enabled = true,
-        shape = RoundedCornerShape(14.dp),
+        shape = NopeekShape.Md,
         color = Color.Transparent,
         contentColor = colors.onSurfaceMuted,
         border = androidx.compose.foundation.BorderStroke(1.5.dp, colors.outline),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = NopeekSpace.S16),
+            horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(text = prompt, style = NopeekText.BodyMd, color = colors.onSurfaceMuted, modifier = Modifier.weight(1f))
@@ -144,19 +144,19 @@ fun StepperBar(step: Int, total: Int, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .height(56.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S4),
         ) {
             repeat(total) { i ->
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .height(4.dp)
-                        .clip(CircleShape)
+                        .clip(NopeekShape.Full)
                         .background(if (i < step) colors.primary else colors.surfaceHigh),
                 )
             }
@@ -169,7 +169,7 @@ fun StepperBar(step: Int, total: Int, modifier: Modifier = Modifier) {
 @Composable
 private fun RowsPreview() {
     NopeekTheme {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(NopeekSpace.S16), verticalArrangement = Arrangement.spacedBy(NopeekSpace.S12)) {
             AppRow(name = "TikTok", average = "1h 52m a day on average", selected = true, onClick = {})
             ChecklistRow(title = "Wallet connected", subtitle = "Phantom, 7xKp…9fQ2", done = true)
             PasteField(prompt = "Paste an address or .skr name", actionLabel = "Paste", onAction = {})

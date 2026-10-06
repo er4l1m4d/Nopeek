@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,7 +20,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekShape
 import com.nopeek.app.ui.theme.NopeekSize
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
@@ -40,11 +41,11 @@ fun PrimaryButton(
         onClick = onClick,
         modifier = modifier.height(if (hero) NopeekSize.ButtonHero else NopeekSize.ButtonStd),
         enabled = enabled,
-        shape = CircleShape,
+        shape = NopeekShape.Full,
         color = container ?: (if (enabled) colors.primary else colors.surfaceHigh),
         contentColor = content ?: (if (enabled) colors.onPrimary else colors.onSurfaceMuted),
     ) {
-        Box(modifier = Modifier.padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.padding(horizontal = NopeekSpace.S24), contentAlignment = Alignment.Center) {
             Text(text = label, style = NopeekText.TitleSm)
         }
     }
@@ -64,12 +65,12 @@ fun OutlineButton(
         onClick = onClick,
         modifier = modifier.height(NopeekSize.ButtonStd),
         enabled = enabled,
-        shape = CircleShape,
+        shape = NopeekShape.Full,
         color = Color.Transparent,
         contentColor = content ?: (if (enabled) colors.onSurface else colors.onSurfaceMuted),
         border = BorderStroke(1.5.dp, ring ?: (if (enabled) colors.outline else colors.surfaceHigh)),
     ) {
-        Box(modifier = Modifier.padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.padding(horizontal = NopeekSpace.S24), contentAlignment = Alignment.Center) {
             Text(text = label, style = NopeekText.TitleSm)
         }
     }
@@ -87,11 +88,11 @@ fun TextButton(
         onClick = onClick,
         modifier = modifier.height(NopeekSize.ButtonStd),
         enabled = enabled,
-        shape = CircleShape,
+        shape = NopeekShape.Full,
         color = Color.Transparent,
         contentColor = if (enabled) colors.onSurfaceMuted else colors.surfaceHigh,
     ) {
-        Box(modifier = Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.padding(horizontal = NopeekSpace.S16), contentAlignment = Alignment.Center) {
             Text(text = label, style = NopeekText.TitleSm)
         }
     }
@@ -109,13 +110,13 @@ fun TapIconButton(
         onClick = onClick,
         modifier = modifier
             .semantics { this.contentDescription = contentDescription }
-            .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            .sizeIn(minWidth = NopeekSize.Touch, minHeight = NopeekSize.Touch),
         enabled = false,
-        shape = CircleShape,
+        shape = NopeekShape.Full,
         color = Color.Transparent,
         contentColor = colors.onSurface,
     ) {
-        Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(NopeekSize.Touch), contentAlignment = Alignment.Center) {
             content()
         }
     }
@@ -131,7 +132,7 @@ fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Mod
 @Composable
 private fun ButtonsPreview() {
     NopeekTheme {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(NopeekSpace.S16), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(NopeekSpace.S12)) {
             PrimaryButton(label = "Lock TikTok", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false, hero = true)
             PrimaryButton(label = "Accept $5", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
             PrimaryButton(label = "Disabled", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)

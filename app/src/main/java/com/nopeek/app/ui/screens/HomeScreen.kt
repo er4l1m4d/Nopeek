@@ -31,6 +31,7 @@ import com.nopeek.app.ui.components.usageVariant
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
 import com.nopeek.app.ui.theme.NopeekShape
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
@@ -43,56 +44,56 @@ fun HomeScreen(onOpenDuel: () -> Unit, hasActiveDuel: Boolean = true) {
             .background(colors.background)
             .statusBarsPadding(),
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16, start = NopeekSpace.S16, end = NopeekSpace.S16), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(text = "Nopeek", style = NopeekText.DisplayFigure, color = colors.onSurface)
             Icon(imageVector = Phosphor.Flag, contentDescription = "Duels", tint = colors.onSurfaceMuted, modifier = Modifier.size(28.dp))
         }
         if (hasActiveDuel) {
-            Box(modifier = Modifier.fillMaxWidth().padding(top = 16.dp, start = 16.dp, end = 16.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16, start = NopeekSpace.S16, end = NopeekSpace.S16)) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = NopeekShape.Md,
                     color = colors.surfaceRaised,
                     onClick = onOpenDuel,
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(NopeekSpace.S16)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             StatusLabel(variant = usageVariant(UsageState.PASSING), leading = Phosphor.CheckCircle)
                             Text(text = "  · 18:42 left", style = NopeekText.BodyMd, color = colors.onSurface)
                         }
-                        Text(text = "TikTok · 30m limit", style = NopeekText.TitleSm, color = colors.onSurface, modifier = Modifier.padding(top = 8.dp))
-                        Text(text = "vs alex.skr", style = NopeekText.BodyMd, color = colors.onSurfaceMuted, modifier = Modifier.padding(top = 4.dp))
-                        Pot(state = PotState.WAITING, modifier = Modifier.padding(top = 12.dp))
-                        PrimaryButton(label = "View duel", onClick = onOpenDuel, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), hero = true)
+                        Text(text = "TikTok · 30m limit", style = NopeekText.TitleSm, color = colors.onSurface, modifier = Modifier.padding(top = NopeekSpace.S8))
+                        Text(text = "vs alex.skr", style = NopeekText.BodyMd, color = colors.onSurfaceMuted, modifier = Modifier.padding(top = NopeekSpace.S4))
+                        Pot(state = PotState.WAITING, modifier = Modifier.padding(top = NopeekSpace.S12))
+                        PrimaryButton(label = "View duel", onClick = onOpenDuel, modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S12), hero = true)
                     }
                 }
             }
         } else {
-            Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S32), contentAlignment = Alignment.Center) {
                 Surface(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(NopeekSpace.S24),
                     shape = NopeekShape.Md,
                     color = colors.surfaceRaised,
                 ) {
-                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(modifier = Modifier.padding(NopeekSpace.S24), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(imageVector = Phosphor.PlusBold, contentDescription = null, tint = colors.primary, modifier = Modifier.size(48.dp))
-                        Text(text = "Nothing live today", style = NopeekText.TitleMd, color = colors.onSurface, modifier = Modifier.padding(top = 12.dp))
+                        Text(text = "Nothing live today", style = NopeekText.TitleMd, color = colors.onSurface, modifier = Modifier.padding(top = NopeekSpace.S12))
                         Text(
                             text = "Start a duel and your allowance, stakes and record will show up here.",
                             style = NopeekText.BodyMd,
                             color = colors.onSurfaceMuted,
-                            modifier = Modifier.padding(top = 8.dp),
+                            modifier = Modifier.padding(top = NopeekSpace.S8),
                         )
-                        PrimaryButton(label = "Go to duels", onClick = onOpenDuel, modifier = Modifier.fillMaxWidth().padding(top = 16.dp))
+                        PrimaryButton(label = "Go to duels", onClick = onOpenDuel, modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16))
                     }
                 }
             }
         }
-        Text(text = "Recent", style = NopeekText.TitleMd, color = colors.onSurface, modifier = Modifier.padding(top = 24.dp, start = 16.dp))
+        Text(text = "Recent", style = NopeekText.TitleMd, color = colors.onSurface, modifier = Modifier.padding(top = NopeekSpace.S24, start = NopeekSpace.S16))
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S8),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = NopeekSpace.S16, vertical = NopeekSpace.S4),
+            verticalArrangement = Arrangement.spacedBy(NopeekSpace.S8),
         ) {
             items(DemoRecent) { duel ->
                 FixtureRow(

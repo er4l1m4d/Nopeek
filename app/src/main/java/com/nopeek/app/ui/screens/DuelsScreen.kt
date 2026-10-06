@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,7 +41,9 @@ import com.nopeek.app.ui.components.StatusVariant
 import com.nopeek.app.ui.components.lifecycleVariant
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
-import com.nopeek.app.ui.theme.NopeekRef
+import com.nopeek.app.ui.theme.NopeekShape
+import com.nopeek.app.ui.theme.NopeekSize
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 import java.util.Locale
@@ -59,12 +60,14 @@ private fun DuelTab.matches(localStatus: String): Boolean = when (this) {
     DuelTab.SETTLED -> localStatus == "SETTLED" || localStatus == "REFUNDED"
 }
 
+@Composable
 private fun statusLeadingIcon(variant: StatusVariant): ImageVector? {
+    val colors = Nopeek.colors
     val color = variant.color
     return when {
-        color == NopeekRef.Volt -> Phosphor.CheckCircle
-        color == NopeekRef.Amber -> Phosphor.WarningCircle
-        color == NopeekRef.Coral -> Phosphor.XCircle
+        color == colors.you -> Phosphor.CheckCircle
+        color == colors.warning -> Phosphor.WarningCircle
+        color == colors.danger -> Phosphor.XCircle
         else -> null
     }
 }
@@ -124,7 +127,7 @@ fun DuelsScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
+            contentPadding = PaddingValues(start = NopeekSpace.S16, top = NopeekSpace.S16, end = NopeekSpace.S16, bottom = NopeekSize.ListBottomPad),
         ) {
             item {
                 Text(text = "DUELS", style = NopeekText.DisplayTitle, color = colors.onSurface)
@@ -140,7 +143,7 @@ fun DuelsScreen(
                     tab = tab,
                     counts = counts,
                     onSelect = { tab = it },
-                    modifier = Modifier.padding(top = 12.dp),
+                    modifier = Modifier.padding(top = NopeekSpace.S12),
                 )
             }
             if (visible.isEmpty()) {
@@ -149,7 +152,7 @@ fun DuelsScreen(
                         text = "No ${tab.label.lowercase(Locale.ROOT)} duels yet.",
                         style = NopeekText.BodyMd,
                         color = colors.onSurfaceMuted,
-                        modifier = Modifier.padding(top = 24.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S24),
                     )
                 }
             } else {
@@ -174,7 +177,7 @@ fun DuelsScreen(
             onClick = { onNewDuel?.invoke() },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 16.dp),
+                .padding(end = NopeekSpace.S16, bottom = NopeekSpace.S16),
         )
     }
 }
@@ -206,7 +209,7 @@ private fun TabCell(label: String, selected: Boolean, onClick: () -> Unit, modif
     Column(
         modifier = modifier
             .clickable(role = Role.Tab, onClick = onClick)
-            .padding(top = 12.dp),
+            .padding(top = NopeekSpace.S12),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -217,7 +220,7 @@ private fun TabCell(label: String, selected: Boolean, onClick: () -> Unit, modif
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp)
+                .padding(top = NopeekSpace.S8)
                 .height(3.dp)
                 .background(if (selected) colors.primary else Color.Transparent),
         )
@@ -229,14 +232,14 @@ fun NewDuelFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = Nopeek.colors
     Surface(
         onClick = onClick,
-        modifier = modifier.height(56.dp),
+        modifier = modifier.height(NopeekSize.Fab),
         enabled = true,
-        shape = CircleShape,
+        shape = NopeekShape.Full,
         color = colors.primary,
         contentColor = colors.onPrimary,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 24.dp),
+            modifier = Modifier.padding(horizontal = NopeekSpace.S24),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

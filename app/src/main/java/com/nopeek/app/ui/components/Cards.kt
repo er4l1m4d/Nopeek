@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,9 +44,9 @@ import androidx.compose.ui.unit.dp
 import com.nopeek.app.ui.icons.Phosphor
 
 import com.nopeek.app.ui.theme.Nopeek
-import com.nopeek.app.ui.theme.NopeekRef
 import com.nopeek.app.ui.theme.NopeekShape
 import com.nopeek.app.ui.theme.NopeekSize
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
@@ -79,9 +77,9 @@ fun FixtureRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(vertical = 16.dp),
+            .padding(vertical = NopeekSpace.S16),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
     ) {
         AppTile(
             icon = appIcon,
@@ -176,28 +174,28 @@ fun MiniTape(
         modifier = modifier
             .fillMaxWidth()
             .height(24.dp)
-            .padding(top = 12.dp),
+            .padding(top = NopeekSpace.S12),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset(y = 3.dp)
                 .height(NopeekSize.TrackMini)
-                .clip(CircleShape)
+                .clip(NopeekShape.Full)
                 .background(colors.surfaceHigh),
         )
         Box(
             modifier = Modifier
                 .offset(x = maxWidth * you - NopeekSize.MarkerMini / 2)
                 .size(NopeekSize.MarkerMini)
-                .clip(CircleShape)
+                .clip(NopeekShape.Full)
                 .background(colors.you),
         )
         Box(
             modifier = Modifier
                 .offset(x = maxWidth * opp - NopeekSize.MarkerMini / 2)
                 .size(NopeekSize.MarkerMini)
-                .clip(CircleShape)
+                .clip(NopeekShape.Full)
                 .background(colors.opponent),
         )
     }
@@ -221,9 +219,9 @@ fun Scoreboard(
             .fillMaxWidth()
             .clip(NopeekShape.Md)
             .background(colors.surfaceRaised)
-            .padding(horizontal = 16.dp, vertical = 20.dp)
+            .padding(horizontal = NopeekSpace.S16, vertical = NopeekSpace.S20)
             .semantics { contentDescription = talkBack },
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S8),
         verticalAlignment = Alignment.Top,
     ) {
         Column(
@@ -334,14 +332,14 @@ fun SharedTape(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(40.dp)
-                .padding(top = 8.dp),
+                .padding(top = NopeekSpace.S8),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .offset(y = 14.dp)
                     .height(NopeekSize.TrackShared)
-                    .clip(CircleShape)
+                    .clip(NopeekShape.Full)
                     .background(colors.surfaceHigh),
             )
             Box(
@@ -349,7 +347,7 @@ fun SharedTape(
                     .offset(x = maxWidth * left, y = 14.dp)
                     .width(maxWidth * (right - left))
                     .height(NopeekSize.TrackShared)
-                    .clip(CircleShape)
+                    .clip(NopeekShape.Full)
                     .background(leadColor),
             )
             MarkerDot(
@@ -364,7 +362,7 @@ fun SharedTape(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = NopeekSpace.S8),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
@@ -391,9 +389,9 @@ private fun MarkerDot(
         modifier = Modifier
             .offset(x = x, y = 7.dp)
             .size(NopeekSize.MarkerShared)
-            .clip(CircleShape)
+            .clip(NopeekShape.Full)
             .background(color)
-            .border(4.dp, colors.background, CircleShape),
+            .border(4.dp, colors.background, NopeekShape.Full),
     )
 }
 
@@ -432,7 +430,7 @@ fun Pot(
             }
             drawPath(
                 path = glass,
-                color = NopeekRef.Chalk.copy(alpha = 0.4f),
+                color = colors.onSurface.copy(alpha = 0.4f), // glass outline, deliberately translucent
                 style = Stroke(width = 4f),
             )
         }
@@ -483,7 +481,7 @@ fun ReceiptRow(
     val resolvedValue = valueColor ?: colors.onSurface
     val base = modifier
         .fillMaxWidth()
-        .heightIn(min = 48.dp)
+        .heightIn(min = NopeekSize.Touch)
     val clickable = if (onClick != null) {
         base
             .clickable(role = Role.Button, onClick = onClick)
@@ -494,7 +492,7 @@ fun ReceiptRow(
     Row(
         modifier = clickable,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
     ) {
         Text(
             text = label,
@@ -528,17 +526,17 @@ fun InviteBanner(
     val colors = Nopeek.colors
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
+        shape = NopeekShape.Md,
         color = Color.Transparent,
         contentColor = colors.onSurface,
         border = androidx.compose.foundation.BorderStroke(1.5.dp, colors.outline),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(NopeekSpace.S16),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
             ) {
                 AppTile(
                     fallback = "X",
@@ -562,7 +560,7 @@ fun InviteBanner(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp),
+                    .padding(top = NopeekSpace.S12),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -584,7 +582,7 @@ fun InviteBanner(
 private fun FixtureRowPreview() {
     NopeekTheme {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(NopeekSpace.S16),
         ) {
             FixtureRow(
                 title = "vs alex.skr",
@@ -608,7 +606,7 @@ private fun FixtureRowPreview() {
 private fun ScoreboardPreview() {
     NopeekTheme {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(NopeekSpace.S16),
         ) {
             Scoreboard(
                 youClock = "18:42",
@@ -629,8 +627,8 @@ private fun ScoreboardPreview() {
 private fun TapePotReceiptPreview() {
     NopeekTheme {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(NopeekSpace.S16),
+            verticalArrangement = Arrangement.spacedBy(NopeekSpace.S16),
         ) {
             SharedTape(
                 youFraction = 0.622f,
@@ -640,7 +638,7 @@ private fun TapePotReceiptPreview() {
                 behind = false,
             )
             Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S16),
             ) {
                 Pot(state = PotState.FUNDED)
                 Pot(state = PotState.WAITING)

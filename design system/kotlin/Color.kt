@@ -17,6 +17,7 @@ object VoloRef {
     val Amber = Color(0xFFF5B335)
     val Coral = Color(0xFFFF6A4D)
     val Moss = Color(0xFF455413)
+    val Pitch70 = Color(0xB310261B) // 70% Pitch - muted text on the full-bleed lose surface
 }
 
 /** Tier 2 - system tokens. Named by role. Components read only these. */
@@ -38,6 +39,10 @@ data class VoloColors(
     val onWin: Color,
     val onWinMuted: Color,
     val win: Color,
+    val onLose: Color,
+    val onLoseMuted: Color,
+    val lose: Color,
+    val onWarning: Color,
 )
 
 val VoloDarkColors = VoloColors(
@@ -57,6 +62,10 @@ val VoloDarkColors = VoloColors(
     onWin = VoloRef.Pitch,
     onWinMuted = VoloRef.Moss,
     win = VoloRef.Volt,
+    onLose = VoloRef.Pitch,
+    onLoseMuted = VoloRef.Pitch70,
+    lose = VoloRef.Coral,
+    onWarning = VoloRef.Pitch,
 )
 
 val LocalVoloColors = staticCompositionLocalOf { VoloDarkColors }

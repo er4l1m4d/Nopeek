@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekTheme
 import java.util.Locale
 
@@ -69,7 +70,7 @@ private fun InstalledAppListPreview() {
             InstalledApp("com.zhiliaoapp.musically", "TikTok"),
             InstalledApp("com.instagram.android", "Instagram"),
         )
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(NopeekSpace.S16)) {
             apps.forEach { app ->
                 AppRow(
                     name = app.label,

@@ -47,6 +47,7 @@ import com.nopeek.app.ui.components.ReceiptRow
 import com.nopeek.app.ui.components.ReviewRow
 import com.nopeek.app.ui.components.StepperBar
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 import kotlinx.coroutines.CoroutineScope
@@ -96,10 +97,10 @@ fun CreateScreen(onCreated: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 104.dp),
+                .padding(start = NopeekSpace.S16, end = NopeekSpace.S16, bottom = 104.dp),
         ) {
             if (sentTx == null) {
-                StepperBar(step = step, total = 6, modifier = Modifier.padding(top = 16.dp))
+                StepperBar(step = step, total = 6, modifier = Modifier.padding(top = NopeekSpace.S16))
             }
             when (step) {
                 1 -> {
@@ -117,14 +118,14 @@ fun CreateScreen(onCreated: () -> Unit) {
                         text = "${limitMinutes ?: 30}",
                         style = NopeekText.DisplayHero,
                         color = colors.onSurface,
-                        modifier = Modifier.padding(top = 24.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S24),
                     )
                     Text(text = "min a day", style = NopeekText.BodyLg, color = colors.onSurfaceMuted)
                     ChipGrid(
                         options = limitPresets.map { it.toString() },
                         selected = limitMinutes?.toString(),
                         onSelect = { limitMinutes = it.toInt() },
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S16),
                     )
                 }
                 3 -> {
@@ -134,7 +135,7 @@ fun CreateScreen(onCreated: () -> Unit) {
                         text = selected?.label?.split(" ")?.first() ?: "24",
                         style = NopeekText.DisplayHero,
                         color = colors.onSurface,
-                        modifier = Modifier.padding(top = 24.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S24),
                     )
                     Text(
                         text = selected?.label?.split(" ")?.getOrNull(1) ?: "hours",
@@ -145,13 +146,13 @@ fun CreateScreen(onCreated: () -> Unit) {
                         options = windowOptions.map { it.label },
                         selected = selected?.label,
                         onSelect = { label -> windowSeconds = windowOptions.firstOrNull { it.label == label }?.seconds },
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S16),
                     )
                     Text(
                         text = "You need to stay under ${limitMinutes ?: 30} min in that window.",
                         style = NopeekText.BodyMd,
                         color = colors.onSurfaceMuted,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S16),
                     )
                 }
                 4 -> {
@@ -159,8 +160,8 @@ fun CreateScreen(onCreated: () -> Unit) {
                     androidx.compose.foundation.layout.Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 24.dp),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            .padding(top = NopeekSpace.S24),
+                        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S20),
                         verticalAlignment = Alignment.Bottom,
                     ) {
                         Text(
@@ -178,13 +179,13 @@ fun CreateScreen(onCreated: () -> Unit) {
                                 stakeAmountRaw = it
                             }
                         },
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S16),
                     )
                     Text(
                         text = "You have 42.50 USDC. These are test funds on devnet.",
                         style = NopeekText.BodyMd,
                         color = colors.onSurfaceMuted,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S16),
                     )
                 }
                 5 -> {
@@ -196,14 +197,14 @@ fun CreateScreen(onCreated: () -> Unit) {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.let { opponent = it }
                         },
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S16),
                     )
                     if (resolvedOpponent != null) {
                         Text(
                             text = "Resolves to $resolvedOpponent",
                             style = NopeekText.BodyMd,
                             color = colors.you,
-                            modifier = Modifier.padding(top = 12.dp),
+                            modifier = Modifier.padding(top = NopeekSpace.S12),
                         )
                     }
                     errors.forEach { error ->
@@ -211,13 +212,13 @@ fun CreateScreen(onCreated: () -> Unit) {
                             message = error.message(),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 12.dp),
+                                .padding(top = NopeekSpace.S12),
                         )
                     }
                 }
                 6 -> {
                     StepHead("Review and approve.", null)
-                    Column(modifier = Modifier.padding(top = 20.dp)) {
+                    Column(modifier = Modifier.padding(top = NopeekSpace.S20)) {
                         ReviewRow(label = "App", value = appLabel.ifBlank { "—" }, onEdit = { step = 1 })
                         ReviewRow(label = "Daily limit", value = "${limitMinutes ?: 0} min", onEdit = { step = 2 })
                         ReviewRow(
@@ -232,14 +233,14 @@ fun CreateScreen(onCreated: () -> Unit) {
                         text = "Your $" + formatUsdc(stakeAmountRaw) + " locks when you approve in your wallet. Test funds on devnet — nothing real moves.",
                         style = NopeekText.BodyMd,
                         color = colors.onSurfaceMuted,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S16),
                     )
                 }
                 else -> {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 16.dp),
+                            .padding(top = NopeekSpace.S16),
                         contentAlignment = Alignment.Center,
                     ) {
                         Pot(state = PotState.WAITING, modifier = Modifier.fillMaxWidth())
@@ -248,25 +249,25 @@ fun CreateScreen(onCreated: () -> Unit) {
                         text = "Sent.",
                         style = NopeekText.DisplayHero,
                         color = colors.onSurface,
-                        modifier = Modifier.padding(top = 20.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S20),
                     )
                     Text(
                         text = "We’ll tell you when ${resolvedOpponent ?: opponent} accepts. Until then your $" + formatUsdc(stakeAmountRaw) + " stays locked.",
                         style = NopeekText.BodyLg,
                         color = colors.onSurfaceMuted,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S8),
                     )
                     ReceiptRow(
                         label = "Transaction",
                         value = sentTx ?: "",
-                        modifier = Modifier.padding(top = 20.dp),
+                        modifier = Modifier.padding(top = NopeekSpace.S20),
                     )
                     PrimaryButton(
                         label = "Back to duels",
                         onClick = onCreated,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 16.dp, bottom = 24.dp),
+                            .padding(top = NopeekSpace.S16, bottom = NopeekSpace.S24),
                         hero = true,
                     )
                 }
@@ -290,7 +291,7 @@ fun CreateScreen(onCreated: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                        .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
+                    .padding(start = NopeekSpace.S16, top = NopeekSpace.S12, end = NopeekSpace.S16, bottom = NopeekSpace.S24),
             ) {
                 PrimaryButton(label = ctaLabel, onClick = ctaAction, enabled = ctaEnabled, hero = true, modifier = Modifier.fillMaxWidth())
             }
@@ -337,7 +338,7 @@ private fun StepHead(title: String, sub: String?) {
             text = sub,
             style = NopeekText.BodyLg,
             color = colors.onSurfaceMuted,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = NopeekSpace.S8),
         )
     }
 }
@@ -347,8 +348,8 @@ private fun StepHead(title: String, sub: String?) {
 private fun ChipGrid(options: List<String>, selected: String?, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
     androidx.compose.foundation.layout.FlowRow(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S8),
+        verticalArrangement = Arrangement.spacedBy(NopeekSpace.S8),
     ) {
         options.forEach { option ->
             PresetChip(label = option, selected = option == selected, onClick = { onSelect(option) })

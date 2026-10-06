@@ -20,35 +20,24 @@ enum class UsageState {
 }
 
 fun lifecycleVariant(localStatus: String): StatusVariant {
-    val bg = com.nopeek.app.ui.theme.NopeekColors.bg
-    val safe = com.nopeek.app.ui.theme.NopeekColors.safe
-    val copper = com.nopeek.app.ui.theme.NopeekColors.copper
-    val risk = com.nopeek.app.ui.theme.NopeekColors.risk
-    val fail = com.nopeek.app.ui.theme.NopeekColors.fail
-    val surfaceHigh = com.nopeek.app.ui.theme.NopeekColors.surfaceHigh
-    val textMuted = com.nopeek.app.ui.theme.NopeekColors.textMuted
+    val scheme = NopeekDarkColors
     return when (localStatus) {
-        "ACTIVE" -> StatusVariant("ACTIVE", safe, bg)
-        "CREATED" -> StatusVariant("PENDING", copper, bg)
-        "PENDING_VERIFICATION" -> StatusVariant("VERIFY", risk, bg)
-        "BOTH_FAIL_LOCKED" -> StatusVariant("LOCKED", fail, bg)
-        "SETTLED" -> StatusVariant("SETTLED", surfaceHigh, textMuted)
-        "REFUNDED" -> StatusVariant("REFUNDED", surfaceHigh, textMuted)
-        else -> StatusVariant(localStatus, surfaceHigh, textMuted)
+        "ACTIVE" -> StatusVariant("ACTIVE", scheme.you, scheme.background)
+        "CREATED" -> StatusVariant("PENDING", scheme.copper, scheme.background)
+        "PENDING_VERIFICATION" -> StatusVariant("VERIFY", scheme.warning, scheme.background)
+        "BOTH_FAIL_LOCKED" -> StatusVariant("LOCKED", scheme.danger, scheme.background)
+        "SETTLED" -> StatusVariant("SETTLED", scheme.surfaceHigh, scheme.onSurfaceMuted)
+        "REFUNDED" -> StatusVariant("REFUNDED", scheme.surfaceHigh, scheme.onSurfaceMuted)
+        else -> StatusVariant(localStatus, scheme.surfaceHigh, scheme.onSurfaceMuted)
     }
 }
 
 fun usageVariant(state: UsageState): StatusVariant {
-    val bg = com.nopeek.app.ui.theme.NopeekColors.bg
-    val safe = com.nopeek.app.ui.theme.NopeekColors.safe
-    val risk = com.nopeek.app.ui.theme.NopeekColors.risk
-    val fail = com.nopeek.app.ui.theme.NopeekColors.fail
-    val surfaceHigh = com.nopeek.app.ui.theme.NopeekColors.surfaceHigh
-    val textMuted = com.nopeek.app.ui.theme.NopeekColors.textMuted
+    val scheme = NopeekDarkColors
     return when (state) {
-        UsageState.PASSING -> StatusVariant("PASSING", safe, bg)
-        UsageState.AT_RISK -> StatusVariant("AT RISK", risk, bg)
-        UsageState.FAILED -> StatusVariant("FAILED", fail, bg)
-        UsageState.UNVERIFIED -> StatusVariant("UNVERIFIED", surfaceHigh, textMuted)
+        UsageState.PASSING -> StatusVariant("PASSING", scheme.you, scheme.background)
+        UsageState.AT_RISK -> StatusVariant("AT RISK", scheme.warning, scheme.background)
+        UsageState.FAILED -> StatusVariant("FAILED", scheme.danger, scheme.background)
+        UsageState.UNVERIFIED -> StatusVariant("UNVERIFIED", scheme.surfaceHigh, scheme.onSurfaceMuted)
     }
 }

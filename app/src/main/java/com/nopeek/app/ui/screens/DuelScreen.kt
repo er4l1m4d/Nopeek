@@ -38,6 +38,7 @@ import com.nopeek.app.ui.components.UsageState
 import com.nopeek.app.ui.components.usageVariant
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
@@ -52,10 +53,10 @@ fun DuelScreen(pubkey: String, onBack: () -> Unit, onForfeit: (() -> Unit)? = nu
             .background(colors.background)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = NopeekSpace.S16),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S8),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -78,8 +79,8 @@ fun DuelScreen(pubkey: String, onBack: () -> Unit, onForfeit: (() -> Unit)? = nu
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16),
+            horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S16),
             verticalAlignment = Alignment.Bottom,
         ) {
             Pot(state = PotState.FUNDED)
@@ -89,7 +90,7 @@ fun DuelScreen(pubkey: String, onBack: () -> Unit, onForfeit: (() -> Unit)? = nu
                     text = "Your $5 and alex.skr's $5, held until midnight UTC.",
                     style = NopeekText.BodyMd,
                     color = colors.onSurfaceMuted,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = NopeekSpace.S4),
                 )
             }
         }
@@ -102,7 +103,7 @@ fun DuelScreen(pubkey: String, onBack: () -> Unit, onForfeit: (() -> Unit)? = nu
             opponentStatus = usageVariant(UsageState.AT_RISK),
             opponentLeading = Phosphor.WarningCircle,
             talkBack = "You, 18 minutes 42 seconds, safe. alex.skr, 27 minutes 10 seconds, at risk. You are ahead by 8 minutes 28 seconds.",
-            modifier = Modifier.padding(top = 20.dp),
+            modifier = Modifier.padding(top = NopeekSpace.S20),
         )
         SharedTape(
             youFraction = 0.622f,
@@ -110,22 +111,22 @@ fun DuelScreen(pubkey: String, onBack: () -> Unit, onForfeit: (() -> Unit)? = nu
             limitLabel = "30 min limit",
             leadText = "8:28 ahead",
             behind = false,
-            modifier = Modifier.padding(top = 20.dp),
+            modifier = Modifier.padding(top = NopeekSpace.S20),
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S24),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
             Text(text = "11:18", style = NopeekText.DisplayClock, color = colors.onSurface)
-            Column(modifier = Modifier.padding(end = 16.dp)) {
+            Column(modifier = Modifier.padding(end = NopeekSpace.S16)) {
                 Text(text = "left today", style = NopeekText.BodyMd, color = colors.onSurfaceMuted)
             }
         }
         PrimaryButton(
             label = "Lock TikTok",
             onClick = {},
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16, bottom = NopeekSpace.S24),
             hero = true,
         )
     }

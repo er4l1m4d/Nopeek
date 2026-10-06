@@ -25,6 +25,7 @@ import com.nopeek.app.ui.components.ReceiptRow
 import com.nopeek.app.ui.components.TapIconButton
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 import java.util.Locale
@@ -46,58 +47,58 @@ fun LostScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.danger)
+            .background(colors.lose)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = NopeekSpace.S16),
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S8), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 text = "LOST",
                 style = NopeekText.DisplayMoment,
-                color = colors.surface,
+                color = colors.onLose,
             )
             TapIconButton(contentDescription = "Back", onClick = onBack) {
-                Icon(imageVector = Phosphor.ArrowLeft, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.surface)
+                Icon(imageVector = Phosphor.ArrowLeft, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.onLose)
             }
         }
         Text(
             text = "$opponentName stayed under",
             style = NopeekText.TitleSm,
-            color = colors.surface,
-            modifier = Modifier.padding(top = 8.dp),
+            color = colors.onLose,
+            modifier = Modifier.padding(top = NopeekSpace.S8),
         )
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 24.dp), verticalAlignment = Alignment.Bottom) {
-            Text(text = "${youMinutes}m", style = NopeekText.DisplayClock, color = colors.surface)
-            Spacer(Modifier.size(8.dp))
-            Text(text = "vs ${opponentMinutes}m", style = NopeekText.BodyMd, color = colors.surface)
+        Row(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S24), verticalAlignment = Alignment.Bottom) {
+            Text(text = "${youMinutes}m", style = NopeekText.DisplayClock, color = colors.onLose)
+            Spacer(Modifier.size(NopeekSpace.S8))
+            Text(text = "vs ${opponentMinutes}m", style = NopeekText.BodyMd, color = colors.onLose)
         }
         Text(
             text = "Your stake is theirs now.",
             style = NopeekText.DisplayTitle,
-            color = colors.surface,
-            modifier = Modifier.padding(top = 24.dp),
+            color = colors.onLose,
+            modifier = Modifier.padding(top = NopeekSpace.S24),
         )
-        Column(modifier = Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ReceiptRow(label = "You used", value = "${youMinutes}m", labelColor = colors.surface, valueColor = colors.surface)
-            ReceiptRow(label = "$opponentName used", value = "${opponentMinutes}m", labelColor = colors.surface, valueColor = colors.surface)
-            ReceiptRow(label = "Paid to", value = opponentName, labelColor = colors.surface, valueColor = colors.surface)
-            ReceiptRow(label = "Transaction", value = tx, labelColor = colors.surface, valueColor = colors.surface)
+        Column(modifier = Modifier.padding(top = NopeekSpace.S16), verticalArrangement = Arrangement.spacedBy(NopeekSpace.S8)) {
+            ReceiptRow(label = "You used", value = "${youMinutes}m", labelColor = colors.onLose, valueColor = colors.onLose)
+            ReceiptRow(label = "$opponentName used", value = "${opponentMinutes}m", labelColor = colors.onLose, valueColor = colors.onLose)
+            ReceiptRow(label = "Paid to", value = opponentName, labelColor = colors.onLose, valueColor = colors.onLose)
+            ReceiptRow(label = "Transaction", value = tx, labelColor = colors.onLose, valueColor = colors.onLose)
         }
-        Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S32), contentAlignment = Alignment.Center) {
             Text(
                 text = if (unlocked) "You can rematch now" else String.format(Locale.US, "Rematch in %d:%02d", minutes, seconds),
                 style = NopeekText.TitleSm,
-                color = colors.surface,
+                color = colors.onLose,
             )
         }
         OutlineButton(
             label = if (unlocked) "Rematch" else "Locked",
             onClick = onRematch,
             enabled = unlocked,
-            ring = colors.surface,
-            content = colors.surface,
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 24.dp),
+            ring = colors.onLose,
+            content = colors.onLose,
+            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16, bottom = NopeekSpace.S24),
         )
     }
 }

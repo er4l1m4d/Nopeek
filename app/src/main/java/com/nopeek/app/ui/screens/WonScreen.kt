@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -21,15 +20,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.nopeek.app.ui.components.OutlineButton
 import com.nopeek.app.ui.components.Pot
 import com.nopeek.app.ui.components.PotState
 import com.nopeek.app.ui.components.PrimaryButton
 import com.nopeek.app.ui.components.ReceiptRow
 import com.nopeek.app.ui.components.TapIconButton
-import com.nopeek.app.ui.components.animatedFraction
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
-import com.nopeek.app.ui.theme.NopeekMotion
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 import kotlin.math.abs
@@ -52,9 +51,9 @@ fun WonScreen(
             .background(colors.win)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = NopeekSpace.S16),
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S8), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 text = "WON",
                 style = NopeekText.DisplayMoment,
@@ -68,42 +67,44 @@ fun WonScreen(
             text = "You beat $opponentName",
             style = NopeekText.TitleSm,
             color = colors.onWin,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = NopeekSpace.S8),
         )
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 24.dp), verticalAlignment = Alignment.Bottom) {
-            Text(text = "27 min", style = NopeekText.DisplayClock, color = colors.onWin)
-            Spacer(Modifier.size(8.dp))
-            Text(text = "vs $youMinutes", style = NopeekText.BodyMd, color = colors.onWin)
+        Row(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S24), verticalAlignment = Alignment.Bottom) {
+            Text(text = "$youMinutes min", style = NopeekText.DisplayClock, color = colors.onWin)
+            Spacer(Modifier.size(NopeekSpace.S8))
+            Text(text = "vs $opponentMinutes min", style = NopeekText.BodyMd, color = colors.onWin)
         }
-        Pot(state = PotState.PAID_OUT, modifier = Modifier.fillMaxWidth().padding(top = 24.dp))
+        Pot(state = PotState.PAID_OUT, modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S24))
         Text(
             text = "$$amount",
             style = NopeekText.DisplayHero,
             color = colors.onWin,
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = Modifier.padding(top = NopeekSpace.S24),
         )
         Text(
             text = "Plus your $amount and $opponentName's $amount, returned to each of you.",
             style = NopeekText.BodyMd,
             color = colors.onWinMuted,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = NopeekSpace.S8),
         )
-        Column(modifier = Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(top = NopeekSpace.S24), verticalArrangement = Arrangement.spacedBy(NopeekSpace.S8)) {
             ReceiptRow(label = "You used", value = "$youMinutes min")
             ReceiptRow(label = "$opponentName used", value = "$opponentMinutes min")
             ReceiptRow(label = "Transaction", value = tx)
         }
-        PrimaryButton(
+        OutlineButton(
             label = "Rematch",
             onClick = onRematch,
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-            container = colors.onWin,
-            content = colors.win,
+            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S24),
+            ring = colors.onWin,
+            content = colors.onWin,
         )
         PrimaryButton(
             label = "Share",
             onClick = onShare,
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S12, bottom = NopeekSpace.S24),
+            container = colors.onWin,
+            content = colors.win,
         )
     }
 }

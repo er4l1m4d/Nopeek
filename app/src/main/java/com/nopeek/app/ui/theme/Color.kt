@@ -17,6 +17,7 @@ object NopeekRef {
     val Amber = Color(0xFFF5B335)
     val Coral = Color(0xFFFF6A4D)
     val Moss = Color(0xFF455413)
+    val Pitch70 = Color(0xB310261B) // 70% Pitch - muted text on the full-bleed lose surface
 }
 
 /** Tier 2 - system tokens. Named by role. Components read only these. */
@@ -38,6 +39,10 @@ data class NopeekColorScheme(
     val onWin: Color,
     val onWinMuted: Color,
     val win: Color,
+    val onLose: Color,
+    val onLoseMuted: Color,
+    val lose: Color,
+    val onWarning: Color,
     val copper: Color,
     val surfaceContainer: Color,
     val surfaceContainerHigh: Color,
@@ -60,6 +65,10 @@ val NopeekDarkColors = NopeekColorScheme(
     onWin = NopeekRef.Pitch,
     onWinMuted = NopeekRef.Moss,
     win = NopeekRef.Volt,
+    onLose = NopeekRef.Pitch,
+    onLoseMuted = NopeekRef.Pitch70,
+    lose = NopeekRef.Coral,
+    onWarning = NopeekRef.Pitch,
     copper = NopeekRef.Amber,
     surfaceContainer = NopeekRef.Turf,
     surfaceContainerHigh = NopeekRef.Turf2,

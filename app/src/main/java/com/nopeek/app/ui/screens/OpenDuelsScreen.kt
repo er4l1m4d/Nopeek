@@ -24,6 +24,7 @@ import com.nopeek.app.ui.components.lifecycleVariant
 import com.nopeek.app.ui.components.usageVariant
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 import androidx.compose.material3.Icon
@@ -51,17 +52,17 @@ fun OpenDuelsScreen(onBack: () -> Unit, hasOpenDuels: Boolean = true) {
             .background(colors.background)
             .statusBarsPadding(),
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S8, start = NopeekSpace.S8, end = NopeekSpace.S8), verticalAlignment = Alignment.CenterVertically) {
             TapIconButton(contentDescription = "Back", onClick = onBack) {
                 Icon(imageVector = Phosphor.ArrowLeft, contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(24.dp))
             }
-            Text(text = "Open duels", style = NopeekText.DisplayTitle, color = colors.onSurface, modifier = Modifier.padding(start = 8.dp))
+            Text(text = "Open duels", style = NopeekText.DisplayTitle, color = colors.onSurface, modifier = Modifier.padding(start = NopeekSpace.S8))
         }
         Text(
             text = "Anyone can take these. The first to accept owns half the stake.",
             style = NopeekText.BodyLg,
             color = colors.onSurfaceMuted,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = NopeekSpace.S16, vertical = NopeekSpace.S8),
         )
         if (!hasOpenDuels) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -69,8 +70,8 @@ fun OpenDuelsScreen(onBack: () -> Unit, hasOpenDuels: Boolean = true) {
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(NopeekSpace.S16),
+                verticalArrangement = Arrangement.spacedBy(NopeekSpace.S12),
             ) {
                 items(DemoOpenDuels) { duel ->
                     FixtureRow(
