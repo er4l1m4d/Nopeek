@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.volo.app"
+    namespace = "com.nopeek.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.volo.app"
+        applicationId = "com.nopeek.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -22,7 +22,7 @@ android {
     signingConfigs {
         create("release") {
             // Credentials live in untracked keystore.properties (gitignored); the
-            // keystore itself sits outside the repo (~/.android/Volo.keystore).
+            // keystore itself sits outside the repo (~/.android/Nopeek.keystore).
             // Never hardcode passwords here — the history was scrubbed once already.
             val propsFile = rootProject.file("keystore.properties")
             if (propsFile.exists()) {

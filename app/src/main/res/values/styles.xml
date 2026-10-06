@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.Volo" parent="android:style/Theme.Material.NoActionBar">
+    <style name="Theme.Nopeek" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:colorAccent">#D17A54</item>
         <item name="android:navigationBarColor">#10191D</item>
         <item name="android:statusBarColor">#10191D</item>
