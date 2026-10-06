@@ -1,0 +1,21 @@
+{
+  "_comment": "Single source of truth for the canonical evidence format (plan Task 6, spec 4.2). Both the Kotlin and the TypeScript encoder must reproduce expectedHex and expectedHash exactly. Neither side may special-case its own output: the values below are computed once and pinned, so a divergence between the two languages is a test failure rather than a production settlement that disagrees with its own evidence. Regenerate only by changing the format deliberately.",
+  "fields": {
+    "version": 1,
+    "challengePubkey": "7NbS1ProbePubkeyABCDEFGHJKLMNPQRSTUVWXYZ2345",
+    "walletPubkey": "3Dfk2mQxNr8TaVeW9sYhKbLcP4uMgZ6RjQsXyE1nB2dK",
+    "packageName": "com.nopeek.app",
+    "targetPackage": "com.instagram.android",
+    "windowStartMs": 1759000000000,
+    "windowEndMs": 1759000060000,
+    "usedSeconds": 42,
+    "deviceActiveSeconds": 180,
+    "eventCount": 6,
+    "eventSetDigestHex": "9f2c4b77a1e0d3358b64f1a2c7d9e0b3f46a1c8d2e5b7a90c3f1d8e4b6a20c75",
+    "tamperSignals": [],
+    "nonceB64": "bm9wZWVrLXNxb25l"
+  },
+  "expectedHex": "010000002c374e62533150726f62655075626b657941424344454647484a4b4c4d4e505152535455565758595a323334350000002c3344666b326d51784e72385461566557397359684b624c635034754d675a36526a5173587945316e4232644b0000000e636f6d2e6e6f7065656b2e61707000000015636f6d2e696e7374616772616d2e616e64726f69640000000d313735393030303030303030300000000d3137353930303030363030303000000002343200000003313830000000013600000040396632633462373761316530643333353862363466316132633764396530623366343661316338643265356237613930633366316438653462366132306337350000000000000010626d39775a5756724c584e786232356c",
+  "expectedHash": "7efb9ba42f7ec4c248b5486ebb59b956fb5bc47ce8ee4de3c2581b3bf72b4e4a",
+  "byteLength": 284
+}
