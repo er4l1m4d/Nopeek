@@ -17,6 +17,10 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+
+        // Task 2 (S1 spike): instrumentation is the only way to reach the real
+        // AndroidKeyStore — a JVM unit test runs against the stubbed android.jar.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -102,6 +106,10 @@ dependencies {
     implementation("com.solanamobile:mobile-wallet-adapter-common:2.1.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    // Task 2: hardware attestation can only be probed on device.
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
     // Android unit tests get the stubbed android.jar org.json that throws "not mocked";
     // the real implementation comes from this test dependency (used by IdlParser).
     testImplementation("org.json:json:20240303")
