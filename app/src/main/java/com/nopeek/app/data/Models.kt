@@ -31,6 +31,13 @@ data class TamperSignals(
 
 /**
  * A usage report submitted by the app to the oracle for a challenge window.
+ *
+ * The evidence fields are all defaulted so this stays the same DTO the existing
+ * submission path builds, and so a report can exist before the oracle has ruled
+ * on it: `verified` is the oracle's answer, not the device's opinion. They are
+ * transport-neutral on purpose — the byte format lives in
+ * `data/attest/CanonicalPayload`, and a future React Native product layer reads
+ * these fields without owning how they were produced.
  */
 data class UsageReport(
     val id: String = "",
@@ -40,7 +47,14 @@ data class UsageReport(
     val windowStart: Long = 0L,
     val windowEnd: Long = 0L,
     val tamperSignals: TamperSignals,
-    val submittedAt: Long = System.currentTimeMillis()
+    val submittedAt: Long = System.currentTimeMillis(),
+    val evidenceHash: String? = null,
+    val canonicalBytesHex: String? = null,
+    val verified: Boolean = false,
+    val rejectReason: String? = null,
+    val deviceActiveSeconds: Long = 0L,
+    val eventCount: Int = 0,
+    val eventSetDigestHex: String = "",
 ) {
     /**
      * Resolve the verification status for this report against the challenge limit.
