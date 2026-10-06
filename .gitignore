@@ -14,3 +14,20 @@ app/build/
 keystore.properties
 Volo.keystore
 *.keystore
+
+# Runtime secrets. Tasks 7/14 put the oracle keypair and the Supabase service-role
+# key on disk, and later tasks commit with `git add -A`, so the exclusion has to be
+# durable rather than a per-commit choice of `git add -u`.
+.env
+.env.*
+!.env.example
+*-wallet-info.txt
+devnet-wallet-info.txt
+nopeek-oracle.json
+*.keypair.json
+submission-links.txt
+
+# Local scratch that must not reach the public repo (Task 19)
+.copilot-tmp/
+app screenshots/
+issues/

@@ -12,13 +12,15 @@ Spec: `docs/superpowers/specs/2026-10-06-nopeek-colosseum-architecture-design.md
 | Item | Value | Note |
 | --- | --- | --- |
 | Free disk on C: | **13.2 GiB** | Better than the 3–4 GB assumed; Task 1's ≥2.5 GB gate passes untouched |
-| Node.js | v26.5.0 | Native TS type-stripping, so `node --test supabase/functions/oracle/` works |
+| Node.js | v26.5.0 | Type-stripping works, but **a directory argument does not** on Windows. Run `node --test "supabase/functions/oracle/*.test.ts"`; the bare-directory form throws MODULE_NOT_FOUND. Verified 2026-10-06 |
 | Git Bash | `C:\Program Files\Git\bin\bash.exe` | The sdd scripts are bash and will not run under PowerShell directly |
 | Shell | PowerShell — use `;` as separator, never `&&` | |
-| Branch | `nopeek-colosseum` from `volo-system-port` @ `2953fa6` | |
+| Branch | `nopeek-colosseum` cut at **`e030d88`** (= tip of `volo-system-port`); first commit on the branch is `d2a0f20` | |
 | Test device A | Redmi (Global ROM, Play Services present), not a Seeker | |
 | Test device B | second Android, available on loan | |
-| **Solana CLI** | **NOT INSTALLED** | Ledger Row 11 precheck. Blocks Step 4 below; see *Open decision* |
+| **Solana CLI** | **NOT INSTALLED** — and not needed. Path B (Playground) chosen below; Task 1 Steps 4–5 are superseded, Step 6 was done in-place |
+| `adb` | Not on `PATH`; absolute path `C:\Users\hp\AppData\Local\Android\Sdk\platform-tools\adb.exe`. Task 2 Step 5's fixture pull must use the full path |
+| Unit-test baseline | **141 tests, 0 failures, 0 errors** at `7b014d1`, run with `--rerun` so it is not an up-to-date cache artifact. Every later task compares against this number |
 
 ## Deploy wallet
 
@@ -31,12 +33,19 @@ Consequence to remember for Task 14: `settle_challenge` requires the
 `ORACLE_AUTHORITY` signature, so the Playground keypair must be **exported** and
 loaded as a Supabase Edge Function secret. The oracle key therefore lives in a
 `.env`-class store, never in git and never in the client. Export it once, into
-Supabase, and record that it happened here.
+Supabase, and record that it happened here. `.gitignore` now covers `.env*`,
+`*-wallet-info.txt`, `nopeek-oracle.json`, `submission-links.txt` and
+`.copilot-tmp/`, because later tasks commit with `git add -A`.
+
+**A devnet wallet already exists** — `6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj`,
+created during the earlier Volo plan and left at **0 SOL** because the airdrop was
+rate-limited (`volo-plan.md:106`). Task 4 should fund *this* wallet rather than
+minting a second one and orphaning the first.
 
 Recorded here when resolved: pubkey, keypair export location (never its
 contents), balance, and the date the airdrop landed.
 
-- Oracle pubkey: _tbd_ (Task 4 Step 1)
+- Oracle pubkey: `6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj` (pre-existing, 0 SOL as of the Volo plan — fund before Task 4)
 - Program id: _tbd_ (see `contracts/DEPLOYED_PROGRAM_ID.txt`)
 - Treasury pubkey: _tbd_ (Task 10)
 - Devnet balance: _tbd_ — needs at least 2 SOL before Task 4 can build and deploy

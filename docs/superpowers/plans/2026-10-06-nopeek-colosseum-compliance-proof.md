@@ -19,7 +19,7 @@
 - Program is built and deployed **only** through the Solana Playground browser IDE. No local cargo/Anchor build.
 - Kotlin build gate: `./gradlew.bat :app:compileDebugKotlin --console=plain -q`
 - Kotlin unit gate: `./gradlew.bat :app:testDebugUnitTest --console=plain -q`
-- Oracle gate: `node --test supabase/functions/oracle/` (Node 26 type-stripping; already used by `determine_result.test.ts`)
+- Oracle gate: `node --test "supabase/functions/oracle/*.test.ts"` — Node 26 type-stripping, glob form required. The bare-directory form (`node --test supabase/functions/oracle/`) **fails on this machine**: Node 26 on Windows resolves a directory positional as an entry module and throws MODULE_NOT_FOUND. Verified 2026-10-06.
 - USDC is always displayed with 6 decimals; never raw token units.
 - **The device signs the exact bytes it transmits and the oracle hashes the exact bytes it receives.** No re-serialization on either side (spec §4.1).
 - Fail-closed rules may be tightened, never weakened: no valid report ⇒ `UNVERIFIED` ⇒ loss.
@@ -180,7 +180,7 @@ Expected: clean `git status` except gitignored paths. Verify `git log --stat -1`
 - [ ] **Step 2: Write the failing Kotlin test** `CanonicalPayloadTest.encodesSharedVectorByteForByte()` — encode the vector and assert the hex of the result equals a literal taken from the JSON `expectedHex` you add in step 4; and `CanonicalPayloadTest.lengthPrefixedFieldsRoundTrip()` asserting `tamperSignals` of 0, 1, and 3 entries each encode and decode.
 - [ ] **Step 3: Write the failing TS test** `evidence.test.ts > encodeEvidence matches the shared vector` and `> decodeEvidence round-trips encodeEvidence` and `> evidenceHash is sha256 of the exact bytes passed in` (assert against `node:crypto` computing sha256 of the same array, **not** a re-encode).
 - [ ] **Step 4: Implement both encoders**, then compute the real `expectedHex` and `expectedHash` once, paste them into the vector, and re-run. Both suites must read the same vector file. This cross-language byte agreement is the point of the task; do not let either side special-case its own output.
-- [ ] **Step 5: Verify** `node --test supabase/functions/oracle/` PASS and `./gradlew.bat :app:testDebugUnitTest --console=plain -q` PASS.
+- [ ] **Step 5: Verify** `node --test "supabase/functions/oracle/*.test.ts"` PASS and `./gradlew.bat :app:testDebugUnitTest --console=plain -q` PASS.
 - [ ] **Step 6: Commit**
 
 ### Task 7: Key enrollment and nonce issuance
@@ -200,7 +200,7 @@ Expected: clean `git status` except gitignored paths. Verify `git log --stat -1`
 - [ ] **Step 3: Wire the routes** in `index.ts`: `/enroll` and `/nonce` must be reachable **without** the `x-oracle-secret` header — add them to the exemption list in `authorize(req)` and assert that in a test (`index.test.ts > enroll is reachable without the shared secret`). Move `x-oracle-secret` off these two endpoints for good.
 - [ ] **Step 4: Write the failing Kotlin enrollment test** `EnrollRoundTripTest.enrollsOnceAndReusesTheSameAlias()` — call `enrollOrLoad` twice, assert the same alias, same SPKI, and a non-empty chain PEM; assert `KeyStore.isKeyEntry(alias, "AndroidKeyStore")`.
 - [ ] **Step 5: Implement `KeyStoreEnroller`** reusing Task 2's key-generation parameters; on API 30+ request `setUserAuthenticationParameters` **off** (the report must be signable by the background worker without a prompt).
-- [ ] **Step 6: Verify** `./gradlew.bat :app:connectedDebugAndroidTest --console=plain` PASS, `node --test supabase/functions/oracle/` PASS, deploy the function, then `curl -s https://<ref>.supabase.co/functions/v1/oracle/nonce -H 'content-type: application/json' -d '{"challengePubkey":"<valid base58>","walletPubkey":"<valid base58>","expiresAt":"2026-10-07T00:00:00Z"}'` → returns a `nonceB64`. Same call with no auth header must succeed.
+- [ ] **Step 6: Verify** `./gradlew.bat :app:connectedDebugAndroidTest --console=plain` PASS, `node --test "supabase/functions/oracle/*.test.ts"` PASS, deploy the function, then `curl -s https://<ref>.supabase.co/functions/v1/oracle/nonce -H 'content-type: application/json' -d '{"challengePubkey":"<valid base58>","walletPubkey":"<valid base58>","expiresAt":"2026-10-07T00:00:00Z"}'` → returns a `nonceB64`. Same call with no auth header must succeed.
 - [ ] **Step 7: Commit**
 
 ### Task 8: Attestation verifier — the ten checks, in order
@@ -330,7 +330,7 @@ A pure refactor with no behavior change, done **before** the verifier rewiring s
 - Produces: `POST /submit-report { canonicalBytesB64, signatureB64, chainPem, submittedAt }` → `{ ok: true, evidenceHash }` or `{ ok: false, reason }` — the handler decodes `canonicalBytesB64`, then **loads the `challenges` row for the decoded `challengePubkey`** to supply `windowEndMs` and `graceSeconds` to `verifyReport`; those two inputs are never taken from the client's submission. The row is stored **only** when verification passes, and a rejected submission is stored with `verified = false` plus `reject_reason` for the deck's honesty slide. `GET /evidence/<hash>` → `{ canonicalBytesB64, decodedFields, signatureB64, certChainPem, checksPassed: string[], challengePubkey, walletPubkey, verifiedAt }`, **no auth**. `POST /settle` now returns `creatorEvidenceHash` / `opponentEvidenceHash` hex alongside the codes.
 
 - [ ] **Step 1: Write the failing tests** `index.test.ts > submit-report is reachable without x-oracle-secret` and `> settle still requires x-oracle-secret`; `> a verified submission stores the row with verified=true and its computed evidence_hash`; `> a rejected submission stores reject_reason and never sets verified=true`; `> submitting the same canonical bytes twice does not insert twice` (unique index from Task 5 — **Review Focus 2**, server half); `> evidence endpoint returns the exact bytes whose hash was requested, and a hash that was never stored returns 404`; `> settle returns evidence hashes matching the stored reports`.
-- [ ] **Step 2: Run to verify failure** `node --test supabase/functions/oracle/`, then implement against `verifyReport` with `store.ts` as the real dependency-injection seam, and deploy the function.
+- [ ] **Step 2: Run to verify failure** `node --test "supabase/functions/oracle/*.test.ts"`, then implement against `verifyReport` with `store.ts` as the real dependency-injection seam, and deploy the function.
 - [ ] **Step 3: Live proof from the command line** — with a chain from the device: request a nonce, sign on-device, submit, then `curl https://<ref>.supabase.co/functions/v1/oracle/evidence/<hash>` with **no headers at all** and confirm the published bytes' sha256 equals the URL. Record the URL and hash in `ATTESTATION_DEPLOY_NOTES.md`.
 - [ ] **Step 4: Verify the fail-closed path end-to-end at the oracle level** — `POST /settle` for a challenge where one wallet has no verified report returns `creatorResult`/`opponentResult` where that party is `3` (UNVERIFIED). That is spec §4.3's "any failure ⇒ loss", proven without a program call.
 - [ ] **Step 5: Commit**

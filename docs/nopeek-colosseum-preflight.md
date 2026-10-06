@@ -1,5 +1,15 @@
 # Nopeek — Colosseum Copilot Pre-Flight Analysis
 
+> **Research record, not an instruction.** This is Colosseum Copilot output, kept
+> because its competitor analysis and category statistics shape the project. Where
+> it recommends tooling — Privy, Helius, Coinbase Onramp, Token-2022, a Phantom
+> **React Native** starter, Solana Mobile Stack (MWA + Seed Vault) — the binding
+> decisions are in
+> `docs/superpowers/specs/2026-10-06-nopeek-colosseum-architecture-design.md`
+> and `docs/superpowers/plans/2026-10-06-nopeek-colosseum-compliance-proof.md`:
+> **$0 budget, Android-only, no React Native, no Seeker/MWA paths, devnet only.**
+> If you are executing the plan, §7 and the action sequence are overridden.
+
 **Date:** October 6, 2026  
 **Event:** Crypto World's Fair (deadline: Oct 12 11:59 PM PT / Oct 13 06:59 UTC)  
 **Source:** Colosseum Copilot v2 (8,286 submissions, 180 winners), The Grid, web research  
