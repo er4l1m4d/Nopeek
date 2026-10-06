@@ -31,7 +31,74 @@ export interface EvidenceFields {
 
 const FIELD_COUNT = 12;
 
+/**
+ * Canonical decimal, non-negative only. `Number()` alone would accept "", "+42",
+ * "007", "1e3", "0x10", " 5 " and "42." — all of which the encoder can never
+ * produce — so one logical claim could carry arbitrarily many evidence hashes and
+ * the two languages would disagree about which bytes are legal at all.
+ */
+const CANONICAL_INT = /^(0|[1-9][0-9]*)$/;
+
+/** Mirrors Kotlin's `Int` ceiling on the two count fields. */
+const MAX_INT32 = 2_147_483_647;
+
+/**
+ * Every field domain the format owns, enforced identically in both languages.
+ * A signed, on-chain-hashed payload must have exactly one byte representation per
+ * logical value: no silent truncation, no two inputs colliding on one hash.
+ */
+function assertVersionByte(version: number): void {
+  if (!Number.isInteger(version) || version < 0 || version > 255) {
+    throw new Error(`evidence version ${version} is not a single byte`);
+  }
+}
+
+function assertAscii(value: string, label: string): void {
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    // Java maps a non-ASCII or unpaired character to "?" and TextEncoder to
+    // U+FFFD, so allowing either would give one logical field two byte forms and
+    // two hashes. Real values are base58, hex, base64 or an Android package name.
+    if (c < 0x20 || c > 0x7e) {
+      throw new Error(`evidence field ${label} must be printable ASCII`);
+    }
+  }
+}
+
+function assertNonNegative(n: number, label: string): void {
+  if (!Number.isSafeInteger(n)) {
+    throw new Error(`evidence field ${label} must be a safe integer`);
+  }
+  if (n < 0) {
+    throw new Error(`evidence field ${label} must not be negative`);
+  }
+}
+
 export function encodeEvidence(f: EvidenceFields): Uint8Array {
+  assertVersionByte(f.version);
+  const strings: Array<[string, string]> = [
+    [f.challengePubkey, "challengePubkey"],
+    [f.walletPubkey, "walletPubkey"],
+    [f.packageName, "packageName"],
+    [f.targetPackage, "targetPackage"],
+    [f.eventSetDigestHex, "eventSetDigestHex"],
+    [f.nonceB64, "nonceB64"],
+  ];
+  for (const [value, label] of strings) assertAscii(value, label);
+  assertNonNegative(f.windowStartMs, "windowStartMs");
+  assertNonNegative(f.windowEndMs, "windowEndMs");
+  assertNonNegative(f.usedSeconds, "usedSeconds");
+  assertNonNegative(f.deviceActiveSeconds, "deviceActiveSeconds");
+  assertNonNegative(f.eventCount, "eventCount");
+  for (const signal of f.tamperSignals) {
+    // Joined with ",", ["A,B"] and ["A","B"] are the same bytes, and [""] is the
+    // same bytes as []. Two distinct reports must not share one evidence hash.
+    if (signal.length === 0 || signal.includes(",")) {
+      throw new Error("evidence tamper signal must be non-empty and contain no comma");
+    }
+    assertAscii(signal, "tamperSignals");
+  }
+
   const enc = new TextEncoder();
   const values: string[] = [
     f.challengePubkey,
@@ -77,6 +144,7 @@ export function decodeEvidence(bytes: Uint8Array): EvidenceFields {
     return bytes[cursor++];
   };
   const version = readByte();
+  if (version !== 1) throw new Error(`evidence version ${version} is not supported`);
 
   const fields: string[] = [];
   for (let i = 0; i < FIELD_COUNT; i++) {
@@ -97,9 +165,9 @@ export function decodeEvidence(bytes: Uint8Array): EvidenceFields {
     targetPackage: fields[3],
     windowStartMs: integer(fields[4]),
     windowEndMs: integer(fields[5]),
-    usedSeconds: integer(fields[6]),
+    usedSeconds: integer32(fields[6], "usedSeconds"),
     deviceActiveSeconds: integer(fields[7]),
-    eventCount: integer(fields[8]),
+    eventCount: integer32(fields[8], "eventCount"),
     eventSetDigestHex: fields[9],
     tamperSignals: signals,
     nonceB64: fields[11],
@@ -119,14 +187,30 @@ export async function evidenceHash(bytes: Uint8Array): Promise<string> {
 }
 
 function decimal(n: number): string {
-  if (!Number.isSafeInteger(n)) {
-    throw new Error(`evidence fields must be safe integers, got ${n}`);
-  }
+  assertNonNegative(n, "numeric evidence field");
   return String(n);
 }
 
 function integer(s: string): number {
+  if (!CANONICAL_INT.test(s)) {
+    throw new Error(`non-canonical numeric evidence field: "${s}"`);
+  }
   const n = Number(s);
-  if (!Number.isSafeInteger(n)) throw new Error(`corrupt numeric evidence field: "${s}"`);
+  if (!Number.isSafeInteger(n)) {
+    throw new Error(`numeric evidence field outside the safe integer range: "${s}"`);
+  }
+  return n;
+}
+
+/**
+ * `usedSeconds` and `eventCount` are counts the client holds as a 32-bit int, so
+ * the oracle must refuse a value it cannot represent identically rather than
+ * accept a number the Kotlin side can never produce.
+ */
+function integer32(s: string, label: string): number {
+  const n = integer(s);
+  if (n > MAX_INT32) {
+    throw new Error(`evidence field ${label} exceeds its declared range`);
+  }
   return n;
 }

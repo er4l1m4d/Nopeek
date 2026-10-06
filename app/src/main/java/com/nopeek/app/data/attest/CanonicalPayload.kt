@@ -39,7 +39,37 @@ object CanonicalPayload {
 
     const val VERSION: Byte = 1
 
+    /**
+     * Kotlin `Long` can carry values TypeScript's `Number` cannot represent exactly.
+     * Bounding the domain here rather than at the oracle means the device never
+     * signs, transmits and burns its single-use nonce on a report the oracle could
+     * not read. Must stay identical to the TypeScript guard in `evidence.ts`.
+     */
+    const val MAX_EVIDENCE_VALUE: Long = 9_007_199_254_740_991L // 2^53 - 1
+
+    private val CANONICAL_INT = Regex("0|[1-9][0-9]*")
+
     fun encode(f: EvidenceFields): ByteArray {
+        assertAscii(f.challengePubkey, "challengePubkey")
+        assertAscii(f.walletPubkey, "walletPubkey")
+        assertAscii(f.packageName, "packageName")
+        assertAscii(f.targetPackage, "targetPackage")
+        assertAscii(f.eventSetDigestHex, "eventSetDigestHex")
+        assertAscii(f.nonceB64, "nonceB64")
+        assertRange(f.windowStartMs, "windowStartMs")
+        assertRange(f.windowEndMs, "windowEndMs")
+        assertRange(f.usedSeconds.toLong(), "usedSeconds")
+        assertRange(f.deviceActiveSeconds, "deviceActiveSeconds")
+        assertRange(f.eventCount.toLong(), "eventCount")
+        for (signal in f.tamperSignals) {
+            // Joined with ",", ["A,B"] and ["A","B"] are the same bytes, and [""] is
+            // the same bytes as []. Two distinct reports must not share one hash.
+            require(signal.isNotEmpty() && !signal.contains(',')) {
+                "evidence tamper signal must be non-empty and contain no comma"
+            }
+            assertAscii(signal, "tamperSignals")
+        }
+
         val out = ByteArrayOutputStream()
         out.write(f.version.toInt() and 0xFF)
         writeField(out, f.challengePubkey)
@@ -64,6 +94,7 @@ object CanonicalPayload {
             return bytes[cursor++].toInt() and 0xFF
         }
         val version = readByte().toByte()
+        require(version == VERSION) { "evidence version $version is not supported" }
         val fields = mutableListOf<String>()
         repeat(12) {
             val len = (readByte() shl 24) or (readByte() shl 16) or (readByte() shl 8) or readByte()
@@ -79,11 +110,11 @@ object CanonicalPayload {
             walletPubkey = fields[1],
             packageName = fields[2],
             targetPackage = fields[3],
-            windowStartMs = fields[4].toLong(),
-            windowEndMs = fields[5].toLong(),
-            usedSeconds = fields[6].toInt(),
-            deviceActiveSeconds = fields[7].toLong(),
-            eventCount = fields[8].toInt(),
+            windowStartMs = canonical(fields[4]) { it.toLong() },
+            windowEndMs = canonical(fields[5]) { it.toLong() },
+            usedSeconds = intAt(fields[6], "usedSeconds"),
+            deviceActiveSeconds = canonical(fields[7]) { it.toLong() },
+            eventCount = intAt(fields[8], "eventCount"),
             eventSetDigestHex = fields[9],
             tamperSignals = if (fields[10].isEmpty()) emptyList() else fields[10].split(","),
             nonceB64 = fields[11],
@@ -101,5 +132,35 @@ object CanonicalPayload {
         out.write((raw.size ushr 8) and 0xFF)
         out.write(raw.size and 0xFF)
         out.write(raw, 0, raw.size)
+    }
+
+    private fun assertRange(value: Long, label: String) {
+        require(value >= 0) { "evidence field $label must not be negative" }
+        require(value <= MAX_EVIDENCE_VALUE) { "evidence field $label exceeds the safe integer range" }
+    }
+
+    private fun assertAscii(value: String, label: String) {
+        for (element in value) {
+            // Java maps a non-ASCII or unpaired character to "?" where a UTF-8
+            // encoder emits U+FFFD, so one logical field would get two byte forms
+            // and two hashes. Real values are base58, hex, base64 or a package name.
+            require(element.code in 0x20..0x7e) { "evidence field $label must be printable ASCII" }
+        }
+    }
+
+    private fun canonical(s: String, converter: (String) -> Long): Long {
+        require(CANONICAL_INT.matches(s)) { "non-canonical numeric evidence field: \"$s\"" }
+        return converter(s)
+    }
+
+    /**
+     * A 16-digit value is inside the safe-integer domain yet outside Int, and
+     * `.toInt()` would wrap it silently into a different number. Reject instead:
+     * `usedSeconds` and `eventCount` are counts of seconds and events.
+     */
+    private fun intAt(s: String, label: String): Int {
+        val value = canonical(s) { it.toLong() }
+        require(value <= Int.MAX_VALUE.toLong()) { "evidence field $label exceeds its declared range" }
+        return value.toInt()
     }
 }

@@ -4,6 +4,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.File
 
@@ -59,9 +60,117 @@ class CanonicalPayloadTest {
     }
 
     @Test
-    fun nonAsciiTargetPackageSurvivesRoundTrip() {
-        val f = fields().copy(targetPackage = "com.exämple.app")
-        assertEquals("com.exämple.app", CanonicalPayload.decode(CanonicalPayload.encode(f)).targetPackage)
+    fun nonAsciiFieldIsRejectedRatherThanReEncoded() {
+        // Java maps a non-ASCII character to "?" where TextEncoder emits U+FFFD, so
+        // accepting it would give one logical field two byte forms and two hashes.
+        assertThrows(IllegalArgumentException::class.java) {
+            CanonicalPayload.encode(fields().copy(targetPackage = "com.exämple.app"))
+        }
+    }
+
+    @Test
+    fun decodeReadsPinnedVectorBytesIntoNamedFields() {
+        val d = CanonicalPayload.decode(hexToBytes(vector.getString("expectedHex")))
+        val f = fields()
+        // Field by field: a symmetric reordering of the decoder round-trips and
+        // would keep an assertEquals-on-the-whole-object green.
+        assertEquals(f.version, d.version)
+        assertEquals(f.challengePubkey, d.challengePubkey)
+        assertEquals(f.walletPubkey, d.walletPubkey)
+        assertEquals(f.packageName, d.packageName)
+        assertEquals(f.targetPackage, d.targetPackage)
+        assertEquals(f.windowStartMs, d.windowStartMs)
+        assertEquals(f.windowEndMs, d.windowEndMs)
+        assertEquals(f.usedSeconds, d.usedSeconds)
+        assertEquals(f.deviceActiveSeconds, d.deviceActiveSeconds)
+        assertEquals(f.eventCount, d.eventCount)
+        assertEquals(f.eventSetDigestHex, d.eventSetDigestHex)
+        assertEquals(f.tamperSignals, d.tamperSignals)
+        assertEquals(f.nonceB64, d.nonceB64)
+    }
+
+    @Test
+    fun encoderRefusesTamperSignalsThatWouldCollideAfterJoining() {
+        for (signals in listOf(listOf("A,B"), listOf(""))) {
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalPayload.encode(fields().copy(tamperSignals = signals))
+            }
+        }
+    }
+
+    @Test
+    fun encoderRefusesNegativeValues() {
+        assertThrows(IllegalArgumentException::class.java) { CanonicalPayload.encode(fields().copy(usedSeconds = -1)) }
+        assertThrows(IllegalArgumentException::class.java) { CanonicalPayload.encode(fields().copy(deviceActiveSeconds = -1L)) }
+        assertThrows(IllegalArgumentException::class.java) { CanonicalPayload.encode(fields().copy(eventCount = -1)) }
+        assertThrows(IllegalArgumentException::class.java) { CanonicalPayload.encode(fields().copy(windowStartMs = -1L)) }
+    }
+
+    @Test
+    fun encoderRefusesNumericsBeyondTheSafeIntegerRange() {
+        // Kotlin Long can carry a value the oracle cannot read; catching it here
+        // stops the device signing, spending its single-use nonce, then losing.
+        assertThrows(IllegalArgumentException::class.java) {
+            CanonicalPayload.encode(fields().copy(windowEndMs = 9007199254740992L))
+        }
+    }
+
+    @Test
+    fun decoderAcceptsOnlyVersionOne() {
+        for (v in listOf<Byte>(0, 2, Byte.MAX_VALUE)) {
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalPayload.decode(CanonicalPayload.encode(fields().copy(version = v)))
+            }
+        }
+    }
+
+    @Test
+    fun decoderRejectsNumericFieldsTheEncoderCouldNeverProduce() {
+        for (raw in listOf("", "+42", "007", "1e3", "0x10", " 5 ", "42.", "-1", "NaN", "Infinity")) {
+            assertThrows("non-canonical numeric \"$raw\" must be rejected", IllegalArgumentException::class.java) {
+                CanonicalPayload.decode(bytesWithUsedSeconds(raw))
+            }
+        }
+    }
+
+    @Test
+    fun decoderRejectsACountTooLargeForTheClientField() {
+        // Canonical and inside the safe-integer range, but outside the Int the
+        // client stores it in: the oracle must not accept a number the device
+        // could never have produced, or the two domains diverge again.
+        assertThrows(IllegalArgumentException::class.java) {
+            CanonicalPayload.decode(bytesWithUsedSeconds("2147483648"))
+        }
+    }
+
+    /** Builds length-prefixed bytes with a raw, possibly non-canonical numeric field. */
+    private fun bytesWithUsedSeconds(raw: String): ByteArray {
+        val f = fields()
+        val values = listOf(
+            f.challengePubkey, f.walletPubkey, f.packageName, f.targetPackage,
+            f.windowStartMs.toString(), f.windowEndMs.toString(), raw,
+            f.deviceActiveSeconds.toString(), f.eventCount.toString(), f.eventSetDigestHex,
+            f.tamperSignals.joinToString(","), f.nonceB64,
+        )
+        val out = java.io.ByteArrayOutputStream()
+        out.write(f.version.toInt() and 0xFF)
+        for (v in values) {
+            val bytes = v.toByteArray(java.nio.charset.StandardCharsets.UTF_8)
+            out.write((bytes.size ushr 24) and 0xFF)
+            out.write((bytes.size ushr 16) and 0xFF)
+            out.write((bytes.size ushr 8) and 0xFF)
+            out.write(bytes.size and 0xFF)
+            out.write(bytes, 0, bytes.size)
+        }
+        return out.toByteArray()
+    }
+
+    private fun hexToBytes(hex: String): ByteArray {
+        val out = ByteArray(hex.length / 2)
+        for (i in out.indices) {
+            out[i] = hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        }
+        return out
     }
 
     private fun fields(): EvidenceFields {
