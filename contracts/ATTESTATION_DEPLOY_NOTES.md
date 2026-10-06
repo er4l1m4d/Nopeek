@@ -22,21 +22,25 @@ Spec: `docs/superpowers/specs/2026-10-06-nopeek-colosseum-architecture-design.md
 
 ## Deploy wallet
 
-Status: **not created.** Two paths, one of which needs a system-wide install:
+**Path chosen 2026-10-06: B — Solana Playground browser wallet.** No Anza CLI is
+installed and none will be. Playground mints its own keypair, airdrops devnet SOL
+from its own button, and deploys from the same place, so the wallet and the
+deploy stop being two separate human procedures.
 
-- **A — install the Anza CLI** (`solana-keygen` + `solana airdrop`): scriptable, and
-  airdrop retry loops are far easier from the CLI. Requires a network installer run
-  outside this workspace, so it needs explicit consent.
-- **B — use the Solana Playground browser wallet** for deploy + oracle signing:
-  zero install, and Task 4 deploys through Playground anyway. Costs human clicks
-  and makes the keypair's storage location a browser concern rather than a file.
+Consequence to remember for Task 14: `settle_challenge` requires the
+`ORACLE_AUTHORITY` signature, so the Playground keypair must be **exported** and
+loaded as a Supabase Edge Function secret. The oracle key therefore lives in a
+`.env`-class store, never in git and never in the client. Export it once, into
+Supabase, and record that it happened here.
 
-Recorded here when resolved: pubkey, keypair location (never its contents),
-balance, and which path was used.
+Recorded here when resolved: pubkey, keypair export location (never its
+contents), balance, and the date the airdrop landed.
 
-- Oracle pubkey: _tbd_
+- Oracle pubkey: _tbd_ (Task 4 Step 1)
 - Program id: _tbd_ (see `contracts/DEPLOYED_PROGRAM_ID.txt`)
-- Treasury pubkey: _tbd_
+- Treasury pubkey: _tbd_ (Task 10)
+- Devnet balance: _tbd_ — needs at least 2 SOL before Task 4 can build and deploy
+- Keypair exported to Supabase as: _tbd_ (Task 14)
 
 ## S1 gate — does the Redmi produce a hardware attestation chain
 
