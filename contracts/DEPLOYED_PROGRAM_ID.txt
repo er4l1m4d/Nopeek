@@ -1,0 +1,6 @@
+# Placeholder — filled by plan Task 4 when the program is deployed to devnet
+# through the Solana Playground browser IDE. Until then the program has never
+# run anywhere: contracts/program/src/lib.rs still carries the 1111... placeholder
+# declare_id! and ORACLE_AUTHORITY.
+PROGRAM_ID=PENDING-TASK-4
+NETWORK=devnet

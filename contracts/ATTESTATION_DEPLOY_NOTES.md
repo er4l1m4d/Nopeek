@@ -1,0 +1,98 @@
+# Nopeek — Attestation & Deploy Notes
+
+Running record for the Colosseum build. Every gate result, pinned value, and
+device fact that a later task has to trust goes here, because conversation
+memory does not survive a long session.
+
+Plan: `docs/superpowers/plans/2026-10-06-nopeek-colosseum-compliance-proof.md`
+Spec: `docs/superpowers/specs/2026-10-06-nopeek-colosseum-architecture-design.md`
+
+## Environment verified 2026-10-06
+
+| Item | Value | Note |
+| --- | --- | --- |
+| Free disk on C: | **13.2 GiB** | Better than the 3–4 GB assumed; Task 1's ≥2.5 GB gate passes untouched |
+| Node.js | v26.5.0 | Native TS type-stripping, so `node --test supabase/functions/oracle/` works |
+| Git Bash | `C:\Program Files\Git\bin\bash.exe` | The sdd scripts are bash and will not run under PowerShell directly |
+| Shell | PowerShell — use `;` as separator, never `&&` | |
+| Branch | `nopeek-colosseum` from `volo-system-port` @ `2953fa6` | |
+| Test device A | Redmi (Global ROM, Play Services present), not a Seeker | |
+| Test device B | second Android, available on loan | |
+| **Solana CLI** | **NOT INSTALLED** | Ledger Row 11 precheck. Blocks Step 4 below; see *Open decision* |
+
+## Deploy wallet
+
+Status: **not created.** Two paths, one of which needs a system-wide install:
+
+- **A — install the Anza CLI** (`solana-keygen` + `solana airdrop`): scriptable, and
+  airdrop retry loops are far easier from the CLI. Requires a network installer run
+  outside this workspace, so it needs explicit consent.
+- **B — use the Solana Playground browser wallet** for deploy + oracle signing:
+  zero install, and Task 4 deploys through Playground anyway. Costs human clicks
+  and makes the keypair's storage location a browser concern rather than a file.
+
+Recorded here when resolved: pubkey, keypair location (never its contents),
+balance, and which path was used.
+
+- Oracle pubkey: _tbd_
+- Program id: _tbd_ (see `contracts/DEPLOYED_PROGRAM_ID.txt`)
+- Treasury pubkey: _tbd_
+
+## S1 gate — does the Redmi produce a hardware attestation chain
+
+Status: **not run** (Task 2). Record here: security level actually returned
+(`StrongBox` / `TEE` / `Software` / absent), chain length, terminal issuer DN,
+whether `deviceLocked` and `verifiedBootState == Verified` held, and the exact
+Redmi model + MIUI/HyperOS version.
+
+If the result is `Software` or absent, the plan's Task 2 Step 6 fallback applies:
+keep the whole pipeline, drop spec §4.3 checks 1, 6 and 7, and restate the claim
+as "device-key-signed, nonce-bound" rather than "hardware-attested".
+
+## S2 gate — Google attestation root pinning
+
+Per ledger Row 9, `fixtures/google-attestation-root.pem` is pinned **out of band**
+from Google's published Android KeyStore attestation CA. Its subject DN and SPKI
+fingerprint are recorded here and cross-checked against what the device chain
+reports. It is never copied from the device chain — a self-signed chain is equally
+self-consistent, and pinning that would certify an attacker-controlled CA.
+
+- Pinned root subject DN: _tbd_
+- Pinned root SPKI SHA-256: _tbd_
+- Runtime mechanism chosen (`npm:` import / injected parser / sidecar service): _tbd_
+
+## MIUI checklist (Task 13, no server needed)
+
+| Setting | Verified on device |
+| --- | --- |
+| Usage Access granted | ☐ |
+| Battery saver off | ☐ |
+| Nopeek excluded from per-app battery optimization | ☐ |
+| Autostart enabled | ☐ |
+| Allowed on lock screen | ☐ |
+
+## Usage reading sanity (Task 12 Step 3)
+
+Known interval vs reported, recorded before anyone trusts a number:
+
+| App | Expected foreground | `usedSeconds` | `deviceActiveSeconds` | `eventCount` |
+| --- | --- | --- | --- | --- |
+| _tbd_ | | | | |
+
+## Contract test results
+
+- 16 original manual cases: **not run** (Task 4). A baseline is required before
+  Task 10 changes the program, so that a later failure has something to point at.
+- Cases 17–24 (nonce, evidence, lock, reputation): **not run** (Task 10).
+
+## Deviations from the plan
+
+- **Task 1 Step 1:** staged with `git add -u` plus the pre-flight doc instead of
+  `git add -A`. `-A` would have swept `.copilot-tmp/`, `nopeek-film/`, and a
+  reference PDF into the branch — scratch and assets whose inclusion is a
+  Task 19 public-repo decision, not a Day-1 accident.
+- **Task 1 Step 1:** split into two commits — `2953fa6` for the design-system and
+  screen work, `e030d88` for the pre-flight doc and the plan's ruling edits.
+- **Task 1 Step 3:** `app/build`, `.gradle` and `.kotlin/sessions` **not** deleted.
+  The gate was "≥2.5 GB free" and there is 13.2 GiB; clearing them only forces
+  Gradle to re-resolve and re-configure. Revisit if disk drops below 3 GB.
