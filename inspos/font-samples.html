@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volo — Font Samples (A / B / C)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1114; --surface:#141D21; --surface2:#1A272B; --line:#26363B;
+    --text:#F2F4EE; --muted:#A4B0AF; --copper:#D17A54; --safe:#B9D5C5; --celadon:#C9DCCF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Manrope',sans-serif;padding:40px 20px 100px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto}
+  header{margin-bottom:36px}
+  h0{display:block;font:800 15px/1 'Sora';letter-spacing:2px;text-transform:uppercase;color:var(--copper);margin-bottom:14px}
+  h1{font:800 40px/1.1 'Sora';margin-bottom:10px}
+  .sub{color:var(--muted);font-size:15px;line-height:1.5}
+  nav{display:flex;gap:10px;margin-top:22px}
+  nav a{color:var(--text);text-decoration:none;font:700 13px/1 'Manrope';padding:10px 18px;border:1px solid var(--line);border-radius:99px;background:var(--surface)}
+  nav a:hover{border-color:var(--copper);color:var(--copper)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:34px;margin-top:28px;scroll-margin-top:20px}
+  .label{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .tag{font:800 13px/1 'Manrope';letter-spacing:1.5px;text-transform:uppercase;color:#0B1114;background:var(--copper);border-radius:99px;padding:7px 12px}
+  .fonts{color:var(--muted);font-size:13px}
+  .note{color:var(--muted);font-size:14px;line-height:1.55;margin:14px 0 26px}
+  .divider{height:1px;background:var(--line);margin:26px 0}
+  .mock{background:var(--surface2);border:1px solid var(--line);border-radius:20px;padding:22px}
+  .chip{display:inline-block;font:800 10px/1;letter-spacing:1px;background:var(--celadon);color:#172126;border-radius:99px;padding:7px 10px;vertical-align:middle}
+  .eyebrow{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-left:10px}
+  .stats{display:flex;gap:12px;margin-top:18px}
+  .stat{flex:1;background:rgba(11,17,20,.55);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .big{display:block;font-size:30px;font-weight:800;line-height:1.1}
+  .lbl{display:block;color:var(--muted);font-size:12px;margin-top:5px}
+  .mono{font-family:'JetBrains Mono',monospace}
+  .btn{display:inline-block;margin-top:18px;background:var(--copper);color:#fff;font-weight:800;font-size:15px;padding:15px 26px;border-radius:12px}
+  .bodyline{color:var(--muted);font-size:15px;line-height:1.6;margin-top:16px}
+  .compare{display:grid;grid-template-columns:110px 1fr;gap:14px 18px;align-items:center}
+  .compare .who{font:800 12px/1.3 'Manrope';letter-spacing:1px;text-transform:uppercase;color:var(--copper)}
+  .compare .sample{font-size:26px;font-weight:700;line-height:1.2}
+  .compare .nums{font-size:19px;color:var(--muted)}
+  .tip{position:sticky;top:0;z-index:5;background:#0B1114EE;backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:14px 0;margin:-40px -20px 30px;text-align:center;font:600 14px 'Manrope';color:var(--muted)}
+  .tip b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tip">Direction: <b>dark-led premium</b> · Look through A / B / C below, then pick one in the terminal</div>
+
+  <header>
+    <h0>Volo · Typography samples</h0>
+    <h1>Put money where your attention is.</h1>
+    <p class="sub">Three font directions, applied to real Volo screens (Home + Duel). Same colors, same layout — only the type changes.</p>
+    <nav><a href="#a">A · Sora + Manrope</a><a href="#b">B · Space Grotesk</a><a href="#c">C · Satoshi</a><a href="#compare">↓ Compare</a></nav>
+  </header>
+
+  <!-- OPTION A -->
+  <section class="card" id="a" style="font-family:'Manrope'">
+    <div class="label"><span class="tag">Option A</span><span class="fonts">Sora (display) · Manrope (body) · JetBrains Mono (numbers) — recommended</span></div>
+    <p class="note">Confident geometric headings, clean UI body, mono for stakes &amp; timers. The fintech/ crypto pairing — sharp without being cold.</p>
+    <div class="mock">
+      <div style="font-family:'Manrope';font-size:14px;color:var(--muted)">Tuesday, September 29</div>
+      <div style="font-family:'Sora';font-weight:800;font-size:34px;line-height:1.1;margin-top:4px">Stay in the frame.</div>
+      <div class="divider"></div>
+      <span class="chip" style="font-family:'Manrope'">PASSING</span><span class="eyebrow" style="font-family:'Manrope'">Active duel</span>
+      <div style="font-family:'Sora';font-weight:700;font-size:23px;line-height:1.25;margin-top:14px">No doomscrolling after 9pm</div>
+      <div style="font-family:'Manrope';color:var(--muted);font-size:14px;margin-top:5px">Instagram · with Maya</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
+        <div><span class="mono" style="font-size:21px;font-weight:700">18m / 30m</span><span class="lbl" style="font-family:'Manrope'">5.00 USDC locked</span></div>
+        <span style="color:var(--copper);font-size:22px">→</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="big" style="font-family:'Sora'">18m</span><span class="lbl">of 30m used</span></div>
+        <div class="stat"><span class="big" style="font-family:'Sora'">5 days</span><span class="lbl">current streak</span></div>
+      </div>
+      <span class="btn" style="font-family:'Manrope'">Create a duel</span>
+    </div>
+    <p class="bodyline">Body text: Your phone quietly tracks how long you use the app during the challenge window. No screenshots, no honor system.</p>
+  </section>
+
+  <!-- OPTION B -->
+  <section class="card" id="b" style="font-family:'Space Grotesk'">
+    <div class="label"><span class="tag" style="background:#7DE2C3">Option B</span><span class="fonts">Space Grotesk (everything, incl. numerals)</span></div>
+    <p class="note">One family for the whole app. Techy, editorial, slightly quirky — the boldest choice, and its numerals are a highlight.</p>
+    <div class="mock">
+      <div style="font-size:14px;color:var(--muted)">Tuesday, September 29</div>
+      <div style="font-weight:700;font-size:34px;line-height:1.1;margin-top:4px">Stay in the frame.</div>
+      <div class="divider"></div>
+      <span class="chip" style="background:#7DE2C3">PASSING</span><span class="eyebrow">Active duel</span>
+      <div style="font-weight:700;font-size:23px;line-height:1.25;margin-top:14px">No doomscrolling after 9pm</div>
+      <div style="color:var(--muted);font-size:14px;margin-top:5px">Instagram · with Maya</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
+        <div><span style="font-size:21px;font-weight:700">18m / 30m</span><span class="lbl">5.00 USDC locked</span></div>
+        <span style="color:#7DE2C3;font-size:22px">→</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="big">18m</span><span class="lbl">of 30m used</span></div>
+        <div class="stat"><span class="big">5 days</span><span class="lbl">current streak</span></div>
+      </div>
+      <span class="btn" style="background:#7DE2C3;color:#0B1114">Create a duel</span>
+    </div>
+    <p class="bodyline">Body text: Your phone quietly tracks how long you use the app during the challenge window. No screenshots, no honor system.</p>
+  </section>
+
+  <!-- OPTION C -->
+  <section class="card" id="c" style="font-family:'Satoshi'">
+    <div class="label"><span class="tag" style="background:#E8E4DA">Option C</span><span class="fonts">Satoshi (everything) · JetBrains Mono (stakes/timers)</span></div>
+    <p class="note">Premium startup feel — soft, warm, highly legible. Pairs naturally with your copper accent. (From Fontshare, free.)</p>
+    <div class="mock">
+      <div style="font-size:14px;color:var(--muted)">Tuesday, September 29</div>
+      <div style="font-weight:900;font-size:34px;line-height:1.1;margin-top:4px;letter-spacing:-.5px">Stay in the frame.</div>
+      <div class="divider"></div>
+      <span class="chip">PASSING</span><span class="eyebrow">Active duel</span>
+      <div style="font-weight:700;font-size:23px;line-height:1.25;margin-top:14px">No doomscrolling after 9pm</div>
+      <div style="color:var(--muted);font-size:14px;margin-top:5px">Instagram · with Maya</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
+        <div><span class="mono" style="font-size:21px;font-weight:700">18m / 30m</span><span class="lbl">5.00 USDC locked</span></div>
+        <span style="color:var(--copper);font-size:22px">→</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="big">18m</span><span class="lbl">of 30m used</span></div>
+        <div class="stat"><span class="big">5 days</span><span class="lbl">current streak</span></div>
+      </div>
+      <span class="btn">Create a duel</span>
+    </div>
+    <p class="bodyline">Body text: Your phone quietly tracks how long you use the app during the challenge window. No screenshots, no honor system.</p>
+  </section>
+
+  <!-- COMPARE -->
+  <section class="card" id="compare">
+    <div class="label"><span class="tag" style="background:#26363B;color:#F2F4EE">Side by side</span><span class="fonts">same text, three directions</span></div>
+    <div class="divider"></div>
+    <div class="compare">
+      <div class="who">A</div><div><div class="sample" style="font-family:'Sora'">Stay in the frame. · 5.00 USDC</div><div class="nums mono" style="margin-top:6px">18m / 30m — 5 days left</div></div>
+      <div class="who">B</div><div><div class="sample" style="font-family:'Space Grotesk'">Stay in the frame. · 5.00 USDC</div><div class="nums" style="margin-top:6px;font-family:'Space Grotesk'">18m / 30m — 5 days left</div></div>
+      <div class="who">C</div><div><div class="sample" style="font-family:'Satoshi';font-weight:900">Stay in the frame. · 5.00 USDC</div><div class="nums" style="margin-top:6px;font-family:'Satoshi'">18m / 30m — 5 days left</div></div>
+      <div class="who">now</div><div><div class="sample" style="font-family:Arial;font-weight:700;color:var(--muted)">Stay in the frame. · 5.00 USDC</div><div class="nums" style="margin-top:6px;font-family:monospace">18m / 30m — 5 days left  ← current app (Roboto)</div></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

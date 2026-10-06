@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Nopeek mark: the eye (volt) held back by the wall (chalk). Untouched Onside geometry. -->
+    <path
+        android:fillColor="#D4FF00"
+        android:pathData="M30,54 A14,14 0 1,0 58,54 A14,14 0 1,0 30,54 Z" />
+    <path
+        android:fillColor="#F1F0E6"
+        android:pathData="M66,34 L66,74 Q66,78 70,78 L70,78 Q74,78 74,74 L74,34 Q74,30 70,30 L70,30 Q66,30 66,34 Z" />
+</vector>

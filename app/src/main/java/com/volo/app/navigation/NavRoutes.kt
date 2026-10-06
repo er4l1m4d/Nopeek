@@ -1,32 +1,31 @@
 package com.volo.app.navigation
 
-/**
- * Route definitions for the Volo NavHost.
- *
- * Baseline routes from the plan (Phase 1.2):
- *  - home
- *  - create_challenge
- *  - active_challenge/{pubkey}
- *  - profile
- *
- * Extended with the UI spec's five-tab shell (Home, Challenges, Create,
- * Activity, Profile) as additional routes so the approved bottom-bar
- * navigation and visual design stay intact. The core four plan routes
- * remain the canonical entry points consumed by later phases.
- */
 object NavRoutes {
+    const val SPLASH = "splash"
+    const val CHOICE = "choice"
+    const val ONBOARDING = "onboarding"
     const val HOME = "home"
-    const val CHALLENGES = "challenges"
-    const val CREATE_CHALLENGE = "create_challenge"
+    const val DUELS = "duels"
+    const val STATS = "stats"
+    const val OPEN_DUELS = "open_duels"
+    const val PROFILE = "profile"
+    const val CREATE = "create"
+    const val DUEL_PATTERN = "active_challenge/{pubkey}"
     const val ACTIVE_CHALLENGE = "active_challenge/{pubkey}"
     const val RECOVERY_LOCK = "recovery_lock/{pubkey}"
-    const val ACTIVITY = "activity"
-    const val PROFILE = "profile"
-    const val OPEN_DUELS = "open_duels"
+    const val CREATE_CHALLENGE = "create_challenge"
 
-    fun activeChallenge(pubkey: String) = "active_challenge/$pubkey"
+    fun activeChallenge(pk: String) = "active_challenge/$pk"
+    fun createChallenge() = "create_challenge"
 
-    fun recoveryLock(pubkey: String) = "recovery_lock/$pubkey"
+    fun recoveryLock(pk: String) = "recovery_lock/$pk"
 
-    fun All(): List<String> = listOf(HOME, CREATE_CHALLENGE, ACTIVE_CHALLENGE, PROFILE)
+    fun All(): List<String> = listOf("home", "create_challenge", "active_challenge/{pubkey}", "profile")
+}
+
+enum class Destination(val label: String, val route: String) {
+    Home("Home", "home"),
+    Duels("Duels", "duels"),
+    Stats("Stats", "stats"),
+    Profile("Profile", "profile"),
 }

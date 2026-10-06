@@ -8,26 +8,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.semantics.invisibleToUser
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.volo.app.ui.theme.VoloColors
-import com.volo.app.ui.theme.VoloDimens
+import com.volo.app.ui.icons.Phosphor
+import com.volo.app.ui.theme.Volo
+import com.volo.app.ui.theme.VoloShape
+import com.volo.app.ui.theme.VoloText
 import com.volo.app.ui.theme.VoloTheme
-import com.volo.app.ui.theme.VoloType
 
 @Composable
 fun EmptyState(
@@ -38,112 +37,87 @@ fun EmptyState(
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = Volo.colors
     Column(
-        modifier = modifier.padding(VoloDimens.spaceXxl),
+        modifier = modifier.padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(48.dp),
-            tint = VoloColors.copper,
+            tint = colors.primary,
         )
-        Text(
-            text = title,
-            style = VoloType.title,
-            color = VoloColors.text,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = message,
-            style = VoloType.bodySmall,
-            color = VoloColors.textMuted,
-            textAlign = TextAlign.Center,
-        )
-        PrimaryButton(
-            label = actionLabel,
-            onClick = onAction,
-        )
+        Text(text = title, style = VoloText.TitleMd, color = colors.onSurface, textAlign = TextAlign.Center)
+        Text(text = message, style = VoloText.BodyMd, color = colors.onSurfaceMuted, textAlign = TextAlign.Center)
+        PrimaryButton(label = actionLabel, onClick = onAction)
     }
 }
 
 @Composable
-fun InlineError(
-    message: String,
-    onRetry: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
-) {
+fun InlineError(message: String, onRetry: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+    val colors = Volo.colors
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(VoloDimens.radiusControl),
-        color = VoloColors.fail.copy(alpha = 0.12f),
-        contentColor = VoloColors.fail,
+        shape = VoloShape.Sm,
+        color = colors.danger.copy(alpha = 0.12f),
+        contentColor = colors.danger,
     ) {
         Row(
-            modifier = Modifier.padding(
-                horizontal = VoloDimens.spaceLg,
-                vertical = VoloDimens.spaceMd,
-            ),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = message,
-                style = VoloType.bodySmall,
-                color = VoloColors.fail,
-                modifier = Modifier.weight(1f),
-            )
+            Text(text = message, style = VoloText.BodyMd, color = colors.danger, modifier = Modifier.weight(1f))
             if (onRetry != null) {
-                SecondaryButton(
-                    label = "Retry",
-                    onClick = onRetry,
-                )
+                TextButton(label = "Retry", onClick = onRetry)
             }
         }
     }
 }
 
 @Composable
-fun LoadingSkeleton(
-    height: Dp,
-    modifier: Modifier = Modifier,
-) {
+fun LoadingSkeleton(height: Dp, modifier: Modifier = Modifier) {
+    val colors = Volo.colors
     Surface(
-        modifier = modifier
-            .height(height)
-            .semantics { invisibleToUser() },
-        shape = RoundedCornerShape(VoloDimens.radiusCard),
-        color = VoloColors.surfaceHigh,
-    ) {
-    }
+        modifier = modifier.height(height),
+        shape = VoloShape.Md,
+        color = colors.surfaceHigh,
+    ) {}
 }
 
-// Preview-only glyph: StateViews.kt must stay free of Material icon imports
-// (the single sanctioned Material-icon stand-in lives in DuelCard), so the EmptyState
-// preview draws a hand-built plus-mark instead of importing an icon pack.
-// Task 7+ screens pass real (Phosphor) ImageVectors to EmptyState.
-private val PreviewGlyph: ImageVector by lazy {
-    ImageVector.Builder(
-        name = "PreviewGlyph",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f,
-    ).addPath(
-        pathData = PathParser().parsePathString("M12 5v14M5 12h14").toNodes(),
-        stroke = SolidColor(VoloColors.copper),
-        strokeLineWidth = 2f,
-        strokeLineCap = StrokeCap.Round,
-    ).build()
+@Composable
+fun ForfeitDialog(stakeLabel: String, opponentName: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val colors = Volo.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = colors.surfaceRaised,
+        title = {
+            Text(text = "Forfeit the duel?", style = VoloText.TitleMd, color = colors.onSurface)
+        },
+        text = {
+            Text(
+                text = "Your $stakeLabel stake goes to $opponentName and your streak breaks.",
+                style = VoloText.BodyMd,
+                color = colors.onSurfaceMuted,
+            )
+        },
+        confirmButton = {
+            PrimaryButton(label = "Forfeit", onClick = onConfirm, container = colors.danger, content = colors.surface)
+        },
+        dismissButton = {
+            OutlineButton(label = "Cancel", onClick = onDismiss)
+        },
+    )
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFF10191D)
+@Preview(showBackground = true, backgroundColor = 0xFF10261B)
 @Composable
 private fun EmptyStatePreview() {
     VoloTheme {
         EmptyState(
-            icon = PreviewGlyph,
+            icon = Phosphor.Flag,
             title = "No open duels",
             message = "There are no open challenges right now. Check back soon or create your own.",
             actionLabel = "Create a duel",
@@ -153,7 +127,7 @@ private fun EmptyStatePreview() {
     }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFF10191D)
+@Preview(showBackground = true, backgroundColor = 0xFF10261B)
 @Composable
 private fun InlineErrorPreview() {
     VoloTheme {
@@ -174,7 +148,7 @@ private fun InlineErrorPreview() {
     }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFF10191D)
+@Preview(showBackground = true, backgroundColor = 0xFF10261B)
 @Composable
 private fun LoadingSkeletonPreview() {
     VoloTheme {

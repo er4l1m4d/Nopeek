@@ -795,6 +795,81 @@ object Phosphor {
             return _Trophy!!
         }
 
+    val Check: ImageVector
+        get() {
+            if (_Check != null) return _Check!!
+            _Check = ImageVector.Builder(
+                name = "check",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 256f,
+                viewportHeight = 256f,
+            ).apply {
+                path(fill = SolidColor(Color.Black)) {
+                    moveTo(173.66f, 98.34f)
+                    arcToRelative(8f, 8f, 0f, false, true, 0f, 11.32f)
+                    lineToRelative(-56f, 56f)
+                    arcToRelative(8f, 8f, 0f, false, true, -11.32f, 0f)
+                    lineToRelative(-24f, -24f)
+                    arcToRelative(8f, 8f, 0f, false, true, 11.32f, -11.32f)
+                    lineTo(112f, 148.69f)
+                    lineToRelative(50.34f, -50.35f)
+                    arcTo(8f, 8f, 0f, false, true, 173.66f, 98.34f)
+                    close()
+                }
+            }.build()
+            return _Check!!
+        }
+
+    val CaretRight: ImageVector
+        get() {
+            if (_CaretRight != null) return _CaretRight!!
+            _CaretRight = ImageVector.Builder(
+                name = "caret-right",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 256f,
+                viewportHeight = 256f,
+            ).apply {
+                path(fill = SolidColor(Color.Black)) {
+                    moveTo(181.66f, 133.66f)
+                    lineToRelative(-80f, 80f)
+                    arcToRelative(8f, 8f, 0f, false, true, -11.32f, -11.32f)
+                    lineTo(164.69f, 128f)
+                    lineTo(90.34f, 53.66f)
+                    arcToRelative(8f, 8f, 0f, false, true, 11.32f, -11.32f)
+                    lineToRelative(80f, 80f)
+                    arcTo(8f, 8f, 0f, false, true, 181.66f, 133.66f)
+                    close()
+                }
+            }.build()
+            return _CaretRight!!
+        }
+
+    val DotsThree: ImageVector
+        get() {
+            if (_DotsThree != null) return _DotsThree!!
+            _DotsThree = ImageVector.Builder(
+                name = "dots-three",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 256f,
+                viewportHeight = 256f,
+            ).apply {
+                path(fill = SolidColor(Color.Black)) {
+                    for (cx in floatArrayOf(60f, 128f, 196f)) {
+                        moveTo(cx + 32f, 128f)
+                        arcTo(32f, 32f, 0f, false, true, cx, 160f)
+                        arcTo(32f, 32f, 0f, false, true, cx - 32f, 128f)
+                        arcTo(32f, 32f, 0f, false, true, cx, 96f)
+                        arcTo(32f, 32f, 0f, false, true, cx + 32f, 128f)
+                        close()
+                    }
+                }
+            }.build()
+            return _DotsThree!!
+        }
+
     private var _House: ImageVector? = null
     private var _HouseFill: ImageVector? = null
     private var _Flag: ImageVector? = null
@@ -815,4 +890,7 @@ object Phosphor {
     private var _LockKey: ImageVector? = null
     private var _Wallet: ImageVector? = null
     private var _Trophy: ImageVector? = null
+    private var _Check: ImageVector? = null
+    private var _CaretRight: ImageVector? = null
+    private var _DotsThree: ImageVector? = null
 }

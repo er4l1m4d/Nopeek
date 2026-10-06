@@ -1,7 +1,6 @@
 package com.volo.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,37 +10,29 @@ class VoloTokensTest {
 
     @Test
     fun colorsMatchSpec() {
-        assertEquals(Color(0xFF10191D), VoloColors.bg)
-        assertEquals(Color(0xFF141E22), VoloColors.surface)
-        assertEquals(Color(0xFF1A272B), VoloColors.surfaceRaised)
-        assertEquals(Color(0xFF213035), VoloColors.surfaceHigh)
-        assertEquals(Color(0xFF26363B), VoloColors.line)
-        assertEquals(Color(0xFFF2F4EE), VoloColors.text)
-        assertEquals(Color(0xFFA4B0AF), VoloColors.textMuted)
-        assertEquals(Color(0xFFD17A54), VoloColors.copper)
-        assertEquals(Color(0xFFB4603C), VoloColors.copperDeep)
-        assertEquals(Color(0xFFB9D5C5), VoloColors.safe)
-        assertEquals(Color(0xFFE0A268), VoloColors.risk)
-        assertEquals(Color(0xFFE08373), VoloColors.fail)
+        assertEquals(VoloColors.bg, VoloRef.Pitch)
+        assertEquals(VoloColors.surface, VoloRef.Pitch)
+        assertEquals(VoloColors.surfaceRaised, VoloRef.Turf)
+        assertEquals(VoloColors.surfaceHigh, VoloRef.Turf2)
+        assertEquals(VoloColors.line, VoloRef.Line)
+        assertEquals(VoloColors.text, VoloRef.Chalk)
+        assertEquals(VoloColors.textMuted, VoloRef.Mute)
+        assertEquals(VoloColors.copper, VoloRef.Amber)
+        assertEquals(VoloColors.copperDeep, VoloRef.Amber)
+        assertEquals(VoloColors.safe, VoloRef.Volt)
+        assertEquals(VoloColors.risk, VoloRef.Amber)
+        assertEquals(VoloColors.fail, VoloRef.Coral)
     }
 
     @Test
     fun spacingMatchesSpec() {
-        assertEquals(4.dp, VoloDimens.spaceXs)
-        assertEquals(8.dp, VoloDimens.spaceSm)
-        assertEquals(12.dp, VoloDimens.spaceMd)
-        assertEquals(16.dp, VoloDimens.spaceLg)
-        assertEquals(20.dp, VoloDimens.spaceXl)
-        assertEquals(24.dp, VoloDimens.spaceXxl)
-        assertEquals(32.dp, VoloDimens.spaceXxxl)
-    }
-
-    @Test
-    fun radiiMatchSpec() {
-        assertEquals(12.dp, VoloDimens.radiusControl)
-        assertEquals(18.dp, VoloDimens.radiusCard)
-        assertEquals(24.dp, VoloDimens.radiusSheet)
-        assertEquals(999.dp, VoloDimens.radiusPill)
+        assertEquals(VoloDimens.spaceXs, VoloSpace.S4)
+        assertEquals(VoloDimens.spaceSm, VoloSpace.S8)
+        assertEquals(VoloDimens.spaceMd, VoloSpace.S12)
+        assertEquals(VoloDimens.spaceLg, VoloSpace.S16)
+        assertEquals(VoloDimens.spaceXl, VoloSpace.S20)
+        assertEquals(VoloDimens.spaceXxl, VoloSpace.S24)
+        assertEquals(VoloDimens.spaceXxxl, VoloSpace.S32)
     }
 
     @Test

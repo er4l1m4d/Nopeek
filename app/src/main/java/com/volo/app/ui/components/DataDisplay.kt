@@ -1,311 +1,180 @@
 package com.volo.app.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.volo.app.ui.theme.VoloColors
-import com.volo.app.ui.theme.VoloDimens
+import com.volo.app.ui.icons.Phosphor
+import com.volo.app.ui.theme.Volo
+import com.volo.app.ui.theme.VoloText
 import com.volo.app.ui.theme.VoloTheme
-import com.volo.app.ui.theme.VoloType
 
 @Composable
-fun UsageRing(
-    usedSeconds: Int,
-    limitSeconds: Int,
-    centerText: String,
-    modifier: Modifier = Modifier,
-) {
-    val fraction = fractionOf(usedSeconds.toFloat(), limitSeconds.toFloat())
+fun Radio(on: Boolean, modifier: Modifier = Modifier) {
+    val colors = Volo.colors
     Box(
         modifier = modifier
-            .aspectRatio(1f)
-            .semantics { contentDescription = "Usage $centerText" },
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(if (on) colors.you else Color.Transparent)
+            .border(2.dp, if (on) Color.Transparent else colors.outline, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            val stroke = 12.dp.toPx()
-            val inset = stroke / 2f
-            val arcTopLeft = Offset(inset, inset)
-            val arcSize = Size(size.width - stroke, size.height - stroke)
-            val style = Stroke(width = stroke, cap = StrokeCap.Round)
-            drawArc(
-                color = VoloColors.surfaceHigh,
-                startAngle = 0f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = arcTopLeft,
-                size = arcSize,
-                style = style,
-            )
-            drawArc(
-                color = VoloColors.copper,
-                startAngle = -90f,
-                sweepAngle = sweepDegrees(fraction),
-                useCenter = false,
-                topLeft = arcTopLeft,
-                size = arcSize,
-                style = style,
-            )
-        }
-        Text(
-            text = centerText,
-            style = VoloType.monoLarge,
-            color = VoloColors.text,
-            modifier = Modifier.clearAndSetSemantics {},
-        )
-    }
-}
-
-@Composable
-fun OpponentUsageBar(
-    youLabel: String,
-    youText: String,
-    youFraction: Float,
-    opponentLabel: String,
-    opponentText: String,
-    opponentFraction: Float,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.semantics {
-            contentDescription = "$youLabel $youText, $opponentLabel $opponentText"
-        },
-        verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
-    ) {
-        UsageCompareRow(
-            label = youLabel,
-            text = youText,
-            // fractionOf(x, 1f) is the clamp-to-unit-range path of the
-            // tested helper: negatives/zero -> 0f, overshoot -> 1f.
-            fraction = fractionOf(youFraction, 1f),
-            color = VoloColors.copper,
-        )
-        UsageCompareRow(
-            label = opponentLabel,
-            text = opponentText,
-            fraction = fractionOf(opponentFraction, 1f),
-            color = VoloColors.textMuted,
-        )
-    }
-}
-
-@Composable
-private fun UsageCompareRow(
-    label: String,
-    text: String,
-    fraction: Float,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXs),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label,
-                style = VoloType.monoSmall,
-                color = VoloColors.textMuted,
-                modifier = Modifier.weight(1f).clearAndSetSemantics {},
-            )
-            Text(
-                text = text,
-                style = VoloType.monoSmall,
-                color = VoloColors.text,
-                modifier = Modifier.clearAndSetSemantics {},
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(VoloDimens.radiusPill))
-                .background(VoloColors.surfaceHigh),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(fraction)
-                    .clip(RoundedCornerShape(VoloDimens.radiusPill))
-                    .background(color),
-            )
+        if (on) {
+            Icon(imageVector = Phosphor.Check, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.background)
         }
     }
 }
 
 @Composable
-fun SectionHeader(
-    eyebrow: String,
-    title: String,
+fun AppRow(
+    name: String,
+    average: String,
+    selected: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    action: (@Composable () -> Unit)? = null,
+    icon: Painter? = null,
+    fallback: String? = "?",
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXs),
-        ) {
-            Text(
-                text = eyebrow,
-                style = VoloType.label,
-                color = VoloColors.textMuted,
-            )
-            Text(
-                text = title,
-                style = VoloType.title,
-                color = VoloColors.text,
-            )
-        }
-        if (action != null) {
-            action()
-        }
-    }
-}
-
-@Composable
-fun MetricRow(
-    title: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
+    val colors = Volo.colors
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp),
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(top = 8.dp)
+            .heightIn(min = 64.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
     ) {
-        Text(
-            text = title,
-            style = VoloType.body,
-            color = VoloColors.text,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = value,
-            style = VoloType.mono,
-            color = VoloColors.text,
-            textAlign = TextAlign.End,
-        )
+        AppTile(icon = icon, fallback = fallback)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = name, style = VoloText.TitleSm, color = colors.onSurface)
+            Text(text = average, style = VoloText.BodyMd, color = colors.onSurfaceMuted)
+        }
+        Radio(on = selected)
     }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFF10191D)
 @Composable
-private fun UsageRingPreview() {
-    VoloTheme {
-        UsageRing(
-            usedSeconds = 18 * 60,
-            limitSeconds = 30 * 60,
-            centerText = "18m / 30m",
-            modifier = Modifier
-                .padding(16.dp)
-                .size(180.dp),
-        )
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF10191D)
-@Composable
-private fun OpponentUsageBarPreview() {
-    VoloTheme {
-        OpponentUsageBar(
-            youLabel = "YOU",
-            youText = "18m",
-            youFraction = 0.6f,
-            opponentLabel = "MAYA",
-            opponentText = "24m",
-            opponentFraction = 0.8f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-        )
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF10191D)
-@Composable
-private fun SectionHeaderPreview() {
-    VoloTheme {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SectionHeader(
-                eyebrow = "THIS WEEK",
-                title = "Screen time",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            SectionHeader(
-                eyebrow = "DUEL",
-                title = "Usage breakdown",
-                modifier = Modifier.fillMaxWidth(),
-                action = {
-                    Text(
-                        text = "See all",
-                        style = VoloType.monoSmall,
-                        color = VoloColors.copper,
-                    )
-                },
-            )
+fun ChecklistRow(title: String, subtitle: String, done: Boolean, modifier: Modifier = Modifier) {
+    val colors = Volo.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Radio(on = done)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = VoloText.TitleSm, color = colors.onSurface)
+            Text(text = subtitle, style = VoloText.BodyMd, color = colors.onSurfaceMuted)
         }
     }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFF10191D)
 @Composable
-private fun MetricRowPreview() {
-    VoloTheme {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+fun PasteField(prompt: String, actionLabel: String, onAction: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = Volo.colors
+    Surface(
+        onClick = onAction,
+        modifier = modifier.height(56.dp),
+        enabled = true,
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Transparent,
+        contentColor = colors.onSurfaceMuted,
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, colors.outline),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            MetricRow(
-                title = "Stake",
-                value = "5.00 USDC",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MetricRow(
-                title = "Time left",
-                value = "02:14:33",
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Text(text = prompt, style = VoloText.BodyMd, color = colors.onSurfaceMuted, modifier = Modifier.weight(1f))
+            Text(text = actionLabel, style = VoloText.LabelLg, color = colors.primary)
+        }
+    }
+}
+
+@Composable
+fun ReviewRow(label: String, value: String, onEdit: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = Volo.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onEdit)
+            .heightIn(min = 56.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, style = VoloText.BodyMd, color = colors.onSurfaceMuted, modifier = Modifier.weight(1f))
+        Text(text = value, style = VoloText.LabelLg, color = colors.onSurface)
+        Icon(imageVector = Phosphor.CaretRight, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.onSurfaceMuted)
+    }
+}
+
+@Composable
+fun StepperBar(step: Int, total: Int, modifier: Modifier = Modifier) {
+    val colors = Volo.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            repeat(total) { i ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(if (i < step) colors.primary else colors.surfaceHigh),
+                )
+            }
+        }
+        Text(text = "$step of $total", style = VoloText.LabelLg, color = colors.onSurfaceMuted)
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF10261B)
+@Composable
+private fun RowsPreview() {
+    VoloTheme {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            AppRow(name = "TikTok", average = "1h 52m a day on average", selected = true, onClick = {})
+            ChecklistRow(title = "Wallet connected", subtitle = "Phantom, 7xKp…9fQ2", done = true)
+            PasteField(prompt = "Paste an address or .skr name", actionLabel = "Paste", onAction = {})
+            ReviewRow(label = "Daily limit", value = "30 min", onEdit = {})
+            StepperBar(step = 2, total = 6)
         }
     }
 }

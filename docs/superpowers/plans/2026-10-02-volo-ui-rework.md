@@ -6,11 +6,13 @@ FALLBACK: hand-rolled charts per spec (vico 3.3.1 transitively requires Compose 
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rebuild Volo's entire UI on a dark-only design system (Satoshi + JetBrains Mono, Phosphor icons, shadcn-compose primitives, Vico charts) across all 8 screens.
+**Goal:** Rebuild Volo's entire UI on a dark-only design system (Satoshi + JetBrains Mono, Phosphor icons, hand-built primitives, hand-rolled charts) across all 8 screens.
 
-**Architecture:** Foundation tasks establish tokens/typography/status logic as pure, JVM-tested Kotlin; component tasks build Volo wrappers over shadcn-compose primitives (fallback: hand-built, same tokens); screen tasks migrate one screen per task onto the component layer; final tasks wire navigation, sweep out dead code, and run the design review.
+> Dependency-spike outcome (Task 0): `shadcn-compose`, `vico`, and `icons-phosphor` were all **incompatible** with the pinned toolchain (Kotlin 2.2.21 / AGP 8.6.1 / compileSdk 35) and are NOT used. Per the spec's explicit fallbacks, T4/T5 use hand-built Material3 primitives, T6 uses hand-rolled Canvas charts, and T7 uses hand-vendored Phosphor `ImageVector`s. Design is unchanged; only the implementation path shifted.
 
-**Tech Stack:** Kotlin 2.2.21, AGP 8.6.1, Compose BOM 2024.12.01, Material3 (infrastructure only), shadcn-compose 0.2.7, Vico 3.3.1, compose-icons Phosphor 0.1.0, JUnit 4 (JVM tests only — project has no androidTest/emulator harness).
+**Architecture:** Foundation tasks establish tokens/typography/status logic as pure, JVM-tested Kotlin; component tasks build Volo wrappers over hand-built primitives (same tokens — the spec's hand-built fallback); screen tasks migrate one screen per task; final tasks wire navigation, sweep out dead code, and run the design review.
+
+**Tech Stack:** Kotlin 2.2.21, AGP 8.6.1, Compose BOM 2024.12.01, Material3 (infrastructure only), JUnit 4 (JVM tests only — project has no androidTest/emulator harness). *shadcn-compose/Vico/icons-phosphor were attempted in Task 0 and rejected (toolchain incompatibility); per spec, components are hand-built, charts are hand-rolled Canvas, icons are vendored ImageVectors.*
 
 **Spec:** `docs/superpowers/specs/2026-10-02-volo-ui-rework-design.md` (rev. 2)
 
@@ -30,7 +32,7 @@ FALLBACK: hand-rolled charts per spec (vico 3.3.1 transitively requires Compose 
 
 ## Review Focus
 
-1. **shadcn-compose vs project toolchain** (Compose Styles API, experimental) — Task 0 compiles a minimal `ShadcnTheme` + button + Vico chart + Phosphor icon spike; expected: build green, otherwise documented fallback (hand-built primitives / hand-rolled charts / vendored ImageVectors) with zero design change.
+  - **Review Focus #1 (resolved):** shadcn-compose vs toolchain — Task 0 spike found all three deps (shadcn-compose, Vico, icons-phosphor) incompatible with Kotlin 2.2.21/AGP 8.6.1/compileSdk 35; verified the hand-built fallback path (see Goal note) keeps `gradlew assembleDebug` green with zero design change. No longer a risk to clear — re-scanned as: "T4/T5 buttons use hand-built Surface/Text; T6 charts use Canvas; T7 icons use vendored ImageVectors."
 2. **Contrast failures on dark surfaces** — Task 2 `VoloTokensTest` asserts WCAG ≥ 4.5:1 for `text/bg`, `textMuted/bg`, and each chip pair (dark text on safe/risk/fail/copper containers).
 3. **Status chips losing labels (color-only)** — Task 3 `StatusTest` pins exact label+colors for all 6 lifecycle strings and 4 usage states, and asserts every variant label is non-empty; unknown status falls through to a neutral variant, never a crash.
 4. **Mono misuse / wrong font weights** — Task 1 `VoloTypographyTest` pins every style's size, weight, and family against the spec table; Task 16 grep gate: zero `FontFamily.Monospace` and zero raw `fontSize =` outside `theme/Type.kt`.
@@ -89,9 +91,7 @@ FALLBACK: hand-rolled charts per spec (vico 3.3.1 transitively requires Compose 
 **Interfaces:**
 - Produces: `object VoloType` with styles `display, headline, title, titleSmall, body, bodySmall, label, monoLarge, mono, monoSmall` (each `TextStyle`); `val Satoshi: FontFamily`; `val Mono: FontFamily`; `val VoloTypography: Typography` (Material slots filled from the same styles so Material defaults align).
 
-- [ ] **Step 1: Download fonts**
-  - Satoshi: download the free zip from `fontshare.com/fonts/satoshi`; take Regular/Medium/Bold/Black TTFs → `res/font/satoshi_regular.ttf`, `satoshi_medium.ttf`, `satoshi_bold.ttf`, `satoshi_black.ttf` (lowercase filenames, Android resource rules).
-  - JetBrains Mono: download the release zip from `github.com/JetBrains/JetBrainsMono/releases`; take static Regular/Medium/Bold → `jetbrainsmono_regular.ttf`, `jetbrainsmono_medium.ttf`, `jetbrainsmono_bold.ttf`.
+- [ ] **Step 1: Place fonts** (Satoshi is provided by the user as a single **variable TTF** `Satoshi-Variable.ttf` at repo root — move it into `res/font/satoshi_variable.ttf`. JetBrains Mono must be downloaded: fetch `JetBrainsMono-2.304.zip` from `github.com/JetBrains/JetBrainsMono/releases`, extract static Regular/Medium/Bold → `res/font/jetbrainsmono_regular.ttf`, `jetbrainsmono_medium.ttf`, `jetbrainsmono_bold.ttf`. In Type.kt, map the single variable Satoshi file to 4 weights: `Satoshi = FontFamily(Font(R.font.satoshi_variable, weight = FontWeight.W400), Font(R.font.satoshi_variable, weight = FontWeight.W500), Font(R.font.satoshi_variable, weight = FontWeight.W700), Font(R.font.satoshi_variable, weight = FontWeight.W900))` — Compose selects the weight axis, so the family still satisfies the test's per-style `fontWeight` assertions. If the variable file is NOT on disk at step start, report NEEDS_CONTEXT rather than substituting a font.
 - [ ] **Step 2: Write the failing test** — `VoloTypographyTest` table-driven over the spec's exact table:
 
 ```kotlin
@@ -119,12 +119,12 @@ private data class Row(val name: String, val style: TextStyle, val size: Int, va
 ```
 
 - [ ] **Step 3: Run test → FAIL** (compile error: `VoloType` unresolved). Run: `gradlew testDebugUnitTest --tests "*VoloTypographyTest*"`
-- [ ] **Step 4: Implement `Type.kt`** — `Satoshi = FontFamily(Font(R.font.satoshi_regular), Font(R.font.satoshi_medium), Font(R.font.satoshi_bold), Font(R.font.satoshi_black))`; `Mono` likewise; the 10 styles with exact values above (`fontWeight = FontWeight.Black` = 900 for display/headline); `label` gets `letterStyle` tracking 1.sp; `VoloTypography` maps styles into Material slots (`displayLarge = display`, `headlineLarge = headline`, `titleLarge = title`, `titleMedium = titleSmall`, `bodyLarge = body`, `bodyMedium = bodySmall`, `labelLarge = label`, …).
+- [ ] **Step 4: Implement `Type.kt`** — `Satoshi = FontFamily(Font(R.font.satoshi_variable, weight = FontWeight.W400), Font(R.font.satoshi_variable, weight = FontWeight.W500), Font(R.font.satoshi_variable, weight = FontWeight.W700), Font(R.font.satoshi_variable, weight = FontWeight.W900))`; `Mono = FontFamily(Font(R.font.jetrainsmono_regular), Font(R.font.jetbrainsmono_medium), Font(R.font.jetbrainsmono_bold))`; the 10 styles with exact values above (`fontWeight = FontWeight.Black` = 900 for display/headline); `label` gets 1.sp letter spacing; `VoloTypography` maps styles into Material slots (`displayLarge = display`, `headlineLarge = headline`, `titleLarge = title`, `titleMedium = titleSmall`, `bodyLarge = body`, `bodyMedium = bodySmall`, `labelLarge = label`, …).
 - [ ] **Step 5: Run test → PASS**, then wire `Theme.kt`: `MaterialTheme(colorScheme = …, typography = VoloTypography, content = …)`.
 - [ ] **Step 6: `gradlew assembleDebug` + `gradlew testDebugUnitTest` green**
 - [ ] **Step 7: Commit** — `git add app/src/main/res/font app/src/main/java/com/volo/app/ui/theme app/src/test/java/com/volo/app/ui/theme` → `git commit -m "UI rework: bundle Satoshi + JetBrains Mono and add the typography scale"`
 
-### Task 2: Color/dimension tokens + dark scheme + shadcn mapping
+### Task 2: Color/dimension tokens + dark scheme
 
 **Files:**
 - Create: `.../ui/theme/Tokens.kt`
@@ -132,14 +132,14 @@ private data class Row(val name: String, val style: TextStyle, val size: Int, va
 - Test: `.../ui/theme/VoloTokensTest.kt`
 
 **Interfaces:**
-- Produces: `object VoloColors` — `bg #10191D, surface #141E22, surfaceRaised #1A272B, surfaceHigh #213035, line #26363B, text #F2F4EE, textMuted #A4B0AF, copper #D17A54, copperDeep #B4603C, safe #B9D5C5, risk #E0A268, fail #E08373`; `object VoloDimens` — `spaceXs=4, spaceSm=8, spaceMd=12, spaceLg=16, spaceXl=20, spaceXxl=24, spaceXxxl=32` (dp), `radiusControl=12, radiusCard=18, radiusSheet=24, radiusPill=999` (dp). `VoloTheme` gains a dark `darkColorScheme` built from these + wraps content in shadcn's theme with tokens mapped 1:1 to `VoloColors` (if shadcn present; else no-op wrapper).
+- Produces: `object VoloColors` — `bg #10191D, surface #141E22, surfaceRaised #1A272B, surfaceHigh #213035, line #26363B, text #F2F4EE, textMuted #A4B0AF, copper #D17A54, copperDeep #B4603C, safe #B9D5C5, risk #E0A268, fail #E08373`; `object VoloDimens` — `spaceXs=4, spaceSm=8, spaceMd=12, spaceLg=16, spaceXl=20, spaceXxl=24, spaceXxxl=32` (dp), `radiusControl=12, radiusCard=18, radiusSheet=24, radiusPill=999` (dp). `VoloTheme` gains a dark `darkColorScheme` built from these (no shadcn wrapper — Task 0 spike found shadcn incompatible; the dark scheme + `VoloTypography` are the full theme).
 
 - [ ] **Step 1: Write failing test** `VoloTokensTest`:
   - `assertEquals(Color(0xFF10191D), VoloColors.bg)` … all 12 colors exactly as above.
   - All 7 spacing + 4 radius values exactly as above.
   - Contrast helper (WCAG relative luminance) + assertions: `contrast(text, bg) >= 4.5`, `contrast(textMuted, bg) >= 4.5`, and `contrast(VoloColors.bg, container) >= 4.5` for `container in listOf(safe, risk, fail, copper)` (chips render dark text on those containers).
 - [ ] **Step 2: Run → FAIL** (`VoloColors` unresolved)
-- [ ] **Step 3: Implement `Tokens.kt`** exactly per Interfaces; **modify `Theme.kt`**: keep existing light vals untouched (screens still use them), add `private val VoloDarkScheme = darkColorScheme(...)` from `VoloColors`, change `VoloTheme` to `MaterialTheme(VoloDarkScheme, typography = VoloTypography) { ShadcnThemeMapping { content() } }`.
+- [ ] **Step 3: Implement `Tokens.kt`** exactly per Interfaces; **modify `Theme.kt`**: keep existing light vals until T16 deletes them, add `private val VoloDarkScheme = darkColorScheme(...)` from `VoloColors`, change `VoloTheme` to `MaterialTheme(VoloDarkScheme, typography = VoloTypography, content = content)` — no shadcn wrapper (Task 0 spike proved shadcn incompatible; fallback is the no-op path).
 - [ ] **Step 4: Run test → PASS**; check the existing 19 test files still pass (`gradlew testDebugUnitTest`) — Theme changes must not touch data logic.
 - [ ] **Step 5: `gradlew assembleDebug` green**
 - [ ] **Step 6: Commit** → `git commit -m "UI rework: add VoloColors/VoloDimens tokens and switch VoloTheme to dark-only"`
@@ -189,7 +189,7 @@ private data class Row(val name: String, val style: TextStyle, val size: Int, va
 - Create: `.../ui/components/Buttons.kt`, `.../ui/components/Chips.kt`
 
 **Interfaces:**
-- Consumes: `VoloColors`, `VoloDimens`, `VoloType`, `StatusVariant` (Task 3), shadcn button/badge primitives (Task 0; fallback: Material3 `Surface`/`Text` styled from tokens).
+  - Consumes: `VoloColors`, `VoloDimens`, `VoloType`, `StatusVariant` (Task 3). Buttons/chips are hand-built Material3 `Surface`/`Text` styled purely from tokens — per plan, shadcn-compose was rejected by the Task 0 spike.
 - Produces:
   - `@Composable fun PrimaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true)` — copper container, `bg` text, Satoshi 700 15sp, radius `radiusControl`, height ≥ 48dp.
   - `@Composable fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true)` — transparent, 1dp `line` border, `text` label.
@@ -228,7 +228,7 @@ private data class Row(val name: String, val style: TextStyle, val size: Int, va
 - Test: `.../ui/components/ChartMathTest.kt`
 
 **Interfaces:**
-- Consumes: Vico (Task 0; fallback per plan note), tokens, type.
+- Consumes: hand-rolled Canvas (Task 0 spike dropped Vico for toolchain incompatibility), tokens, type.
 - Produces:
   - `fun fractionOf(value: Float, max: Float): Float` — `0f` if `max <= 0f || value <= 0f`, else `(value / max).coerceAtMost(1f)`.
   - `fun sweepDegrees(fraction: Float): Float` — `(fraction.coerceIn(0f, 1f)) * 360f`.
@@ -238,8 +238,8 @@ private data class Row(val name: String, val style: TextStyle, val size: Int, va
   - `@Composable fun MetricRow(title: String, value: String, modifier: Modifier = Modifier)` — mono value right-aligned.
   - `data class UsageBarItem(val label: String, val duration: String, val fraction: Float)`
   - `@Composable fun UsageBreakdownBars(items: List<UsageBarItem>, modifier: Modifier = Modifier)` — row per item: label + `bodySmall`, mono duration, copper bar scaled by `fraction`.
-  - `@Composable fun DailyBarChart(values: List<Float>, labels: List<String>, modifier: Modifier = Modifier)` — Vico column chart, copper columns, `textMuted` axes, `Mono` tick labels.
-  - `@Composable fun Sparkline(values: List<Float>, modifier: Modifier = Modifier, lineColor: Color = VoloColors.copper)` — Vico line chart, no axes.
+  - `@Composable fun DailyBarChart(values: List<Float>, labels: List<String>, modifier: Modifier = Modifier)` — hand-rolled Canvas column chart (Task 0 spike dropped Vico for toolchain incompatibility), copper columns, `textMuted` axes, `Mono` tick labels.
+  - `@Composable fun Sparkline(values: List<Float>, modifier: Modifier = Modifier, lineColor: Color = VoloColors.copper)` — hand-rolled Canvas line chart, no axes.
 
 - [ ] **Step 1: Write failing test** `ChartMathTest`:
 
@@ -255,19 +255,22 @@ private data class Row(val name: String, val style: TextStyle, val size: Int, va
 }
 ```
 
-- [ ] **Step 2: Run → FAIL**; **Step 3: implement** `fractionOf`/`sweepDegrees` + all composables (rings/bars use the two functions; Vico wrappers set colors explicitly from `VoloColors`).
+- [ ] **Step 2: Run → FAIL**; **Step 3: implement** `fractionOf`/`sweepDegrees` + all composables (rings/bars use the two functions; charts read colors from `VoloColors`).
 - [ ] **Step 4: Run → PASS**; **Step 5: assembleDebug + testDebugUnitTest green**; **Step 6: Commit** → `git commit -m "UI rework: add data-display and chart components with tested math"`
 
-### Task 7: Shell components + nav icon mapping
+### Task 7: Shell components + nav icon mapping + icon vendoring
 
 **Files:**
-- Create: `.../ui/components/Shell.kt`
+- Create: `.../ui/components/Shell.kt`, `.../ui/icons/Phosphor.kt`
+- Modify: `.../ui/components/Chips.kt` (add optional `leading: ImageVector? = null` slot to `StatusChip` — positional callers unaffected), `.../ui/components/Cards.kt` (replace the sanctioned T5 temp `Icons.AutoMirrored.Outlined.ArrowForward` in `DuelCard` with vendored Phosphor `ArrowRight`)
 - Test: `.../navigation/NavIconMappingTest.kt`
 
 **Interfaces:**
-- Consumes: `Destination` (from `navigation/NavGraph.kt` — make it `internal` if currently private), Phosphor icons, tokens.
+- Consumes: `Destination` (from `navigation/NavGraph.kt` — make it `internal` if currently private), hand-vendored Phosphor `ImageVector`s (created in this task as `ui/icons/Phosphor.kt`, since the `icons-phosphor` lib was rejected by the Task 0 spike), tokens.
+
+**Icon-vendoring rule (T7, from spec §Iconography):** vendor into `ui/icons/Phosphor.kt` — nav set in BOTH Regular + Fill/Bold (`House`, `Flag`, `ClockCounterClockwise`, `User`, `Plus`), plus Regular `ArrowRight`, `CheckCircle`, `WarningCircle`, `XCircle` (status-chip leading icons), `ArrowLeft` (back actions), `Copy` (copyable addresses), `LockKey` (Recovery Lock), `Wallet` (Profile wallet card), `Trophy` (results/empty states). Source priority: composables.com individual Phosphor icon `.kt` files → DevSrSouza compose-icons GitHub `phosphor` module source → NEEDS_CONTEXT. FORBIDDEN: hand-traced glyphs or Material substitutes (violates the locked Phosphor decision). Activity event glyphs (created/joined/submitted/permission/settlement/funds) are vendored in T13 by the same method; a screen may add at most 2 missing icons if the T7 set lacks them.
 - Produces:
-  - `fun navIcon(item: Destination, selected: Boolean): ImageVector` — mapping: Home → `House`, Challenges → `Flag`, Activity → `ClockCounterClockwise`, Profile → `User`, Create → `Plus`; `selected=true` returns the `PhosphorIcons.Fill.*` variant, `false` the `PhosphorIcons.Regular.*` variant (verify exact names against the installed library while writing the test — compile is the check).
+  - `fun navIcon(item: Destination, selected: Boolean): ImageVector` — mapping: Home → `House`, Challenges → `Flag`, Activity → `ClockCounterClockwise`, Profile → `User`, Create → `Plus`; `selected=true` returns the bold/variant `ImageVector`, `false` the regular one (exact names verified against the Phosphor icon set when vendoring into `ui/icons/Phosphor.kt`; compile is the check).
   - `@Composable fun VoloBottomBar(current: Destination, onSelect: (Destination) -> Unit, modifier: Modifier = Modifier)` — 4 destinations + center `CreateAction`; active = Fill icon + copper label; labels `Mono`? No — labels are words: `VoloType.label` Satoshi; 48dp+ targets; sits above gesture insets.
   - `@Composable fun CreateAction(onClick: () -> Unit, modifier: Modifier = Modifier)` — circular copper, Phosphor `Plus` (Bold), 56dp.
   - `@Composable fun VoloScaffold(current: Destination, onSelect: (Destination) -> Unit, modifier: Modifier = Modifier, content: @Composable (PaddingValues) -> Unit)` — dark `bg`, hosts `VoloBottomBar`.
@@ -285,30 +288,62 @@ private data class Row(val name: String, val style: TextStyle, val size: Int, va
 - [ ] **Step 2: Run → FAIL**; **Step 3: implement `Shell.kt`** (NavGraph NOT rewired yet — that's Task 16).
 - [ ] **Step 4: Run → PASS**; **Step 5: assembleDebug + testDebugUnitTest green**; **Step 6: Commit** → `git commit -m "UI rework: add shell components and tested Phosphor nav-icon mapping"`
 
-### Tasks 8–15: Screen migrations (one task per screen, in order)
+### Screen-migration shared pattern (applies to Tasks 8–15)
 
-**Shared pattern** (each task's steps below only list the screen-specific anatomy):
+Each screen task: rewrite exactly one screen file (+ noted extras) per the spec's Screen Specifications section, using only components from Tasks 3–7 (`VoloType` styles — no raw `fontSize`/`FontFamily`; `VoloColors` — no light tokens; vendored Phosphor — no `Icons.*`; keep existing callbacks/state wiring signatures unchanged so `NavGraph.kt` still compiles). A screen may vendor at most 2 missing icons (T7 method) if the T7 set lacks them.
 
-- [ ] **Step 1: Rewrite `<Screen>.kt`** per the spec's Screen Specifications section, using only components from Tasks 3–7 (`VoloType` styles — no raw `fontSize`/`FontFamily`; `VoloColors` — no light tokens; Phosphor — no `Icons.*`; keep existing callbacks/state wiring signatures unchanged so `NavGraph.kt` still compiles).
+- [ ] **Step 1: Rewrite the screen** per its anatomy line below.
 - [ ] **Step 2: `gradlew assembleDebug` green**
 - [ ] **Step 3: `gradlew testDebugUnitTest` green** (unchanged data logic must still pass)
 - [ ] **Step 4: Commit** → `git commit -m "UI rework: migrate <screen> screen to the dark design system"`
 
-**Task 8: Home** (`ui/screens/HomeScreen.kt`) — mono date, Satoshi headline greeting, `DuelCard` hero (from demo state), weekly `DailyBarChart` card, two `MetricCard`s, `InfoCard` (usage access), empty-state branch via `EmptyState` when no duel. Icons → Phosphor.
+### Task 8: Home
 
-**Task 9: Duel** (`ui/screens/DuelScreen.kt`) — back + mono challenge id, `display`-style title, `UsageRing` with mono center + mono countdown, `usageVariant(UsageState.…)` chip, `OpponentUsageBar` + last-report time, mono stake/window meta, `PrimaryButton` contextual action. Immersive `bg`.
+**Files:** Modify `ui/screens/HomeScreen.kt`. No new shared components. Applies the shared pattern above.
 
-**Task 10: Create** (`ui/screens/CreateScreen.kt` + `ui/components/{AppSelector,LimitSelector,StakeInput}.kt`) — headline/subline, step sections with `SectionHeader`, limit presets as `SelectChip` row, stake input in `Mono` with USDC suffix + balance hint, address field `Mono` + resolve/error row (`InlineError`), review block, `PrimaryButton` submit. Migrate the three shared selector components to tokens/chips in this task.
+Anatomy — mono date, Satoshi headline greeting, `DuelCard` hero (from demo state), weekly `DailyBarChart` card, two `MetricCard`s, `InfoCard` (usage access), empty-state branch via `EmptyState` when no duel. Icons → vendored Phosphor. Replace the screen-local `DuelCard`/`MetricCard` (screens package) with the `components` versions.
 
-**Task 11: Challenges** (`ui/screens/ChallengesScreen.kt`) — filter `SelectChip`s (Active/Pending/Completed), `RowCard` list (app, opponent, window, mono stake, `StatusChip(lifecycleVariant(...))`); **delete `statusLabel`/`statusColors`, switch to `lifecycleVariant`** (StatusTest already covers behavior; update any test imports if present).
+### Task 9: Duel
 
-**Task 12: Open Duels** (`ui/screens/OpenDuelsScreen.kt`) — open-duel `RowCard`s with app/limit/window + mono stake pool + `PrimaryButton` join; `EmptyState` when none.
+**Files:** Modify `ui/screens/DuelScreen.kt`. Applies the shared pattern above.
 
-**Task 13: Activity** (`ui/screens/ActivityScreen.kt`) — date header, `DailyBarChart`, `UsageBreakdownBars`, chronological event rows (`RowCard`-style, mono timestamps, Phosphor event icons).
+Anatomy — back (`Phosphor.ArrowLeft`) + mono challenge id, `display`-style title, `UsageRing` with mono center + mono countdown, `StatusChip(usageVariant(UsageState.…), leading = status glyph)`, `OpponentUsageBar` + last-report time, mono stake/window meta, `PrimaryButton` contextual action. Immersive `bg`.
 
-**Task 14: Profile** (`ui/screens/ProfileScreen.kt`) — wallet card (mono shortened address; disconnected/connecting/connected/failed branches per spec), mono balance rows, usage-access status `InfoCard`, Seeker badge or honest unavailable `InlineError`, settings `RowCard`s.
+### Task 10: Create
 
-**Task 15: Recovery Lock** (`ui/screens/RecoveryLockScreen.kt`) — `fail`-accented treatment, mono lock metadata/countdown, explanation + single `PrimaryButton`.
+**Files:** Modify `ui/screens/CreateScreen.kt` + `ui/components/{AppSelector,LimitSelector,StakeInput}.kt`. Applies the shared pattern above.
+
+Anatomy — headline/subline, step sections with `SectionHeader`, limit presets as `SelectChip` row, stake input in `Mono` with USDC suffix + balance hint, address field `Mono` + resolve/error row (`InlineError`), review block, `PrimaryButton` submit. Migrate the three shared selector components to tokens/chips in this task.
+
+### Task 11: Challenges
+
+**Files:** Modify `ui/screens/ChallengesScreen.kt`. Applies the shared pattern above.
+
+Anatomy — filter `SelectChip`s (Active/Pending/Completed), `RowCard` list (app, opponent, window, mono stake, `StatusChip(lifecycleVariant(...))`); **delete `statusLabel`/`statusColors`, switch to `lifecycleVariant`** (StatusTest already covers behavior; update any test imports if present).
+
+### Task 12: Open Duels
+
+**Files:** Modify `ui/screens/OpenDuelsScreen.kt`. Applies the shared pattern above.
+
+Anatomy — open-duel `RowCard`s with app/limit/window + mono stake pool + `PrimaryButton` join; `EmptyState` when none.
+
+### Task 13: Activity
+
+**Files:** Modify `ui/screens/ActivityScreen.kt`. Applies the shared pattern above (may vendor the activity event glyphs here per the T7 rule: created/joined/submitted/permission/settlement/funds).
+
+Anatomy — date header, `DailyBarChart`, `UsageBreakdownBars`, chronological event rows (`RowCard`-style, mono timestamps, Phosphor event icons).
+
+### Task 14: Profile
+
+**Files:** Modify `ui/screens/ProfileScreen.kt`. Applies the shared pattern above.
+
+Anatomy — wallet card (mono shortened address; disconnected/connecting/connected/failed branches per spec), mono balance rows, usage-access status `InfoCard`, Seeker badge or honest unavailable `InlineError`, settings `RowCard`s.
+
+### Task 15: Recovery Lock
+
+**Files:** Modify `ui/screens/RecoveryLockScreen.kt`. Applies the shared pattern above.
+
+Anatomy — `fail`-accented treatment, mono lock metadata/countdown, explanation + single `PrimaryButton`.
 
 ### Task 16: Navigation wiring + migration sweep
 

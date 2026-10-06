@@ -84,9 +84,9 @@ else for Phase 5 is already written locally.
 ## Phase 12: release + submission (12.1 Step 3 done for you)
 
 - [x] GitHub release created (branch `plan-execution` + tag `v1.0` pushed):
-      https://github.com/er4l1m4d/Volo/releases/tag/v1.0 — **`Volo-v1.0.0.apk`**
+      https://github.com/er4l1m4d/Volo/releases/tag/v1.0 — `app-release.apk`
       attached (signed, R8-minified, **1.38 MB**, apksigner verified).
-- [ ] 12.2 Step 2: install `Volo-v1.0.0.apk` on a **second Android phone** →
+- [ ] 12.2 Step 2: install `app-release.apk` on a **second Android phone** →
       app runs → connects wallet → shows demo challenge.
 - [ ] 12.2 Step 3: portal submission — APK link (release URL), demo video,
       deck PDF, public repo link. The checklist's first checkbox (APK uploaded
@@ -94,21 +94,6 @@ else for Phase 5 is already written locally.
 - [ ] Supabase RLS migration: run `supabase/migrations/20261001_volo_init.sql`
       (adds public-read on `settlement_results`) if you haven't yet — Phase 8
       settlement sync needs it.
-
-## ⚠️ Security scrub (2026-10-02) — READ BEFORE MAKING THE REPO PUBLIC
-
-- [x] Keystore + signing password scrubbed from tracked files and **all git
-      history** (history rewritten; old commit hashes are invalid). Signing now
-      reads untracked `keystore.properties`; keystore lives at
-      `~\.android\Volo.keystore` (outside the repo). Demo password:
-      see `keystore.properties` locally — it must never re-enter the repo.
-- [ ] **PENDING (you asked to trigger later): delete + recreate
-      `er4l1m4d/Volo`** — GitHub's hidden `refs/pull/1/head` still serves the
-      pre-scrub history (keystore + password) and cannot be pushed away
-      ("hidden ref" denied). Clean re-push clone is staged at
-      `C:\Users\hp\AppData\Local\Temp\opencode\volo-filter`; APK at
-      `Temp\opencode\dl\Volo-v1.0.0.apk`. **Until this is done, keep the repo
-      PRIVATE** — making it public exposes the old history via that ref.
 
 ## Later phases also gated on you (heads-up)
 

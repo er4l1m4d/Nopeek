@@ -8,107 +8,62 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.volo.app.R
 
-val Satoshi: FontFamily = FontFamily(
-    Font(R.font.satoshi_variable, weight = FontWeight.W400),
-    Font(R.font.satoshi_variable, weight = FontWeight.W500),
-    Font(R.font.satoshi_variable, weight = FontWeight.W700),
-    Font(R.font.satoshi_variable, weight = FontWeight.W900),
+val BigShouldersDisplay = FontFamily(
+    Font(R.font.big_shoulders_display_extrabold, FontWeight.ExtraBold),
+    Font(R.font.big_shoulders_display_black, FontWeight.Black),
 )
 
-val Mono: FontFamily = FontFamily(
-    Font(R.font.jetbrainsmono_regular, weight = FontWeight.W400),
-    Font(R.font.jetbrainsmono_medium, weight = FontWeight.W500),
-    Font(R.font.jetbrainsmono_bold, weight = FontWeight.W700),
+val SchibstedGrotesk = FontFamily(
+    Font(R.font.schibsted_grotesk_medium, FontWeight.Medium),
+    Font(R.font.schibsted_grotesk_semibold, FontWeight.SemiBold),
+    Font(R.font.schibsted_grotesk_bold, FontWeight.Bold),
 )
 
-object VoloType {
-    val display: TextStyle = TextStyle(
-        fontFamily = Satoshi,
-        fontWeight = FontWeight.Black,
-        fontSize = 34.sp,
-        lineHeight = 38.sp,
-    )
-    val headline: TextStyle = TextStyle(
-        fontFamily = Satoshi,
-        fontWeight = FontWeight.Black,
-        fontSize = 28.sp,
-        lineHeight = 32.sp,
-    )
-    val title: TextStyle = TextStyle(
-        fontFamily = Satoshi,
-        fontWeight = FontWeight.Bold,
-        fontSize = 20.sp,
-        lineHeight = 26.sp,
-    )
-    val titleSmall: TextStyle = TextStyle(
-        fontFamily = Satoshi,
-        fontWeight = FontWeight.Bold,
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-    )
-    val body: TextStyle = TextStyle(
-        fontFamily = Satoshi,
-        fontWeight = FontWeight.Medium,
-        fontSize = 15.sp,
-        lineHeight = 22.sp,
-    )
-    val bodySmall: TextStyle = TextStyle(
-        fontFamily = Satoshi,
-        fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
-    )
-    val label: TextStyle = TextStyle(
-        fontFamily = Satoshi,
-        fontWeight = FontWeight.Bold,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 1.sp,
-    )
-    val monoLarge: TextStyle = TextStyle(
-        fontFamily = Mono,
-        fontWeight = FontWeight.Bold,
-        fontSize = 30.sp,
-        lineHeight = 34.sp,
-    )
-    val mono: TextStyle = TextStyle(
-        fontFamily = Mono,
-        fontWeight = FontWeight.Medium,
-        fontSize = 15.sp,
-        lineHeight = 20.sp,
-    )
-    val monoSmall: TextStyle = TextStyle(
-        fontFamily = Mono,
-        fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-    )
+/** Display styles are not part of Material's Typography, so they live here. Use VoloText.DisplayClock etc. */
+object VoloText {
+    val DisplayMoment = TextStyle(fontFamily = BigShouldersDisplay, fontWeight = FontWeight.W900, fontSize = 168.sp, lineHeight = 151.sp)
+    val DisplayHero = TextStyle(fontFamily = BigShouldersDisplay, fontWeight = FontWeight.W900, fontSize = 88.sp, lineHeight = 72.sp)
+    val DisplayClock = TextStyle(fontFamily = BigShouldersDisplay, fontWeight = FontWeight.W900, fontSize = 60.sp, lineHeight = 54.sp)
+    val DisplayTitle = TextStyle(fontFamily = BigShouldersDisplay, fontWeight = FontWeight.W900, fontSize = 48.sp, lineHeight = 44.sp)
+    val DisplayFigure = TextStyle(fontFamily = BigShouldersDisplay, fontWeight = FontWeight.W900, fontSize = 36.sp, lineHeight = 34.sp)
+    val DisplayLabel = TextStyle(fontFamily = BigShouldersDisplay, fontWeight = FontWeight.W900, fontSize = 28.sp, lineHeight = 28.sp)
+    val TitleMd = TextStyle(fontFamily = SchibstedGrotesk, fontWeight = FontWeight.W700, fontSize = 18.sp, lineHeight = 24.sp)
+    val TitleSm = TextStyle(fontFamily = SchibstedGrotesk, fontWeight = FontWeight.W700, fontSize = 16.sp, lineHeight = 22.sp)
+    val BodyLg = TextStyle(fontFamily = SchibstedGrotesk, fontWeight = FontWeight.W500, fontSize = 16.sp, lineHeight = 24.sp)
+    val BodyMd = TextStyle(fontFamily = SchibstedGrotesk, fontWeight = FontWeight.W500, fontSize = 14.sp, lineHeight = 20.sp)
+    val LabelLg = TextStyle(fontFamily = SchibstedGrotesk, fontWeight = FontWeight.W700, fontSize = 14.sp, lineHeight = 20.sp)
+    val LabelSm = TextStyle(fontFamily = SchibstedGrotesk, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 16.sp)
 }
 
-// Lazily built: VoloType's styles read Satoshi/Mono during VoloType.<clinit>,
-// while VoloTypography reads VoloType's styles during TypeKt.<clinit>. A plain
-// eager val makes the result depend on which class initializes first — if
-// VoloType is touched first, TypeKt.<clinit> runs nested inside
-// VoloType.<clinit> and observes its not-yet-assigned style fields, freezing
-// nulls into every Material slot (same JVM sees correct VoloType but null
-// VoloTypography.displayLarge). `by lazy` defers the read until first access,
-// when both classes are fully initialized, so all orders are correct.
+/** VoloType aliases — legacy names kept as typealiases to the new VoloText style. */
+object VoloType {
+    val headline = VoloText.DisplayHero
+    val title = VoloText.TitleMd
+    val titleSmall = VoloText.TitleSm
+    val body = VoloText.BodyLg
+    val bodySmall = VoloText.BodyMd
+    val label = VoloText.LabelLg
+    val labelSmall = VoloText.LabelSm
+    val display = VoloText.DisplayTitle
+    val mono = VoloText.BodyMd
+    val monoLarge = VoloText.BodyLg
+    val monoSmall = VoloText.LabelSm
+}
+
+/** Material slots that Volo's Schibsted styles map onto, so stock components pick the right defaults. */
 val VoloTypography: Typography by lazy {
+    // Lazy, not eager: VoloText's styles read the file's font families
+    // during VoloText.<clinit>, while VoloTypography reads VoloText's styles,
+    // so whichever class initializes first must see the other ready.
     Typography(
-        displayLarge = VoloType.display,
-        displayMedium = VoloType.display,
-        displaySmall = VoloType.display,
-        headlineLarge = VoloType.headline,
-        headlineMedium = VoloType.headline,
-        headlineSmall = VoloType.headline,
-        titleLarge = VoloType.title,
-        titleMedium = VoloType.titleSmall,
-        titleSmall = VoloType.body,
-        bodyLarge = VoloType.body,
-        bodyMedium = VoloType.bodySmall,
-        bodySmall = VoloType.bodySmall,
-        labelLarge = VoloType.label,
-        labelMedium = VoloType.label,
-        labelSmall = VoloType.label,
+        displayLarge = VoloText.DisplayTitle,
+        displayMedium = VoloText.DisplayFigure,
+        displaySmall = VoloText.DisplayLabel,
+        titleLarge = VoloText.TitleMd,
+        titleMedium = VoloText.TitleSm,
+        bodyLarge = VoloText.BodyLg,
+        bodyMedium = VoloText.BodyMd,
+        labelLarge = VoloText.LabelLg,
+        labelSmall = VoloText.LabelSm,
     )
 }

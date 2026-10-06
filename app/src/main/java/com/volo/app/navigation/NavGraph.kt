@@ -1,6 +1,11 @@
 package com.volo.app.navigation
 
-import androidx.compose.foundation.layout.fillMaxSize
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -9,6 +14,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -18,118 +24,167 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import com.volo.app.data.local.ChallengeEntity
+import com.volo.app.data.local.VoloPrefs
+import com.volo.app.data.repositories.ChallengeRepository
 import com.volo.app.ui.components.VoloScaffold
-import com.volo.app.ui.screens.ActivityScreen
-import kotlinx.coroutines.launch
-import com.volo.app.ui.screens.ChallengesScreen
+import com.volo.app.ui.screens.ChoiceScreen
 import com.volo.app.ui.screens.CreateScreen
 import com.volo.app.ui.screens.DuelScreen
+import com.volo.app.ui.screens.DuelsScreen
 import com.volo.app.ui.screens.HomeScreen
+import com.volo.app.ui.screens.OnboardingScreen
+import com.volo.app.ui.screens.OpenDuelsScreen
 import com.volo.app.ui.screens.ProfileScreen
-import com.volo.app.ui.theme.VoloColors
+import com.volo.app.ui.screens.RecoveryLockScreen
+import com.volo.app.ui.screens.SplashScreen
+import com.volo.app.ui.screens.StatsScreen
+import com.volo.app.ui.theme.Volo
+import kotlinx.coroutines.launch
 
 val LocalActivityResultSender = staticCompositionLocalOf<ActivityResultSender?> { null }
-
-// Task 7 made Destination internal (was private) so Shell.kt's navIcon and
-// NavIconMappingTest can read the entries. Task 16 wired the bar itself to
-// VoloScaffold/VoloBottomBar (Phosphor icons, dark tokens only).
-internal enum class Destination(val label: String, val route: String) {
-    Home("Home", NavRoutes.HOME),
-    Challenges("Challenges", NavRoutes.CHALLENGES),
-    Create("Create", NavRoutes.CREATE_CHALLENGE),
-    Activity("Activity", NavRoutes.ACTIVITY),
-    Profile("Profile", NavRoutes.PROFILE)
-}
 
 @Composable
 fun VoloApp() {
     val navController = rememberNavController()
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry?.destination?.route
-    val selected = Destination.entries.firstOrNull { it.route == currentRoute }
-    if (selected != null) {
+    val entry by navController.currentBackStackEntryAsState()
+    val selected = Destination.entries.firstOrNull { it.route == entry?.destination?.route }
+    if (selected == null) {
+        Surface(color = Volo.colors.background) {
+            VoloNavHost(navController)
+        }
+    } else {
         VoloScaffold(
             current = selected,
             onSelect = { navController.navigateToTab(it.route) },
         ) { padding ->
-            VoloNavHost(navController = navController, modifier = Modifier.padding(padding).fillMaxSize())
-        }
-    } else {
-        Surface(color = VoloColors.bg) {
-            VoloNavHost(navController = navController, modifier = Modifier.fillMaxSize())
+            VoloNavHost(navController, Modifier.padding(padding))
         }
     }
 }
 
-private fun NavHostController.navigateToTab(route: String) {
+fun NavHostController.navigateToTab(route: String) {
     navigate(route) {
-        popUpTo(graph.findStartDestination().id) { saveState = true }
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
+        }
         launchSingleTop = true
         restoreState = true
     }
 }
 
 @Composable
-private fun VoloNavHost(navController: NavHostController, modifier: Modifier = Modifier) {
+fun VoloNavHost(navController: NavHostController, modifier: Modifier = Modifier) {
     NavHost(
         navController = navController,
-        startDestination = NavRoutes.HOME,
-        modifier = modifier
+        startDestination = "splash",
+        modifier = modifier,
+        enterTransition = { fadeIn(tween(300)) + slideInHorizontally(tween(300)) { it / 4 } },
+        exitTransition = { fadeOut(tween(250)) },
+        popEnterTransition = { fadeIn(tween(250)) },
+        popExitTransition = { fadeOut(tween(250)) },
     ) {
-        composable(NavRoutes.HOME) {
-            HomeScreen(onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) })
-        }
-        composable(NavRoutes.CHALLENGES) {
+        composable("splash") {
             val context = LocalContext.current
-            val scope = rememberCoroutineScope()
-            val mwaSender = LocalActivityResultSender.current
-            ChallengesScreen(
-                onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) },
-                onOpenRecovery = { pk -> navController.navigate(NavRoutes.recoveryLock(pk)) },
-                onSettle = { entity ->
-                    if (mwaSender != null) {
-                        scope.launch {
-                            com.volo.app.data.repositories.ChallengeRepository.getInstance(context)
-                                .settleWithUser(entity, mwaSender)
-                                .onFailure {
-                                    android.widget.Toast
-                                        .makeText(context, it.message ?: "Settlement failed.", android.widget.Toast.LENGTH_LONG)
-                                        .show()
-                                }
-                                .onSuccess {
-                                    android.widget.Toast
-                                        .makeText(context, "Settled on-chain: ${it.take(8)}…", android.widget.Toast.LENGTH_SHORT)
-                                        .show()
-                                }
-                        }
+            SplashScreen(onTimeout = {
+                val next = if (VoloPrefs(context).routedBefore) "home" else "choice"
+                navController.navigate(next) {
+                    popUpTo("splash") { inclusive = true }
+                }
+            })
+        }
+        composable("choice") {
+            val context = LocalContext.current
+            ChoiceScreen(
+                onNew = { navController.navigate("onboarding") },
+                onExisting = {
+                    VoloPrefs(context).knownUser = true
+                    navController.navigate("home") {
+                        popUpTo("splash") { inclusive = true }
                     }
                 },
             )
         }
-        composable(NavRoutes.CREATE_CHALLENGE) {
-            CreateScreen(onCreated = { navController.navigateToTab(NavRoutes.CHALLENGES) })
+        composable("onboarding") {
+            val context = LocalContext.current
+            OnboardingScreen(onDone = {
+                VoloPrefs(context).seenOnboarding = true
+                navController.navigate("home") {
+                    popUpTo("splash") { inclusive = true }
+                }
+            })
         }
-        composable(NavRoutes.ACTIVITY) { ActivityScreen() }
-        composable(NavRoutes.PROFILE) {
-            ProfileScreen(onOpenDuels = { navController.navigate(NavRoutes.OPEN_DUELS) })
-        }
-        composable(NavRoutes.OPEN_DUELS) {
-            com.volo.app.ui.screens.OpenDuelsScreen(onBack = { navController.popBackStack() })
-        }
-        composable(
-            route = NavRoutes.ACTIVE_CHALLENGE,
-            arguments = listOf(navArgument("pubkey") { type = NavType.StringType })
-        ) { backStack ->
-            DuelScreen(pubkey = backStack.arguments?.getString("pubkey").orEmpty(), onBack = { navController.popBackStack() })
-        }
-        composable(
-            route = NavRoutes.RECOVERY_LOCK,
-            arguments = listOf(navArgument("pubkey") { type = NavType.StringType })
-        ) { backStack ->
-            com.volo.app.ui.screens.RecoveryLockScreen(
-                pubkey = backStack.arguments?.getString("pubkey").orEmpty(),
-                onBack = { navController.popBackStack() },
+        composable("home") {
+            HomeScreen(
+                onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) },
+                hasActiveDuel = false,
             )
         }
+        composable("duels") {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            val mwaSender = LocalActivityResultSender.current
+            DuelsScreen(
+                onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) },
+                onOpenRecovery = { pk -> navController.navigate(NavRoutes.recoveryLock(pk)) },
+                onSettle = { entity -> settle(navController, scope, context, mwaSender, entity) },
+                onNewDuel = { navController.navigate("create_challenge") },
+            )
+        }
+        composable("create_challenge") {
+            CreateScreen(onCreated = { navController.navigateToTab("duels") })
+        }
+        composable("stats") {
+            StatsScreen()
+        }
+        composable("profile") {
+            ProfileScreen(onOpenDuels = { navController.navigate("open_duels") })
+        }
+        composable("open_duels") {
+            OpenDuelsScreen(onBack = { navController.popBackStack() }, hasOpenDuels = false)
+        }
+        composable(
+            "active_challenge/{pubkey}",
+            arguments = listOf(navArgument("pubkey") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val pk = backStackEntry.arguments?.getString("pubkey") ?: ""
+            DuelScreen(
+                pubkey = pk,
+                onBack = { navController.popBackStack() },
+                onForfeit = { navController.popBackStack() },
+            )
+        }
+        composable(
+            "recovery_lock/{pubkey}",
+            arguments = listOf(navArgument("pubkey") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val pk = backStackEntry.arguments?.getString("pubkey") ?: ""
+            RecoveryLockScreen(pubkey = pk, onBack = { navController.popBackStack() })
+        }
     }
+}
+
+private fun settle(
+    navController: NavHostController,
+    scope: kotlinx.coroutines.CoroutineScope,
+    context: Context,
+    mwaSender: ActivityResultSender?,
+    entity: ChallengeEntity,
+) {
+    if (mwaSender == null) return
+    scope.launch {
+        val result = ChallengeRepository.getInstance(context).settleWithUser(entity, mwaSender)
+        result.exceptionOrNull()?.let {
+            Toast.makeText(context, it.message ?: "Settlement failed.", Toast.LENGTH_LONG).show()
+        }
+        result.getOrNull()?.let { sig ->
+            Toast.makeText(context, "Settled on-chain: ${sig.take(8)}…", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+@Deprecated("Use VoloApp instead")
+@Composable
+fun AppNavGraph(navController: NavHostController = rememberNavController()) {
+    VoloNavHost(navController)
 }

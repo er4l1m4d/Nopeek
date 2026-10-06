@@ -1,18 +1,17 @@
 package com.volo.app.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -21,173 +20,80 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.volo.app.ui.components.MetricRow
-import com.volo.app.ui.components.PrimaryButton
-import com.volo.app.ui.components.SectionHeader
-import com.volo.app.ui.components.StatusChip
+import com.volo.app.ui.components.AppTile
+import com.volo.app.ui.components.MiniTape
+import com.volo.app.ui.components.StatusLabel
 import com.volo.app.ui.components.TapIconButton
 import com.volo.app.ui.components.lifecycleVariant
 import com.volo.app.ui.icons.Phosphor
-import com.volo.app.ui.theme.VoloColors
-import com.volo.app.ui.theme.VoloDimens
+import com.volo.app.ui.theme.Volo
+import com.volo.app.ui.theme.VoloShape
+import com.volo.app.ui.theme.VoloText
 import com.volo.app.ui.theme.VoloTheme
-import com.volo.app.ui.theme.VoloType
 
-/**
- * Recovery Lock on the dark design system (demo data only).
- * Shown when the oracle reports bothFail — stakes are locked on-chain
- * until recovery completes.
- * Anatomy: fail-accented treatment, mono lock metadata/countdown,
- * explanation + single [PrimaryButton].
- */
 @Composable
 fun RecoveryLockScreen(pubkey: String, onBack: () -> Unit) {
+    val colors = Volo.colors
+    val pubkeyShort = shorten(pubkey)
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(VoloColors.bg)
-            .navigationBarsPadding()
+            .background(colors.warning)
+            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(
-                horizontal = VoloDimens.spaceXl,
-                vertical = VoloDimens.spaceXxl,
-            ),
-        verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceLg),
+            .padding(horizontal = 16.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(VoloDimens.spaceSm),
-        ) {
-            TapIconButton(
-                contentDescription = "Back",
-                onClick = onBack,
-            ) {
-                Icon(
-                    imageVector = Phosphor.ArrowLeft,
-                    contentDescription = null,
-                    tint = VoloColors.text,
-                    modifier = Modifier.size(24.dp),
-                )
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            TapIconButton(contentDescription = "Back", onClick = onBack) {
+                Icon(imageVector = Phosphor.ArrowLeft, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.onPrimary)
             }
-            Text(
-                text = pubkey,
-                style = VoloType.monoSmall,
-                color = VoloColors.textMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
         }
-        StatusChip(
-            variant = lifecycleVariant("BOTH_FAIL_LOCKED"),
-            leading = Phosphor.XCircle,
+        Text(
+            text = "DUEL LOCKED",
+            style = VoloText.DisplayFigure,
+            color = colors.onPrimary,
+            modifier = Modifier.padding(top = 16.dp),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceXs)) {
-            Text(
-                text = "Recovery lock",
-                style = VoloType.headline,
-                color = VoloColors.text,
-            )
-            Text(
-                text = "Both players failed verification. The stake is locked on-chain and will not be paid out until recovery completes.",
-                style = VoloType.bodySmall,
-                color = VoloColors.textMuted,
-            )
-        }
+        Text(
+            text = "Sorry, we couldn't settle your duel. The pot is being held until a host can review.",
+            style = VoloText.BodyLg,
+            color = colors.onPrimary,
+            modifier = Modifier.padding(top = 12.dp),
+        )
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(VoloDimens.radiusCard),
-            color = VoloColors.surfaceRaised,
-            contentColor = VoloColors.text,
-            border = BorderStroke(1.dp, VoloColors.line),
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            shape = VoloShape.Md,
+            color = colors.onPrimary.copy(alpha = 0.12f),
         ) {
-            Column(
-                modifier = Modifier.padding(VoloDimens.spaceXl),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceMd),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(VoloColors.fail.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Phosphor.LockKey,
-                        contentDescription = null,
-                        tint = VoloColors.fail,
-                        modifier = Modifier.size(28.dp),
-                    )
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusLabel(variant = lifecycleVariant("BOTH_FAIL_LOCKED"), leading = Phosphor.LockKey)
+                    Spacer(Modifier.size(8.dp))
+                    Text(text = pubkeyShort, style = VoloText.BodyMd, color = colors.onPrimary)
                 }
-                Text(
-                    text = "UNLOCKS IN 23:59:59",
-                    style = VoloType.mono,
-                    color = VoloColors.fail,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = "Nobody can withdraw while the lock is active — recovery releases the stake automatically.",
-                    style = VoloType.bodySmall,
-                    color = VoloColors.textMuted,
-                    textAlign = TextAlign.Center,
-                )
             }
         }
-        SectionHeader(
-            eyebrow = "RECOVERY",
-            title = "Lock details",
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(VoloDimens.radiusCard),
-            color = VoloColors.surface,
-            contentColor = VoloColors.text,
-            border = BorderStroke(1.dp, VoloColors.line),
-        ) {
-            Column(
-                modifier = Modifier.padding(VoloDimens.spaceLg),
-                verticalArrangement = Arrangement.spacedBy(VoloDimens.spaceSm),
-            ) {
-                MetricRow(
-                    title = "Challenge",
-                    value = shorten(pubkey),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                MetricRow(
-                    title = "Locked stake",
-                    value = "10.00 USDC",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                MetricRow(
-                    title = "Recovery window",
-                    value = "72H",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
+            AppTile(modifier = Modifier.size(120.dp), icon = null, fallback = "LOCK")
         }
-        PrimaryButton(
-            label = "Back to challenges",
-            onClick = onBack,
-            modifier = Modifier.fillMaxWidth(),
+        MiniTape(
+            youFraction = 1f,
+            opponentFraction = 1f,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
+        Column(modifier = Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = "What happened", style = VoloText.TitleSm, color = colors.onPrimary)
+            Text(
+                text = "Both you and your opponent ended in conditions that prevented a clean settlement. The host will review the duel and refund any disputed stake.",
+                style = VoloText.BodyMd,
+                color = colors.onPrimary,
+            )
+        }
     }
 }
 
-private fun shorten(address: String): String =
-    if (address.length <= 12) address else "${address.take(4)}…${address.takeLast(6)}"
-
-@Preview(showBackground = true, backgroundColor = 0xFF10191D)
-@Composable
-private fun RecoveryLockScreenPreview() {
-    VoloTheme {
-        RecoveryLockScreen(pubkey = "Hx8vQ9demoChallenge42", onBack = {})
-    }
+private fun shorten(s: String, head: Int = 4, tail: Int = 4): String {
+    if (s.length <= head + tail + 1) return s
+    return "${s.take(head)}…${s.takeLast(tail)}"
 }

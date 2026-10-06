@@ -1,13 +1,16 @@
 package com.volo.app.ui.components
 
 import androidx.compose.ui.graphics.Color
-import com.volo.app.ui.theme.VoloColors
+import com.volo.app.ui.theme.VoloDarkColors
 
 data class StatusVariant(
     val label: String,
     val container: Color,
     val content: Color,
-)
+) {
+    val color: Color get() = content
+    constructor(label: String, color: Color) : this(label, color, color)
+}
 
 enum class UsageState {
     PASSING,
@@ -17,21 +20,35 @@ enum class UsageState {
 }
 
 fun lifecycleVariant(localStatus: String): StatusVariant {
-    if (localStatus.isBlank()) return StatusVariant("UNKNOWN", VoloColors.surfaceHigh, VoloColors.textMuted)
+    val bg = com.volo.app.ui.theme.VoloColors.bg
+    val safe = com.volo.app.ui.theme.VoloColors.safe
+    val copper = com.volo.app.ui.theme.VoloColors.copper
+    val risk = com.volo.app.ui.theme.VoloColors.risk
+    val fail = com.volo.app.ui.theme.VoloColors.fail
+    val surfaceHigh = com.volo.app.ui.theme.VoloColors.surfaceHigh
+    val textMuted = com.volo.app.ui.theme.VoloColors.textMuted
     return when (localStatus) {
-    "ACTIVE" -> StatusVariant("ACTIVE", VoloColors.safe, VoloColors.bg)
-    "CREATED" -> StatusVariant("PENDING", VoloColors.copper, VoloColors.bg)
-    "PENDING_VERIFICATION" -> StatusVariant("VERIFY", VoloColors.risk, VoloColors.bg)
-    "BOTH_FAIL_LOCKED" -> StatusVariant("LOCKED", VoloColors.fail, VoloColors.bg)
-    "SETTLED" -> StatusVariant("SETTLED", VoloColors.surfaceHigh, VoloColors.textMuted)
-    "REFUNDED" -> StatusVariant("REFUNDED", VoloColors.surfaceHigh, VoloColors.textMuted)
-    else -> StatusVariant(localStatus, VoloColors.surfaceHigh, VoloColors.textMuted)
+        "ACTIVE" -> StatusVariant("ACTIVE", safe, bg)
+        "CREATED" -> StatusVariant("PENDING", copper, bg)
+        "PENDING_VERIFICATION" -> StatusVariant("VERIFY", risk, bg)
+        "BOTH_FAIL_LOCKED" -> StatusVariant("LOCKED", fail, bg)
+        "SETTLED" -> StatusVariant("SETTLED", surfaceHigh, textMuted)
+        "REFUNDED" -> StatusVariant("REFUNDED", surfaceHigh, textMuted)
+        else -> StatusVariant(localStatus, surfaceHigh, textMuted)
     }
 }
 
-fun usageVariant(state: UsageState): StatusVariant = when (state) {
-    UsageState.PASSING -> StatusVariant("PASSING", VoloColors.safe, VoloColors.bg)
-    UsageState.AT_RISK -> StatusVariant("AT RISK", VoloColors.risk, VoloColors.bg)
-    UsageState.FAILED -> StatusVariant("FAILED", VoloColors.fail, VoloColors.bg)
-    UsageState.UNVERIFIED -> StatusVariant("UNVERIFIED", VoloColors.surfaceHigh, VoloColors.textMuted)
+fun usageVariant(state: UsageState): StatusVariant {
+    val bg = com.volo.app.ui.theme.VoloColors.bg
+    val safe = com.volo.app.ui.theme.VoloColors.safe
+    val risk = com.volo.app.ui.theme.VoloColors.risk
+    val fail = com.volo.app.ui.theme.VoloColors.fail
+    val surfaceHigh = com.volo.app.ui.theme.VoloColors.surfaceHigh
+    val textMuted = com.volo.app.ui.theme.VoloColors.textMuted
+    return when (state) {
+        UsageState.PASSING -> StatusVariant("PASSING", safe, bg)
+        UsageState.AT_RISK -> StatusVariant("AT RISK", risk, bg)
+        UsageState.FAILED -> StatusVariant("FAILED", fail, bg)
+        UsageState.UNVERIFIED -> StatusVariant("UNVERIFIED", surfaceHigh, textMuted)
+    }
 }

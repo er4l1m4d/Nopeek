@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Volo — v5 Polish</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Schibsted+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#ECEFE3;--fg:#10261B;--mut:#52665A;
+--pt:#10261B;--tf:#173626;--tf2:#215039;--ln:#2E5942;--v:#D4FF00;--ch:#F1F0E6;--mu:#93AE9E;--sky:#8FD3FF;--am:#F5B335;--co:#FF6A4D;
+--dsp:'Big Shoulders Display','Arial Narrow',sans-serif;--sans:'Schibsted Grotesk',system-ui,sans-serif;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#07120C;--fg:#F1F0E6;--mut:#93AE9E}}
+:root[data-theme="dark"]{--bg:#07120C;--fg:#F1F0E6;--mut:#93AE9E}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans)}
+header{max-width:640px;padding:44px 24px 0}
+header h1{font:900 clamp(44px,9vw,76px)/.9 var(--dsp);letter-spacing:.005em}
+header p{color:var(--mut);line-height:1.55;margin-top:14px;font-size:15px}
+.row{display:flex;gap:32px;overflow-x:auto;padding:32px 24px 56px;scroll-snap-type:x mandatory}
+figure{flex:none;scroll-snap-align:center;width:315px}
+figcaption{margin-top:16px;font-size:13px;color:var(--mut);line-height:1.45}
+figcaption b{display:block;color:var(--fg);font-size:14px;margin-bottom:2px}
+.ph{zoom:.8333;width:360px;height:760px;border:9px solid #000;border-radius:48px;background:var(--pt);color:var(--ch);font-family:var(--sans);display:flex;flex-direction:column;overflow:hidden;position:relative;box-shadow:0 0 0 1.5px #25382d,0 40px 60px -30px rgba(0,0,0,.6)}
+.ph::before{content:"";position:absolute;top:10px;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#000;z-index:9}
+.sb{height:28px;padding:8px 24px 0;display:flex;justify-content:space-between;font:600 12px var(--sans);color:var(--mu);position:relative;z-index:3}
+.tb{height:56px;padding:0 8px 0 4px;display:flex;align-items:center;gap:4px;position:relative;z-index:2}
+.bd{flex:1;padding:8px 16px 0;display:flex;flex-direction:column;min-height:0;position:relative}
+.i{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ib{width:48px;height:48px;border-radius:24px;display:grid;place-items:center}
+.d{font-family:var(--dsp);font-weight:900;line-height:.9}
+.r{display:flex;align-items:center;gap:12px}.g{flex:1;min-width:0}
+.mu{color:var(--mu);font-size:14px}
+.st{display:inline-flex;align-items:center;gap:5px;font:700 14px var(--sans)}
+.ok{color:var(--v)}.wr{color:var(--am)}.bad{color:var(--co)}
+.btn{height:48px;padding:0 24px;border-radius:24px;background:var(--v);color:var(--pt);font:700 16px var(--sans);display:flex;align-items:center;justify-content:center;gap:8px}
+.btn.o{background:none;box-shadow:inset 0 0 0 1.5px var(--ln);color:var(--ch)}.btn.tx{background:none;color:var(--mu)}
+.nav{height:80px;background:var(--tf);display:flex;justify-content:space-around;padding-top:12px;font:600 12px var(--sans);color:var(--mu)}
+.nav div{display:flex;flex-direction:column;align-items:center;gap:4px;width:72px}
+.nav u{width:64px;height:32px;border-radius:16px;display:grid;place-items:center;text-decoration:none}
+.nav .on{color:var(--ch)}.nav .on u{background:var(--v);color:var(--pt)}
+.tabs{display:flex;border-bottom:1px solid var(--ln);margin:0 -16px;padding:0 8px}
+.tabs span{flex:1;height:48px;display:grid;place-items:center;font:600 15px var(--sans);color:var(--mu)}.tabs .on{color:var(--ch);box-shadow:inset 0 -3px 0 var(--v)}
+.fx{display:flex;gap:14px;align-items:center;padding:16px 0;border-bottom:1px solid var(--ln)}
+.ap{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font:800 14px var(--sans);color:#fff;flex:none}
+.bd.dt{padding-bottom:24px}.fx .rt{width:76px;text-align:right;flex:none}.mini{position:relative;height:6px;border-radius:3px;background:var(--tf2);margin-top:12px}
+.mini b{position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;border:2px solid var(--pt);animation:mv 1.3s .3s cubic-bezier(.2,.8,.2,1) backwards}
+.fab{position:absolute;right:16px;bottom:16px;height:56px;padding:0 24px 0 18px;border-radius:28px;background:var(--v);color:var(--pt);font:700 16px var(--sans);display:flex;align-items:center;gap:10px;box-shadow:0 10px 24px -8px rgba(0,0,0,.6)}
+.board{background:var(--tf);border-radius:14px;padding:20px 16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.board .d{font-size:60px;letter-spacing:.01em;margin:6px 0 6px}
+.tape{position:relative;height:96px;margin-top:20px}
+.tape .trk{position:absolute;left:0;right:0;top:50px;height:12px;border-radius:6px;background:var(--tf2)}
+.tape .seg{position:absolute;top:50px;height:12px;background:var(--v);transform-origin:left;animation:gr 1.2s .9s cubic-bezier(.2,.8,.2,1) backwards}
+.tape .mk{position:absolute;top:43px;width:26px;height:26px;border-radius:50%;border:4px solid var(--pt);animation:mv 1.3s .3s cubic-bezier(.2,.8,.2,1) backwards}
+.tape .br{position:absolute;top:30px;height:10px;border:2px solid var(--v);border-bottom:0;border-radius:6px 6px 0 0;animation:gr 1.2s .9s backwards;transform-origin:left}
+.tape .tk{position:absolute;top:76px;font:600 12px var(--sans);color:var(--mu)}
+@keyframes gr{from{transform:scaleX(0)}}
+@keyframes mv{from{left:0}}
+.lvl{animation:fill 1.6s .2s cubic-bezier(.3,.8,.3,1) backwards}.drn{animation:drain 2.2s .6s cubic-bezier(.5,0,.3,1) forwards}
+@keyframes fill{from{transform:translateY(80px)}}@keyframes drain{to{transform:translateY(74px)}}
+.wv{animation:wv 3s linear infinite}.wv2{animation:wv 4.5s linear infinite reverse}@keyframes wv{to{transform:translateX(-40px)}}
+.win{background:var(--v)!important;color:var(--pt)}.win .sb{color:rgba(16,38,27,.85)}
+.sun{position:absolute;left:50%;top:260px;width:660px;height:660px;margin:-330px 0 0 -330px;background:repeating-conic-gradient(rgba(255,255,255,.22) 0 7deg,transparent 7deg 18deg);-webkit-mask:radial-gradient(circle,#000 0,transparent 66%);mask:radial-gradient(circle,#000 0,transparent 66%);animation:sp 60s linear infinite;opacity:.5}
+@keyframes sp{to{transform:rotate(360deg)}}
+#cf{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:1}
+#cf i{position:absolute;top:-16px;width:8px;height:14px;border-radius:2px;animation:fall var(--d) var(--w) linear infinite}
+@keyframes fall{to{transform:translateY(780px) rotate(560deg)}}
+.rc{display:flex;justify-content:space-between;align-items:center;min-height:48px;border-bottom:2px dashed rgba(16,38,27,.28);font-size:15px;font-weight:600}.rc:last-child{border:0}
+@keyframes pu{50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important}}
+</style>
+</head>
+<body>
+<header>
+<h1>THE DUEL IS A MATCH.</h1>
+<p>v5: the same scoreboard identity on deep pitch green, with layout fixes from a measured render. One shared tape shows both players and the lead between them; duels are a ruled fixtures list, not stacked cards. Drawn in Android dp. Reload to replay the motion.</p>
+</header>
+<div class="row" id="row"></div>
+<script>
+var P={bolt:'M13 2L4 14h6l-1 8 9-12h-6z',stats:'M5 20v-9M12 20V4M19 20v-6',list:'M4 7h16M4 12h16M4 17h10',user:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-5 4-7 8-7s7 2 8 7',back:'M15 5l-7 7 7 7',plus:'M12 5v14M5 12h14',copy:'M9 9h11v11H9zM5 15V5a1 1 0 0 1 1-1h9',lock:'M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3',ck:'M5 12.5l4.5 4.5L19 7.5',up:'M12 19V5M6 11l6-6 6 6',al:'M12 4l9.5 16.5h-19zM12 10v4.5M12 17.6v.01',dots:'M12 6.5a1.2 1.2 0 1 0 .01 0M12 12.7a1.2 1.2 0 1 0 .01 0M12 18.9a1.2 1.2 0 1 0 .01 0',share:'M12 15V4M8 8l4-4 4 4M5 13v6h14v-6',x:'M6 6l12 12M18 6L6 18'};
+function ic(n,s){s=s||24;return '<svg class="i" width="'+s+'" height="'+s+'" viewBox="0 0 24 24"><path d="'+P[n]+'"/></svg>'}
+function sb(){return '<div class="sb"><span>9:41</span><span>5G 82%</span></div>'}
+function nav(a){return '<div class="nav">'+[['Duels','bolt'],['Stats','stats'],['Activity','list'],['Profile','user']].map(function(x){return '<div'+(x[0]==a?' class="on"':'')+'><u>'+ic(x[1])+'</u>'+x[0]+'</div>'}).join('')+'</div>'}
+function pot(id,w,a,b,line,cls){return '<svg width="'+w+'" height="'+w*1.25+'" viewBox="0 0 80 100"><defs><clipPath id="'+id+'"><path d="M10 14h60l-6 78a8 8 0 0 1-8 7H24a8 8 0 0 1-8-7z"/></clipPath></defs><g clip-path="url(#'+id+')"><g class="'+cls+'"><g class="wv2"><path d="M-40 26q10-8 20 0t20 0 20 0 20 0 20 0 20 0 20 0 20 0V110H-40z" fill="'+b+'"/></g><g class="wv"><path d="M-40 58q10-8 20 0t20 0 20 0 20 0 20 0 20 0 20 0 20 0V110H-40z" fill="'+a+'"/></g></g></g><path d="M10 14h60l-6 78a8 8 0 0 1-8 7H24a8 8 0 0 1-8-7z" fill="none" stroke="'+line+'" stroke-width="3" stroke-linejoin="round"/></svg>'}
+function mini(y,o,yc){return '<div class="mini"><b style="left:calc('+y+'% - 6px);background:'+yc+'"></b><b style="left:calc('+o+'% - 6px);background:var(--sky)"></b></div>'}
+
+var s1='<div class="ph">'+sb()+'<div class="bd" style="padding-top:0"><div style="padding:16px 0 4px"><div class="d" style="font-size:52px">DUELS</div><div class="mu" style="margin-top:6px">You have $35 on the line.</div></div>'
++'<div class="tabs"><span class="on">Active 2</span><span>Invites 1</span><span>Settled 14</span></div>'
++'<div class="fx"><div class="ap" style="background:#000;box-shadow:inset 0 0 0 1.5px var(--ln)">TT</div><div class="g"><div style="font:700 17px var(--sans)">vs alex.skr</div><div class="mu" style="font-size:13px">TikTok, 30 min a day</div><div class="st ok" style="margin-top:6px">'+ic('ck',14)+'Ahead by 6 min</div>'+mini(42,62,'var(--v)')+'</div><div class="rt"><div class="d" style="font-size:34px">$10</div><div class="mu" style="font-size:13px">11 min left</div></div></div>'
++'<div class="fx"><div class="ap" style="background:linear-gradient(135deg,#F58529,#DD2A7B 55%,#8134AF)">IG</div><div class="g"><div style="font:700 17px var(--sans)">vs sarah.skr</div><div class="mu" style="font-size:13px">Instagram, 45 min a day</div><div class="st wr" style="margin-top:6px">'+ic('al',14)+'Behind by 4 min</div>'+mini(87,78,'var(--am)')+'</div><div class="rt"><div class="d" style="font-size:34px">$20</div><div class="mu" style="font-size:13px">28 min left</div></div></div>'
++'<div style="margin-top:20px;border-radius:14px;box-shadow:inset 0 0 0 1.5px var(--ln);padding:16px"><div class="r"><div class="ap" style="background:#fff;color:#000;width:40px;height:40px;border-radius:12px">X</div><div class="g"><div style="font:700 16px var(--sans)">marcus.skr invited you</div><div class="mu">Stay under 20 min on X. $5 each.</div></div></div><div class="r" style="margin-top:12px;justify-content:flex-end;gap:8px"><div class="btn tx" style="padding:0 16px">Decline</div><div class="btn" style="padding:0 24px">Accept $5</div></div></div>'
++'<div class="fab">'+ic('plus',22)+'New duel</div></div>'+nav('Duels')+'</div>';
+
+var s2='<div class="ph">'+sb()+'<div class="tb"><div class="ib">'+ic('back')+'</div><div style="font:700 18px var(--sans)">TikTok, 30 min limit</div><div class="ib" style="margin-left:auto">'+ic('dots')+'</div></div><div class="bd dt" style="padding-top:4px">'
++'<div class="board"><div><div class="mu">You</div><div class="d ok">18:42</div><div class="st ok">'+ic('ck',14)+'Safe</div></div><div style="text-align:right"><div class="mu">alex.skr</div><div class="d" style="color:var(--sky)">27:10</div><div class="st wr" style="justify-content:flex-end">'+ic('al',14)+'At risk</div></div></div>'
++'<div class="tape"><i class="br" style="left:62.2%;width:28.4%"></i><div style="position:absolute;left:76.4%;top:0;transform:translateX(-50%);white-space:nowrap;font:900 26px var(--dsp);color:var(--v)">8:28 ahead</div><div class="trk"></div><div class="seg" style="left:62.2%;width:28.4%"></div><i class="mk" style="left:calc(62.2% - 13px);background:var(--v)"></i><i class="mk" style="left:calc(90.6% - 13px);background:var(--sky)"></i><span class="tk" style="left:0">0</span><span class="tk" style="left:50%;transform:translateX(-50%)">15 min</span><span class="tk bad" style="right:0">30 min limit</span></div>'
++'<div class="r" style="gap:16px;margin-top:16px;padding:20px 0;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln)">'+pot('p3',56,'#D4FF00','#8FD3FF','rgba(241,240,230,.4)','lvl')+'<div class="g"><div class="d" style="font-size:40px">$10 pot</div><div class="mu" style="font-size:13px;margin-top:2px">Your $5 and alex.skr\'s $5, held until midnight UTC.</div></div></div>'
++'<div class="r" style="margin-top:auto;padding-bottom:8px"><div class="d" style="font-size:60px">11:18</div><div class="mu" style="font-size:14px;line-height:1.3">left of your 30 minutes today</div></div>'
++'<div class="btn" style="height:56px;border-radius:28px;font-size:17px">'+ic('lock',20)+'Lock TikTok</div></div></div>';
+
+var s3='<div class="ph win">'+sb()+'<i class="sun"></i><div id="cf"></div><div class="tb" style="padding-left:4px"><div class="ib">'+ic('x')+'</div><div class="ib" style="margin-left:auto">'+ic('share')+'</div></div><div class="bd dt" style="z-index:2;padding-top:0">'
++'<div class="d" style="font-size:168px;letter-spacing:-.01em;margin:-4px 0 0 -4px">WON</div>'
++'<div class="r" style="gap:14px;margin:8px 0 0">'+pot('p4',60,'#10261B','rgba(16,38,27,.45)','#10261B','drn')+'<div><div class="d" style="font-size:92px;line-height:.82">+<span id="amt">5.00</span></div></div></div>'
++'<div style="font:700 17px/1.35 var(--sans);margin:14px 0 14px"><b>You won 5 USDC.</b> You stayed at 27&nbsp;min; alex.skr hit 34&nbsp;min against the 30&nbsp;min limit.</div>'
++'<div><div class="rc"><span>Your stake back</span><b>$5.00</b></div><div class="rc"><span>alex.skr\'s stake</span><b>+$5.00</b></div><div class="rc"><span>Transaction</span><b class="r" style="gap:6px;font-size:14px">5Hq2…tK9x '+ic('copy',16)+'</b></div></div>'
++'<div class="r" style="margin-top:auto;gap:8px"><div class="btn g" style="height:56px;border-radius:28px;background:var(--pt);color:var(--v)">'+ic('share',20)+'Share win</div><div class="btn o" style="height:56px;border-radius:28px;color:var(--pt);box-shadow:inset 0 0 0 2px var(--pt)">Rematch</div></div><div class="btn tx" style="color:rgba(16,38,27,.85)">Done</div></div></div>';
+
+var caps=[['Duels','A fixtures list: each duel is a ruled row with both players on one tiny tape. Status is a word and a glyph, never just a color.',s1],['Live duel','Both clocks on the scoreboard, the lead drawn on a shared tape, the pot underneath. Forfeit now lives in the top-bar menu, away from the main button.',s2],['Won','One word at stadium scale. The pot drains into the amount as it counts up, and the receipt is plain ruled lines, not another card.',s3]];
+document.getElementById('row').innerHTML=caps.map(function(c){return '<figure>'+c[2]+'<figcaption><b>'+c[0]+'</b>'+c[1]+'</figcaption></figure>'}).join('');
+(function(){var rm=matchMedia('(prefers-reduced-motion:reduce)').matches,el=document.getElementById('amt'),T=5;if(rm)return;var s=performance.now()+700;(function f(t){var p=Math.max(0,Math.min((t-s)/2000,1));el.textContent=(T*(1-Math.pow(1-p,3))).toFixed(2);if(p<1)requestAnimationFrame(f)})(performance.now());
+var c=document.getElementById('cf'),k=['#FF6A4D','#10261B','#fff','#8FD3FF'];for(var i=0;i<20;i++){var e=document.createElement('i');e.style.cssText='left:'+(Math.random()*100)+'%;--d:'+(2.5+Math.random()*3)+'s;--w:'+(Math.random()*2.5)+'s;background:'+k[i%4];c.appendChild(e)}})();
+</script>
+</body>
+</html>
