@@ -4,12 +4,35 @@
 **Captured:** 2026-10-07, package `com.nopeek.app`, debug build
 **Test:** `KeyStoreAttestationTest` run via `am instrument` — **OK (2 tests)**, zero failures
 
-## Verdict: the gate PASSES
+## Verdict: root trust PROVEN; enforcement level still PENDING Task 3
 
-The device produces a genuine, multi-level Android Key Attestation chain for a
-non-exportable hardware-backed EC P-256 key. **The plan's spec §4 compliance proof
-is available on this hardware.** No fallback to the weaker V2 claim is needed, so
-the deck may say *hardware-attested*.
+The device produces a real 4-level Android Key Attestation chain carrying our
+challenge and package identity, for a key the test itself generated and cannot
+export. **What is now proven and what is not:**
+
+| Claim | Status |
+| --- | --- |
+| Chain is 4 deep and carries our challenge + exact package | **asserted on device, passing** |
+| Chain terminates at **Google's** published root | **PROVEN** — terminal cert is byte-identical (sha256 `cedb1cb6dc896ae5…`, 1312 bytes) to the root fetched out of band from `https://android.googleapis.com/attestation/root`, not copied from this chain |
+| `keyMintSecurityLevel` is TEE, not Software | **NOT yet proven.** Requires decoding `device-attest-ext.der`. Until then the deck must not say "hardware-attested" |
+| `deviceLocked` / `verifiedBootState == VERIFIED` | **NOT yet proven.** Same decode |
+
+**Wording gate:** "*attested chain rooted at Google*" is safe today.
+"*hardware-attested*" is not, until the security-level check passes — a
+software-KeyMint attestation satisfies every assertion currently made on device,
+including `getEncoded()` yielding no bytes.
+
+## Root pinning (was ledger Row 9)
+
+`google-attestation-root.pem` was obtained from Google's published root list at
+`https://android.googleapis.com/attestation/root` and matched by full DER hash
+against the device chain's terminal certificate. Verification script:
+`.superpowers/sdd/…/verify-root.mjs`; it exits non-zero on mismatch.
+
+Also available and not yet wired in: Google's revoked batch-attestation-key serial
+list at `https://android.googleapis.com/attestation/status`. A leaked attestation key
+would otherwise keep producing apparently-valid chains forever, so Task 3/8 should
+check the intermediates' serials against it.
 
 ## Chain structure (as recorded by the device in `chain-dns.txt`)
 
@@ -61,8 +84,9 @@ sufficient for the design — StrongBox is a bonus, not a requirement — but it
 | `device-chain.pem` | 4789 | Task 3 chain verification; Task 8 positive fixture |
 | `device-attest-ext.der` | 267 | Task 3 decodes security level + `rootOfTrust` |
 | `device-spki.b64` | 125 | Task 7 enrollment, Task 8 check 2 |
-| `device-cert-digest.b64` | 45 | Task 8 check 8 corroboration |
-| `chain-dns.txt` | 757 | Task 3 root pinning (out of band, see above) |
+| `device-cert-digest.b64` | 45 | Identifies **this leaf certificate** — enrollment bookkeeping. **Not** Task 8 check 8: that compares the *APK signing-cert* digest inside `attestationApplicationId`, which must be read out of `device-attest-ext.der` |
+| `chain-dns.txt` | 757 | Task 3 root pinning — **now done, see Root pinning above** |
+| `google-attestation-root.pem` | ~1.8 KB | Pinned trust anchor for Task 3 `verifyChainToRoot` |
 
 ## Reproducing this
 

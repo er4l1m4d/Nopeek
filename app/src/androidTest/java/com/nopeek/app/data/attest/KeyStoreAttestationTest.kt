@@ -31,9 +31,13 @@ import java.util.Base64
  * on-device without a hand-rolled ASN.1 parser. `keyMintSecurityLevel`,
  * `rootOfTrust.deviceLocked` and `verifiedBootState` live inside the attestation
  * extension's DER and are decoded authoritatively in Task 3, which is where the
- * parser belongs. This test's job is to prove a chain exists, is rooted where it
- * claims, carries our challenge and package identity, holds a non-exportable
- * P-256 key — and to leave the raw bytes behind for Task 3 to read.
+ * parser belongs. This test's job is to prove a chain exists, carries our challenge
+ * and exact package identity, holds a non-exportable P-256 key the caller just
+ * generated, and terminates at a self-signed CA whose identity is dumped to
+ * chain-dns.txt for out-of-band pinning. Two things it does NOT establish: where that
+ * CA is rooted (proved separately by comparing the terminal certificate against
+ * Google's published root), and the enforcement level — a software KeyMint
+ * attestation satisfies every assertion in this file.
  */
 @RunWith(AndroidJUnit4::class)
 class KeyStoreAttestationTest {

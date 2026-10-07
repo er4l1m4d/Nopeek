@@ -53,21 +53,37 @@ contents), balance, and the date the airdrop landed.
 
 ## S1 gate — does the Redmi produce a hardware attestation chain
 
-**RESULT: PASS (2026-10-07).** Device `23106RN0DA` / `gale_global` / Android 15 produced a
-4-certificate Android Key Attestation chain for a non-exportable hardware-backed EC P-256
-key, terminating in a self-signed root with serial `f92009e853b6b045`. `am instrument`
-reported `OK (2 tests)`. **Spec §4 proceeds in full — the deck may say "hardware-attested";
-no V2 downgrade is needed.** Full detail and the reproduce procedure:
-`supabase/functions/oracle/fixtures/FINDINGS.md`.
+**RESULT: PROVISIONAL PASS (2026-10-07).** Device `23106RN0DA` / `gale_global` /
+Android 15 produced a 4-certificate Android Key Attestation chain for a
+non-exportable EC P-256 key the test generated. `am instrument` reported
+`OK (2 tests)`.
+
+**Root trust is now PROVEN outright**, not deferred: the chain's terminal certificate
+is byte-identical (sha256 `cedb1cb6dc896ae5ec797348bce92867`, 1312 bytes) to the root
+Google publishes at `https://android.googleapis.com/attestation/root`. That copy was
+fetched independently and compared by full DER hash — never taken from the device's own
+chain, which would have proven only that the chain vouches for itself.
+
+**Still unproven, and it gates the headline claim:** `keyMintSecurityLevel` and
+`rootOfTrust` (deviceLocked / verifiedBootState). A **software** KeyMint attestation
+satisfies every assertion currently made on device — chain depth, challenge embedded,
+exact package, leaf-key identity, and `getEncoded()` yielding no bytes all remain true.
+Until Task 3 decodes `device-attest-ext.der` and returns `TrustedEnvironment`:
+
+- ✅ safe to say: *"attested chain, rooted at Google, key never exportable"*
+- ❌ not yet: *"hardware-attested"*, *"TEE-backed"*, *"verified boot"*
+
+Full detail and reproduce procedure: `supabase/functions/oracle/fixtures/FINDINGS.md`.
 
 | Fact | Value |
 | --- | --- |
 | Chain depth | 4 (leaf + 2 TEE intermediates + self-signed root) |
 | Leaf subject | `CN=Android Keystore Key` |
-| Root serial | `f92009e853b6b045` (self-signed) |
-| StrongBox | **absent** — `TEE-only: Failed to generated key pair.` Claim *TEE-backed*, never "dedicated secure element" |
-| `keyMintSecurityLevel` | **not yet decoded** — Task 3 reads it from `device-attest-ext.der` |
-| Boot state / `deviceLocked` | **not yet decoded** — Task 3 |
+| Root serial | `f92009e853b6b045` (self-signed) — **matched byte-for-byte to Google's published root** |
+| Revoked-serial list | `https://android.googleapis.com/attestation/status` — available, **not yet checked**. A leaked batch attestation key would keep producing valid-looking chains forever |
+| StrongBox | **absent** — `TEE-only: Failed to generated key pair.` Say *TEE-backed* only if/when the security level is decoded; never "dedicated secure element" |
+| `keyMintSecurityLevel` | **not decoded** — Task 3, from `device-attest-ext.der` |
+| Boot state / `deviceLocked` | **not decoded** — Task 3 |
 
 Do not let the `TEE` string in the intermediate DNs stand in for the authoritative
 `keyMintSecurityLevel` field. It is a name, not proof, and asserting it as proof is the
