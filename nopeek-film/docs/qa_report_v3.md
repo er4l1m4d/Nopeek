@@ -37,6 +37,17 @@ Ruled as stands (no change): global-t purity (serial seek keeps determinism, sel
 reduced-motion (video-file deliverable, no strobe present), selftest probes past DUR (shared v2 harness),
 lockup pad tails to 40.2/40.8 (reverb tails, not beats).
 
+## Determinism root cause (found in final verification)
+
+Fresh review left 2 selftest probes red (t=21.98/22.02, 1-byte PNG diffs varying run-to-run).
+Systematic debugging: within-session re-seeks byte-identical (film code is pure), fresh
+processes differ; static frames stable across processes. Probe matrix: `--disable-gpu`
+byte-identical across processes, GPU raster varies. Root cause: Skia GPU rasterization in
+headless Chrome varies 1 LSB run-to-run on fractional-AA content. Fix: `--disable-gpu`
+added to `tools/lib.mjs` launch args (one line, environment layer — film code untouched).
+Full re-render + re-encode on the fixed pipeline; final selftest: all checks passed.
+Side benefit: hardens v1/v2 re-renders sharing lib.mjs.
+
 ## Delivery — measured
 
 `out/nopeek-launch-v3-16x9.mp4` — 1920x1080, h264, 60fps, 2700 frames, 45.000s, AAC, 4.55 MB.
