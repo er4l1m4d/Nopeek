@@ -36,7 +36,11 @@ import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
 
 @Composable
-fun HomeScreen(onOpenDuel: () -> Unit, hasActiveDuel: Boolean = true) {
+fun HomeScreen(
+    onOpenDuel: () -> Unit,
+    onGoToDuels: () -> Unit = onOpenDuel,
+    hasActiveDuel: Boolean = true,
+) {
     val colors = Nopeek.colors
     Column(
         modifier = Modifier
@@ -46,7 +50,9 @@ fun HomeScreen(onOpenDuel: () -> Unit, hasActiveDuel: Boolean = true) {
     ) {
         Row(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16, start = NopeekSpace.S16, end = NopeekSpace.S16), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(text = "Nopeek", style = NopeekText.DisplayFigure, color = colors.onSurface)
-            Icon(imageVector = Phosphor.Flag, contentDescription = "Duels", tint = colors.onSurfaceMuted, modifier = Modifier.size(28.dp))
+            // Decorative: the Duels destination is already one tap away in the bar below, so an
+            // accessible name here would announce a second, dead "Duels" control.
+            Icon(imageVector = Phosphor.Flag, contentDescription = null, tint = colors.onSurfaceMuted, modifier = Modifier.size(28.dp))
         }
         if (hasActiveDuel) {
             Box(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16, start = NopeekSpace.S16, end = NopeekSpace.S16)) {
@@ -54,16 +60,20 @@ fun HomeScreen(onOpenDuel: () -> Unit, hasActiveDuel: Boolean = true) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = NopeekShape.Md,
                     color = colors.surfaceRaised,
-                    onClick = onOpenDuel,
                 ) {
                     Column(modifier = Modifier.padding(NopeekSpace.S16)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            StatusLabel(variant = usageVariant(UsageState.PASSING), leading = Phosphor.CheckCircle)
-                            Text(text = "  · 18:42 left", style = NopeekText.BodyMd, color = colors.onSurface)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S8),
+                        ) {
+                            StatusLabel(variant = usageVariant(UsageState.PASSING))
+                            Text(text = "18:42 left", style = NopeekText.BodyMd, color = colors.onSurface)
                         }
                         Text(text = "TikTok · 30m limit", style = NopeekText.TitleSm, color = colors.onSurface, modifier = Modifier.padding(top = NopeekSpace.S8))
                         Text(text = "vs alex.skr", style = NopeekText.BodyMd, color = colors.onSurfaceMuted, modifier = Modifier.padding(top = NopeekSpace.S4))
                         Pot(state = PotState.WAITING, modifier = Modifier.padding(top = NopeekSpace.S12))
+                        // The card itself stays inert: one action per surface, so TalkBack reports a
+                        // single "View duel" and no tap lands on the wrong target.
                         PrimaryButton(label = "View duel", onClick = onOpenDuel, modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S12), hero = true)
                     }
                 }
@@ -84,7 +94,7 @@ fun HomeScreen(onOpenDuel: () -> Unit, hasActiveDuel: Boolean = true) {
                             color = colors.onSurfaceMuted,
                             modifier = Modifier.padding(top = NopeekSpace.S8),
                         )
-                        PrimaryButton(label = "Go to duels", onClick = onOpenDuel, modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16))
+                        PrimaryButton(label = "Go to duels", onClick = onGoToDuels, modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16))
                     }
                 }
             }

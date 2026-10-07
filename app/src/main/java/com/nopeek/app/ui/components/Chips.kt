@@ -1,6 +1,9 @@
 package com.nopeek.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,10 +15,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.nopeek.app.ui.icons.Phosphor
@@ -31,17 +40,20 @@ import com.nopeek.app.ui.theme.NopeekTheme
 fun StatusLabel(
     variant: StatusVariant,
     modifier: Modifier = Modifier,
-    leading: ImageVector? = null,
+    leading: ImageVector? = variant.glyph,
 ) {
     Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.Start),
+        modifier = modifier
+            .clip(NopeekShape.Full)
+            .background(variant.container)
+            .padding(horizontal = NopeekSpace.S8, vertical = NopeekSpace.S4),
+        horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S4, Alignment.Start),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
             Icon(imageVector = leading, contentDescription = null, modifier = Modifier.size(14.dp), tint = variant.color)
         }
-        Text(text = variant.label, style = NopeekText.LabelLg, color = variant.color)
+        Text(text = variant.label, style = NopeekText.LabelSm, color = variant.color)
     }
 }
 
@@ -51,19 +63,49 @@ fun PresetChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val colors = Nopeek.colors
+    val container by animateColorAsState(
+        targetValue = if (selected && enabled) colors.you else colors.surfaceHigh,
+        animationSpec = tween(180, easing = NopeekEase),
+        label = "presetChipContainer",
+    )
+    val content by animateColorAsState(
+        targetValue = when {
+            !enabled -> colors.onSurfaceMuted
+            selected -> colors.onPrimary
+            else -> colors.onSurface
+        },
+        animationSpec = tween(180, easing = NopeekEase),
+        label = "presetChipContent",
+    )
+    // The unselected tonal fill alone measures 1.73:1 against Pitch, which reads as floating text
+    // rather than an option; the hairline gives the row edges without competing with the volt
+    // selection. Selected state changes fill, ring, tick and text colour together, so it is never
+    // signalled by hue alone.
     Surface(
         onClick = onClick,
-        modifier = modifier,
-        enabled = false,
+        modifier = modifier.semantics {
+            this[SemanticsProperties.Role] = Role.RadioButton
+            this.selected = selected
+        },
+        enabled = enabled,
         shape = NopeekShape.Full,
-        color = Color.Transparent,
-        contentColor = if (selected) colors.you else colors.onSurface,
-        border = BorderStroke(if (selected) 2.dp else 1.5.dp, if (selected) colors.you else colors.outline),
+        color = container,
+        contentColor = content,
+        border = if (selected) null else BorderStroke(1.dp, colors.outline),
     ) {
-        Box(modifier = Modifier.height(NopeekSize.ButtonStd).padding(horizontal = NopeekSpace.S20), contentAlignment = Alignment.Center) {
-            Text(text = label, style = NopeekText.TitleSm, color = if (selected) colors.you else colors.onSurface)
+        Row(
+            modifier = Modifier.height(NopeekSize.ButtonStd).padding(horizontal = NopeekSpace.S16),
+            horizontalArrangement = Arrangement.spacedBy(NopeekSpace.S8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // The tick slot is always measured, so selecting never reflows the row.
+            Box(modifier = Modifier.size(16.dp).alpha(if (selected) 1f else 0f)) {
+                Icon(imageVector = Phosphor.Check, contentDescription = null, modifier = Modifier.size(16.dp), tint = content)
+            }
+            Text(text = label, style = NopeekText.TitleSm, color = content)
         }
     }
 }
@@ -79,10 +121,12 @@ fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: 
 private fun StatusLabelPreview() {
     NopeekTheme {
         Column(modifier = Modifier.padding(NopeekSpace.S16), verticalArrangement = Arrangement.spacedBy(NopeekSpace.S12)) {
-            StatusLabel(variant = usageVariant(UsageState.PASSING), leading = Phosphor.CheckCircle)
-            StatusLabel(variant = usageVariant(UsageState.AT_RISK), leading = Phosphor.WarningCircle)
-            StatusLabel(variant = usageVariant(UsageState.FAILED), leading = Phosphor.XCircle)
+            StatusLabel(variant = usageVariant(UsageState.PASSING))
+            StatusLabel(variant = usageVariant(UsageState.AT_RISK))
+            StatusLabel(variant = usageVariant(UsageState.FAILED))
             StatusLabel(variant = lifecycleVariant("CREATED"))
+            StatusLabel(variant = lifecycleVariant("BOTH_FAIL_LOCKED"))
+            StatusLabel(variant = lifecycleVariant("SETTLED"))
         }
     }
 }

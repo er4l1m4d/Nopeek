@@ -102,7 +102,7 @@ fun FixtureRow(
             StatusLabel(
                 variant = status,
                 modifier = Modifier.padding(top = 6.dp),
-                leading = statusLeading,
+                leading = statusLeading ?: status.glyph,
             )
             if (showTape) {
                 MiniTape(
@@ -240,7 +240,7 @@ fun Scoreboard(
             )
             StatusLabel(
                 variant = youStatus,
-                leading = youLeading,
+                leading = youLeading ?: youStatus.glyph,
             )
         }
         Column(
@@ -260,7 +260,7 @@ fun Scoreboard(
             )
             StatusLabel(
                 variant = opponentStatus,
-                leading = opponentLeading,
+                leading = opponentLeading ?: opponentStatus.glyph,
             )
         }
     }
@@ -466,6 +466,11 @@ private fun fillTop(
     full: Float,
 ): Float = empty + (full - empty) * progress
 
+/**
+ * Label/value line. The defaults assume a dark surface: on a loud full-bleed fill (win, lose,
+ * warning) the caller must pass the matching foreground tokens — `labelColor = colors.onWinMuted,
+ * valueColor = colors.onWin` — because Chalk on volt measures 1.01:1. See WonScreen/LostScreen.
+ */
 @Composable
 fun ReceiptRow(
     label: String,

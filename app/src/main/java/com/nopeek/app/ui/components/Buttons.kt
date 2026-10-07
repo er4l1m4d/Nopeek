@@ -14,6 +14,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -84,16 +86,19 @@ fun TextButton(
     enabled: Boolean = true,
 ) {
     val colors = Nopeek.colors
+    // Disabled stays legible: the old Turf2 label measured 1.73:1 against Pitch, which reads as a
+    // rendering bug rather than an inert control.
+    val content = if (enabled) colors.onSurfaceMuted else colors.onSurfaceMuted.copy(alpha = 0.6f)
     Surface(
         onClick = onClick,
         modifier = modifier.height(NopeekSize.ButtonStd),
         enabled = enabled,
         shape = NopeekShape.Full,
         color = Color.Transparent,
-        contentColor = if (enabled) colors.onSurfaceMuted else colors.surfaceHigh,
+        contentColor = content,
     ) {
         Box(modifier = Modifier.padding(horizontal = NopeekSpace.S16), contentAlignment = Alignment.Center) {
-            Text(text = label, style = NopeekText.TitleSm)
+            Text(text = label, style = NopeekText.TitleSm, color = content)
         }
     }
 }
@@ -103,15 +108,19 @@ fun TapIconButton(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val colors = Nopeek.colors
     Surface(
         onClick = onClick,
         modifier = modifier
-            .semantics { this.contentDescription = contentDescription }
+            .semantics {
+                this[SemanticsProperties.Role] = Role.Button
+                this.contentDescription = contentDescription
+            }
             .sizeIn(minWidth = NopeekSize.Touch, minHeight = NopeekSize.Touch),
-        enabled = false,
+        enabled = enabled,
         shape = NopeekShape.Full,
         color = Color.Transparent,
         contentColor = colors.onSurface,
@@ -133,10 +142,12 @@ fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Mod
 private fun ButtonsPreview() {
     NopeekTheme {
         Column(modifier = Modifier.padding(NopeekSpace.S16), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(NopeekSpace.S12)) {
+            PrimaryButton(label = "Lock TikTok", onClick = {}, modifier = Modifier.fillMaxWidth(), hero = true)
             PrimaryButton(label = "Lock TikTok", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false, hero = true)
-            PrimaryButton(label = "Accept $5", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
-            PrimaryButton(label = "Disabled", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
+            PrimaryButton(label = "Accept $5", onClick = {}, modifier = Modifier.fillMaxWidth())
+            OutlineButton(label = "Rematch", onClick = {}, modifier = Modifier.fillMaxWidth())
             OutlineButton(label = "Rematch", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
+            TextButton(label = "Decline", onClick = {}, modifier = Modifier.fillMaxWidth())
             TextButton(label = "Decline", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
         }
     }

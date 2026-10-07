@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -42,6 +43,8 @@ fun RecoveryLockScreen(pubkey: String, onBack: () -> Unit) {
             .background(colors.warning)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
+            // The explanation is the last thing on this screen; it must not end under the system bar.
+            .navigationBarsPadding()
             .padding(horizontal = NopeekSpace.S16),
     ) {
         Row(modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S8)) {

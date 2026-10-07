@@ -24,11 +24,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
@@ -37,7 +37,6 @@ import com.nopeek.app.data.identity.MockSeekerProvider
 import com.nopeek.app.data.local.AppDatabase
 import com.nopeek.app.data.local.ChallengeEntity
 import com.nopeek.app.ui.components.FixtureRow
-import com.nopeek.app.ui.components.StatusVariant
 import com.nopeek.app.ui.components.lifecycleVariant
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
@@ -58,18 +57,6 @@ private fun DuelTab.matches(localStatus: String): Boolean = when (this) {
     DuelTab.ACTIVE -> localStatus != "CREATED" && localStatus != "SETTLED" && localStatus != "REFUNDED"
     DuelTab.INVITES -> localStatus == "CREATED"
     DuelTab.SETTLED -> localStatus == "SETTLED" || localStatus == "REFUNDED"
-}
-
-@Composable
-private fun statusLeadingIcon(variant: StatusVariant): ImageVector? {
-    val colors = Nopeek.colors
-    val color = variant.color
-    return when {
-        color == colors.you -> Phosphor.CheckCircle
-        color == colors.warning -> Phosphor.WarningCircle
-        color == colors.danger -> Phosphor.XCircle
-        else -> null
-    }
 }
 
 private fun windowLabel(windowSeconds: Long): String = when {
@@ -117,7 +104,7 @@ fun DuelsScreen(
     val challenges by remember {
         AppDatabase.getInstance(context).challengeDao().observeActive()
     }.collectAsState(emptyList())
-    var tab by remember { mutableStateOf(DuelTab.ACTIVE) }
+    var tab by rememberSaveable { mutableStateOf(DuelTab.ACTIVE) }
     val counts = remember(challenges) {
         DuelTab.entries.associateWith { t -> challenges.count { t.matches(it.localStatus) } }
     }
@@ -264,7 +251,7 @@ private fun DuelEntityRow(
         title = title,
         subtitle = "${entity.targetApp}, ${entity.limitSeconds / 60} min a day",
         status = variant,
-        statusLeading = statusLeadingIcon(variant),
+        statusLeading = null,
         youFraction = 0f,
         opponentFraction = 0f,
         amount = "$" + formatUsdc(entity.stakeAmountRaw),

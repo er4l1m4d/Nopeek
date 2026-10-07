@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -21,12 +24,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.WindowInsets
 import com.nopeek.app.data.Challenge
 import com.nopeek.app.data.challenge.ChallengeDraft
 import com.nopeek.app.data.challenge.message
@@ -47,6 +51,7 @@ import com.nopeek.app.ui.components.ReceiptRow
 import com.nopeek.app.ui.components.ReviewRow
 import com.nopeek.app.ui.components.StepperBar
 import com.nopeek.app.ui.theme.Nopeek
+import com.nopeek.app.ui.theme.NopeekSize
 import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
@@ -70,16 +75,19 @@ private val stakePresets = listOf(1_000_000L, 5_000_000L, 10_000_000L, 25_000_00
 
 @Composable
 fun CreateScreen(onCreated: () -> Unit) {
-    var step by remember { mutableStateOf(1) }
-    var targetPackage by remember { mutableStateOf<String?>(null) }
-    var limitMinutes by remember { mutableStateOf<Int?>(null) }
-    var stakeAmountRaw by remember { mutableStateOf(5_000_000L) }
-    var opponent by remember { mutableStateOf("") }
-    var windowSeconds by remember { mutableStateOf<Long?>(null) }
-    var sentTx by remember { mutableStateOf<String?>(null) }
+    // Saveable, not remembered: this is a six-step form about money, and a rotation or a
+    // backgrounded process must not quietly send the user back to step 1.
+    var step by rememberSaveable { mutableStateOf(1) }
+    var targetPackage by rememberSaveable { mutableStateOf<String?>(null) }
+    var limitMinutes by rememberSaveable { mutableStateOf<Int?>(null) }
+    var stakeAmountRaw by rememberSaveable { mutableStateOf(5_000_000L) }
+    var opponent by rememberSaveable { mutableStateOf("") }
+    var windowSeconds by rememberSaveable { mutableStateOf<Long?>(null) }
+    var sentTx by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val colors = Nopeek.colors
+    val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val draft = ChallengeDraft(targetPackage, limitMinutes, stakeAmountRaw, opponent, windowSeconds)
     val errors = validateChallengeInput(draft)
     val resolvedOpponent = parseOpponent(opponent)
@@ -97,7 +105,13 @@ fun CreateScreen(onCreated: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = NopeekSpace.S16, end = NopeekSpace.S16, bottom = 104.dp),
+                .padding(
+                    start = NopeekSpace.S16,
+                    end = NopeekSpace.S16,
+                    // Hero button + its two margins + whatever the system bar takes, so the last
+                    // row always clears the action bar.
+                    bottom = NopeekSize.ButtonHero + NopeekSpace.S24 + NopeekSpace.S24 + navBarInset,
+                ),
         ) {
             if (sentTx == null) {
                 StepperBar(step = step, total = 6, modifier = Modifier.padding(top = NopeekSpace.S16))
@@ -275,7 +289,7 @@ fun CreateScreen(onCreated: () -> Unit) {
         }
         if (step <= 6) {
             val walletOk = walletManager.state is WalletState.Connected
-                val (ctaLabel, ctaEnabled, ctaAction) = when (step) {
+            val (ctaLabel, ctaEnabled, ctaAction) = when (step) {
                 1 -> Triple("Continue", targetPackage != null, { step = 2 })
                 2 -> Triple("Continue", limitMinutes != null, { step = 3 })
                 3 -> Triple("Continue", windowSeconds != null, { step = 4 })
@@ -287,13 +301,24 @@ fun CreateScreen(onCreated: () -> Unit) {
                     { approve(resolvedOpponent, scope, targetPackage, limitMinutes, stakeAmountRaw, windowSeconds, context, onCreated) { sentTx = it; step = 7 } },
                 )
             }
-            Box(
+            // A real action bar: opaque, inset-aware, thumb-anchored. Content used to scroll out
+            // from underneath it and the button itself could sit under the system navigation bar.
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = NopeekSpace.S16, top = NopeekSpace.S12, end = NopeekSpace.S16, bottom = NopeekSpace.S24),
+                    .background(colors.background)
+                    .navigationBarsPadding(),
             ) {
-                PrimaryButton(label = ctaLabel, onClick = ctaAction, enabled = ctaEnabled, hero = true, modifier = Modifier.fillMaxWidth())
+                PrimaryButton(
+                    label = ctaLabel,
+                    onClick = ctaAction,
+                    enabled = ctaEnabled,
+                    hero = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = NopeekSpace.S16, top = NopeekSpace.S12, end = NopeekSpace.S16, bottom = NopeekSpace.S24),
+                )
             }
         }
     }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -21,7 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,8 +46,8 @@ import com.nopeek.app.ui.theme.NopeekTheme
 @Composable
 fun DuelScreen(pubkey: String, onBack: () -> Unit, onForfeit: (() -> Unit)? = null) {
     val colors = Nopeek.colors
-    var menuOpen by remember { mutableStateOf(false) }
-    var confirmForfeit by remember { mutableStateOf(false) }
+    var menuOpen by rememberSaveable { mutableStateOf(false) }
+    var confirmForfeit by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -64,8 +65,10 @@ fun DuelScreen(pubkey: String, onBack: () -> Unit, onForfeit: (() -> Unit)? = nu
                 Icon(imageVector = Phosphor.ArrowLeft, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.onSurface)
             }
             Box {
-                TapIconButton(contentDescription = "More options", onClick = { menuOpen = true }) {
-                    Icon(imageVector = Phosphor.LockKey, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.onSurface)
+                TapIconButton(contentDescription = "Duel options", onClick = { menuOpen = true }) {
+                    // LockKey read as "the lock", so the only way out of a duel was hidden behind
+                    // an icon that promised the opposite of what the menu does.
+                    Icon(imageVector = Phosphor.DotsThree, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.onSurface)
                 }
                 DropdownMenu(
                     expanded = menuOpen,
@@ -126,7 +129,11 @@ fun DuelScreen(pubkey: String, onBack: () -> Unit, onForfeit: (() -> Unit)? = nu
         PrimaryButton(
             label = "Lock TikTok",
             onClick = {},
-            modifier = Modifier.fillMaxWidth().padding(top = NopeekSpace.S16, bottom = NopeekSpace.S24),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = NopeekSpace.S16)
+                .navigationBarsPadding()
+                .padding(bottom = NopeekSpace.S24),
             hero = true,
         )
     }

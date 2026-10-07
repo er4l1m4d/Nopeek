@@ -13,13 +13,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,13 +34,14 @@ import com.nopeek.app.ui.components.PrimaryButton
 import com.nopeek.app.ui.components.Scoreboard
 import com.nopeek.app.ui.components.StepperBar
 import com.nopeek.app.ui.components.TextButton
+import com.nopeek.app.ui.components.UsageState
+import com.nopeek.app.ui.components.usageVariant
 import com.nopeek.app.ui.icons.Phosphor
 import com.nopeek.app.ui.theme.Nopeek
 import com.nopeek.app.ui.theme.NopeekShape
 import com.nopeek.app.ui.theme.NopeekSpace
 import com.nopeek.app.ui.theme.NopeekText
 import com.nopeek.app.ui.theme.NopeekTheme
-import androidx.compose.foundation.clickable
 
 @Composable
 fun OnboardingScreen(
@@ -48,13 +50,15 @@ fun OnboardingScreen(
     onGetTestUsdc: () -> Unit = {},
 ) {
     val colors = Nopeek.colors
-    var step by remember { mutableStateOf(1) }
+    var step by rememberSaveable { mutableStateOf(1) }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
+            // Inside the scroll so the last element clears the system bar instead of sliding under it.
+            .navigationBarsPadding()
             .padding(horizontal = NopeekSpace.S16),
     ) {
         StepperBar(step = step, total = 5, modifier = Modifier.padding(top = NopeekSpace.S16))
@@ -62,11 +66,11 @@ fun OnboardingScreen(
             1 -> {
                 Scoreboard(
                     youClock = "18:42",
-                    youStatus = com.nopeek.app.ui.components.usageVariant(com.nopeek.app.ui.components.UsageState.PASSING),
+                    youStatus = usageVariant(UsageState.PASSING),
                     youLeading = Phosphor.CheckCircle,
                     opponentName = "Friend",
                     opponentClock = "27:10",
-                    opponentStatus = com.nopeek.app.ui.components.usageVariant(com.nopeek.app.ui.components.UsageState.AT_RISK),
+                    opponentStatus = usageVariant(UsageState.AT_RISK),
                     opponentLeading = Phosphor.WarningCircle,
                     talkBack = "You, 18 minutes 42 seconds, safe. Friend, 27 minutes 10 seconds, at risk.",
                     modifier = Modifier.padding(top = NopeekSpace.S8),
