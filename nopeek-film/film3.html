@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Nopeek — launch film v3 (45s)</title>
+<style>
+  @font-face{font-family:'BSD';src:url('fonts/big_shoulders_display_black.ttf');font-weight:900;font-display:block}
+  @font-face{font-family:'BSD';src:url('fonts/big_shoulders_display_extrabold.ttf');font-weight:800;font-display:block}
+  @font-face{font-family:'SG';src:url('fonts/schibsted_grotesk_medium.ttf');font-weight:500;font-display:block}
+  @font-face{font-family:'SG';src:url('fonts/schibsted_grotesk_semibold.ttf');font-weight:600;font-display:block}
+  @font-face{font-family:'SG';src:url('fonts/schibsted_grotesk_bold.ttf');font-weight:700;font-display:block}
+  html,body{margin:0;padding:0;background:#10261B;overflow:hidden}
+  canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+/* NOPEEK v3 — 45s. Pure function of t. No timers, no rAF, no CSS transitions, no hidden randomness. */
+const W = 1920, H = 1080;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let t = 0;
+const C = {
+  pitch:'#10261B', turf:'#173626', turf2:'#215039', line:'#2E5942',
+  chalk:'#F1F0E6', mute:'#93AE9E', volt:'#D4FF00', sky:'#8FD3FF',
+  amber:'#F5B335', coral:'#FF6A4D', moss:'#455413',
+};
+const sat = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const lerp = (a, b, u) => a + (b - a) * u;
+const inv = (a, b, v) => sat((v - a) / (b - a || 1e-9));
+function cubicBezier(p1x, p1y, p2x, p2y) {
+  const cx = 3*p1x, bx = 3*(p2x-p1x)-cx, ax = 1-cx-bx;
+  const cy = 3*p1y, by = 3*(p2y-p1y)-cy, ay = 1-cy-by;
+  const fx = u => ((ax*u+bx)*u+cx)*u, dfx = u => (3*ax*u+2*bx)*u+cx;
+  return function (x) {
+    x = sat(x); let u = x;
+    for (let i = 0; i < 6; i++) { const e = fx(u)-x, d = dfx(u); if (Math.abs(e) < 1e-6 || d === 0) break; u -= e/d; }
+    return ((ay*u+by)*u+cy)*u;
+  };
+}
+const appEase = cubicBezier(0.2, 0.8, 0.2, 1);
+function spr(u, w, z) {
+  if (u <= 0) return 0; w = w || 11; z = z == null ? 0.72 : z;
+  const zz = Math.min(z, 0.999); const wd = w * Math.sqrt(1 - zz * zz);
+  return 1 - Math.exp(-zz * w * u) * (Math.cos(wd * u) + (zz * w / wd) * Math.sin(wd * u));
+}
+function trk(u, steps) {
+  let acc = steps[0][1], prev = steps[0][1];
+  for (let i = 1; i < steps.length; i++) {
+    const st = steps[i][0], tv = steps[i][1], w = steps[i][2] || 11, z = steps[i][3] == null ? 0.72 : steps[i][3];
+    acc += (tv - prev) * spr(u - st, w, z); prev = tv;
+  }
+  return acc;
+}
+const DUR = 45.0;
+const BPM = 100;
+const ACTS = [[0, 11], [11, 16], [16, 34], [34, 40], [40, 45]];
+const CAM = [
+  { t: 0.00, z: 2.60, cx: 960, cy: 540 },
+  { t: 7.00, z: 1.90, cx: 960, cy: 560 },
+  { t: 11.00, z: 1.35, cx: 960, cy: 540 },
+  { t: 20.50, z: 1.60, cx: 1170, cy: 500 },
+  { t: 34.00, z: 2.20, cx: 960, cy: 540 },
+  { t: 40.00, z: 1.00, cx: 960, cy: 540 },
+  { t: 45.00, z: 1.00, cx: 960, cy: 540 },
+];
+function camAt(u) {
+  let a = CAM[0], b = CAM[CAM.length - 1];
+  for (let i = 0; i < CAM.length - 1; i++) {
+    if (u >= CAM[i].t && u <= CAM[i+1].t) { a = CAM[i]; b = CAM[i+1]; break; }
+    if (u > CAM[i+1].t) { a = CAM[i+1]; b = CAM[i+1]; }
+  }
+  const k = appEase(inv(a.t, b.t, u));
+  const dz = 1 + 0.004 * Math.sin(Math.PI * 0.1 * u);
+  const dx = 1.6 * Math.sin(Math.PI * 0.0909 * u);
+  const dy = 1.2 * Math.sin(Math.PI * 0.0667 * u);
+  return { z: Math.exp(lerp(Math.log(a.z), Math.log(b.z), k)) * dz, cx: lerp(a.cx, b.cx, k) + dx, cy: lerp(a.cy, b.cy, k) + dy };
+}
+function draw(s) {
+  t = s;
+  ctx.fillStyle = C.pitch; ctx.fillRect(0, 0, W, H);
+  const cam = camAt(t);
+  ctx.save();
+  ctx.translate(W/2, H/2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.cx, -cam.cy);
+  /* world: hairline already drawing at t=0 so thumbnail never black */
+  const hl = inv(-0.15, 0.75, t);
+  ctx.fillStyle = C.chalk;
+  ctx.fillRect(960 - 455 * hl, 538, 910 * hl, 4);
+  /* act stubs: full acts land in Tasks 3-5 */
+  ctx.fillStyle = C.mute; ctx.font = '600 28px SG'; ctx.textAlign = 'center';
+  if (t < 7) { /* problem thesis in Task 3 */ }
+  else if (t < 11) { /* turn in Task 3 */ }
+  else if (t < 16) { /* home in Task 3 */ }
+  else if (t < 34) { /* how in Task 4 */ }
+  else if (t < 40) { /* proof in Task 4 */ }
+  else { /* lockup in Task 5 */ }
+  ctx.restore();
+  /* screen-space type lives outside camera so it never scales (Tasks 3-5) */
+}
+window.seek = (s) => draw(s);
+const FACES = ['900 100px BSD', '800 100px BSD', '500 100px SG', '600 100px SG', '700 100px SG'];
+const loaded = Promise.all(FACES.map(f => document.fonts.load(f).catch(() => null)))
+  .then(() => document.fonts.ready)
+  .then(() => FACES.map(f => f + '=' + document.fonts.check(f)).join(' '));
+Promise.race([loaded, new Promise(r => setTimeout(() => r('TIMEOUT'), 6000))]).then((info) => {
+  window.__fonts = info;
+  draw(0);
+  window.READY = true;
+});
+</script>
+</body>
+</html>
