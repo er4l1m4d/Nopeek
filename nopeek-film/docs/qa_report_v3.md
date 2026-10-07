@@ -23,6 +23,20 @@ No axis below 8 → review loop closed.
 2. Spine ghost bar through NOPEEK — drawSpine gated to t<40 (it becomes the underline). Verified 43.5s.
 3. Phone-test run with stale v2 defaults caught rendering film2 — re-ran with v3 timestamps; QA cites only the v3 sheet.
 
+## Fix pass after fresh review (all verified in stills, full re-render)
+
+4. Missing full-frame floods (hard cuts at turn + approve) — volt disc floods added (10.55-11.55 out of $5, 33.20-34.05 out of Approve), hold + contract. Verified 10.8/33.6.
+5. Stepper drew 6 segments for 5 steps — seg/step targets corrected to 5, window from 15.8s. Verified 25.0.
+6. "The phone counts." beat absent — restored over duel live 34.3-36.8. Verified 35.5.
+7. Frame 0 effectively black (tape off-camera at cy 540) — camera key 0 reframed to cy 700 + chalk hairline from t=0. Verified 0.0s.
+8. Cursor missed tap targets — path reparked (TikTok row 360, chips 540, field 388, Approve held 32.0-33.2). Verified 32.8.
+9. Over/under-painted windows hardened (home ends 16.0; duel/mark overlap is the designed volt contract).
+10. Sound numbers unified to measured (-18.5 LUFS / -2.4 dBTP / LRA 5.9, 25 cues).
+
+Ruled as stands (no change): global-t purity (serial seek keeps determinism, selftest proves it),
+reduced-motion (video-file deliverable, no strobe present), selftest probes past DUR (shared v2 harness),
+lockup pad tails to 40.2/40.8 (reverb tails, not beats).
+
 ## Delivery — measured
 
 `out/nopeek-launch-v3-16x9.mp4` — 1920x1080, h264, 60fps, 2700 frames, 45.000s, AAC, 4.55 MB.

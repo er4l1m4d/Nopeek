@@ -8,7 +8,7 @@ Resolutions are free, so breaking them is free. The film performs that: a limit 
 - 7-11 Turn (So put $5 on it → volt flood → whole phone arrives). Buys: the belief there is a fix.
 - 11-16 Home (real HomeScreen + "This is a duel."). Buys: it is a real app, not a concept.
 - 16-34 How (Pick/Limit/Stake/Rival/Lock, cursor-first, result ≥1s). Buys: I could do this.
-- 34-40 Proof (live duel → breach coral → WON $10.00 + tx 5Hq2…tK9x + "The money settles itself."). Buys: the phone counts and the money moves itself.
+- 34-40 Proof (live duel + "The phone counts." → breach coral → WON $10.00 + tx 5Hq2…tK9x + "The money settles itself."). Buys: the phone counts and the money moves itself.
 - 40-45 CTA (eye-and-wall → NOPEEK → hairline home → Get Nopeek now. + footnote). Buys: what to do next.
 
 ## What is real vs illustrative
