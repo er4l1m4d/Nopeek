@@ -64,6 +64,14 @@ class KeyStoreAttestationTest {
         )
 
         val leaf = chain[0] as X509Certificate
+        // Compare the EC point, not the object: the generated key is an
+        // AndroidKeyStore handle wrapper while the certificate's is a parsed
+        // ECPublicKey, so equals() on the keys themselves can never agree.
+        assertEquals(
+            "the attested key in the chain is not the key this test generated",
+            (pair.public as ECPublicKey).w,
+            (leaf.publicKey as ECPublicKey).w,
+        )
         val extDer = leaf.getExtensionValue(ATTESTATION_OID)
         assertNotNull(
             "attestation extension $ATTESTATION_OID absent — this key was not attested",
@@ -71,10 +79,19 @@ class KeyStoreAttestationTest {
         )
 
         // The extension embeds the developer challenge and, software-enforced, the
-        // installer-declared package name. Byte-scanning proves both are present in
-        // what the device signed; Task 3 proves what the surrounding structures say.
-        assertContainsBytes(extDer!!, BOOTSTRAP_CHALLENGE, "attestation challenge")
-        assertContainsBytes(extDer, PACKAGE.toByteArray(Charsets.US_ASCII), "package name")
+        // installer-declared package name. Asserted as an exact-length DER OCTET
+        // STRING, not a substring: a substring match is satisfied by
+        // "com.nopeek.app.test", which would let a self-instrumenting test APK
+        // masquerade as the real app. Task 3 decodes the surrounding structures.
+        assertContainsBytes(extDer, BOOTSTRAP_CHALLENGE, "attestation challenge")
+        assertExactOctetString(extDer, PACKAGE, "package name")
+        // The subject DN lives in the certificate itself, not in the attestation
+        // extension, so it is read through the X500 API rather than byte-scanned.
+        assertTrue(
+            "leaf subject is not the Android Keystore attestation identity: " +
+                leaf.subjectX500Principal.name,
+            leaf.subjectX500Principal.name.contains("Android Keystore Key"),
+        )
 
         val pub = pair.public as ECPublicKey
         assertEquals(
@@ -149,6 +166,23 @@ class KeyStoreAttestationTest {
     private fun assertContainsBytes(haystack: ByteArray, needle: ByteArray, label: String) {
         val at = indexOf(haystack, needle)
         assertTrue("$label not found inside the attestation extension", at >= 0)
+    }
+
+    /**
+     * Asserts `value` appears as a DER OCTET STRING holding exactly those bytes:
+     * tag 0x04, a short-form length equal to the value's length, then the value.
+     * A longer string that merely starts with `value` cannot satisfy this, because
+     * its length byte differs.
+     */
+    private fun assertExactOctetString(haystack: ByteArray, value: String, label: String) {
+        val raw = value.toByteArray(Charsets.US_ASCII)
+        assertTrue("value too long for short-form length", raw.size < 128)
+        val needle = byteArrayOf(0x04, raw.size.toByte()) + raw
+        assertTrue(
+            "$label not present as an exact-length DER OCTET STRING — the attesting " +
+                "package may not be the application under test",
+            indexOf(haystack, needle) >= 0,
+        )
     }
 
     private fun indexOf(hay: ByteArray, needle: ByteArray): Int {

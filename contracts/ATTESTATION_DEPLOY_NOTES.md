@@ -16,7 +16,7 @@ Spec: `docs/superpowers/specs/2026-10-06-nopeek-colosseum-architecture-design.md
 | Git Bash | `C:\Program Files\Git\bin\bash.exe` | The sdd scripts are bash and will not run under PowerShell directly |
 | Shell | PowerShell — use `;` as separator, never `&&` | |
 | Branch | `nopeek-colosseum` cut at **`e030d88`** (= tip of `volo-system-port`); first commit on the branch is `d2a0f20` | |
-| Test device A | Redmi (Global ROM, Play Services present), not a Seeker | |
+| Test device A | Redmi `23106RN0DA` (`gale_global`), Android 15, Global ROM with Play Services — **not** a Seeker. Connected and verified working 2026-10-07 | |
 | Test device B | second Android, available on loan | |
 | **Solana CLI** | **NOT INSTALLED** — and not needed. Path B (Playground) chosen below; Task 1 Steps 4–5 are superseded, Step 6 was done in-place |
 | `adb` | Not on `PATH`; absolute path `C:\Users\hp\AppData\Local\Android\Sdk\platform-tools\adb.exe`. Task 2 Step 5's fixture pull must use the full path |
@@ -53,14 +53,37 @@ contents), balance, and the date the airdrop landed.
 
 ## S1 gate — does the Redmi produce a hardware attestation chain
 
-Status: **not run** (Task 2). Record here: security level actually returned
-(`StrongBox` / `TEE` / `Software` / absent), chain length, terminal issuer DN,
-whether `deviceLocked` and `verifiedBootState == Verified` held, and the exact
-Redmi model + MIUI/HyperOS version.
+**RESULT: PASS (2026-10-07).** Device `23106RN0DA` / `gale_global` / Android 15 produced a
+4-certificate Android Key Attestation chain for a non-exportable hardware-backed EC P-256
+key, terminating in a self-signed root with serial `f92009e853b6b045`. `am instrument`
+reported `OK (2 tests)`. **Spec §4 proceeds in full — the deck may say "hardware-attested";
+no V2 downgrade is needed.** Full detail and the reproduce procedure:
+`supabase/functions/oracle/fixtures/FINDINGS.md`.
 
-If the result is `Software` or absent, the plan's Task 2 Step 6 fallback applies:
-keep the whole pipeline, drop spec §4.3 checks 1, 6 and 7, and restate the claim
-as "device-key-signed, nonce-bound" rather than "hardware-attested".
+| Fact | Value |
+| --- | --- |
+| Chain depth | 4 (leaf + 2 TEE intermediates + self-signed root) |
+| Leaf subject | `CN=Android Keystore Key` |
+| Root serial | `f92009e853b6b045` (self-signed) |
+| StrongBox | **absent** — `TEE-only: Failed to generated key pair.` Claim *TEE-backed*, never "dedicated secure element" |
+| `keyMintSecurityLevel` | **not yet decoded** — Task 3 reads it from `device-attest-ext.der` |
+| Boot state / `deviceLocked` | **not yet decoded** — Task 3 |
+
+Do not let the `TEE` string in the intermediate DNs stand in for the authoritative
+`keyMintSecurityLevel` field. It is a name, not proof, and asserting it as proof is the
+soft-claim pattern the pre-flight says judges caught in the prior clones.
+
+Two traps found while closing this gate, both now documented in FINDINGS.md:
+
+1. **Gradle uninstalls after `connectedDebugAndroidTest`**, which deletes
+   `/data/data/com.nopeek.app/files` and the fixtures with it. Capture by installing both
+   APKs and running `am instrument` manually, then pulling.
+2. **The first "passing" run was not trustworthy.** `com.nopeek.app` was not installed
+   (`INSTALL_FAILED_USER_RESTRICTED` from MIUI), yet 2 tests reported green — and the
+   package assertion was a *substring* match, which `com.nopeek.app.test` also satisfies.
+   It could not distinguish the app from its own test APK. Now asserted as an exact-length
+   DER OCTET STRING, plus leaf-public-key identity. MIUI requires Developer options →
+   **Install via USB** (Mi account + SIM) for installs to succeed at all.
 
 ## S2 gate — Google attestation root pinning
 
