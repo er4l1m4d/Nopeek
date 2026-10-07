@@ -154,6 +154,140 @@ function drawSpine(u, sp) {
     fill(C.coral, TAPE_X0 + TAPE_W * LIMIT_AT - 2 * br, sp.y - 14 * br, 4 * br, 28 * br, 2);
   }
 }
+/* ---- Task 3: UI kit + Acts 1-3 (0-16s) ---- */
+const PH = { x: 750, y: 85, w: 420, h: 910, bez: 12, rad: 54 };
+const MX = 20;
+const CX0 = PH.x + MX, CX1 = PH.x + PH.w - MX;
+function phoneFrame(u, reveal) {
+  const y0 = lerp(185, PH.y, reveal), y1 = lerp(185, PH.y + PH.h, reveal);
+  const h = y1 - y0; if (h <= 1) return null;
+  const r = PH.rad * reveal;
+  fill('#0B1A12', PH.x - PH.bez, y0 - PH.bez, PH.w + PH.bez * 2, h + PH.bez * 2, r + PH.bez);
+  fill(C.pitch, PH.x, y0, PH.w, h, r);
+  return { x: PH.x, y: y0, w: PH.w, h, r };
+}
+function statusBar() {
+  txt('9:41', CX0 + 2, 138, 13, C.chalk, { w: 700, fam: 'SG', track: 0 });
+  fill(C.chalk, CX1 - 46, 128, 16, 10, 3);
+}
+function statusChip(x, y, label, col, glyph, small) {
+  const s = small ? 11 : 12;
+  const wpx = measure(label, s, { w: 700, fam: 'SG', track: 0.04 }) + (small ? 30 : 34);
+  const h = small ? 22 : 26;
+  stroke(col, x, y, wpx, h, h / 2, 1.5);
+  txt(glyph === 'x' ? '×' : '✓', x + 9, y + h - 7, s, col, { w: 700, fam: 'SG', track: 0 });
+  txt(label, x + 20, y + h - 7, s, col, { w: 700, fam: 'SG', track: 0.04 });
+  return wpx;
+}
+function pot(x, y, w, h, p) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(w / 80, h / 100);
+  ctx.fillStyle = C.volt; ctx.beginPath();
+  ctx.moveTo(10, 14); ctx.lineTo(70, 14); ctx.lineTo(64, 90);
+  ctx.quadraticCurveTo(63, 97, 56, 98); ctx.lineTo(24, 98);
+  ctx.quadraticCurveTo(17, 97, 16, 90); ctx.lineTo(10, 14); ctx.closePath();
+  ctx.save(); ctx.clip();
+  const top = 100 - (100 - 58) * appEase(sat(p));
+  ctx.fillRect(-20, top, 120, 120 - top);
+  ctx.fillStyle = C.sky; ctx.fillRect(-20, 100 - (100 - 34) * appEase(sat(p)) * 0.45 - 8, 120, 12);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(241,240,230,0.40)'; ctx.lineWidth = 4; ctx.stroke();
+  ctx.restore();
+}
+function primaryBtn(x, y, w, h, label, press) {
+  const s = 1 - 0.03 * sat(press || 0);
+  ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.scale(s, s); ctx.translate(-(x + w / 2), -(y + h / 2));
+  fill(C.volt, x, y, w, h, h / 2);
+  txt(label, x + w / 2, y + h / 2 + 5, 16, C.pitch, { w: 700, fam: 'SG', track: 0, align: 'center' });
+  ctx.restore();
+}
+function act1Type(u) {
+  if (u < 7.0) {
+    statement(['RESOLUTIONS', 'ARE', 'FREE.'], 960, 400, 120, C.chalk, 0.80, 0.10, 0.42, 6.80, 0.30);
+    statement(['SO', 'IS', 'BREAKING', 'THEM.'], 960, 525, 120, C.chalk, 3.50, 0.10, 0.42, 6.80, 0.30);
+  }
+  if (u >= 7.2 && u < 11.0) {
+    const S = 110, sp = S * 0.26;
+    const wA = measure('So put', S), wB = measure('$5', S), wC = measure('on it.', S);
+    const x0 = 960 - (wA + sp + wB + sp + wC) / 2;
+    if (u < 9.80) {
+      rise('So put', x0, 520, S, C.chalk, 7.40, 0.40);
+      rise('$5', x0 + wA + sp, 520, S, C.volt, 7.70, 0.40);
+      rise('on it.', x0 + wA + sp + wB + sp, 520, S, C.chalk, 7.90, 0.40);
+    } else {
+      lift('So put', x0, 520, S, C.chalk, 9.80, 0.28);
+      lift('$5', x0 + wA + sp, 520, S, C.volt, 9.80, 0.28);
+      lift('on it.', x0 + wA + sp + wB + sp, 520, S, C.chalk, 9.80, 0.28);
+    }
+  }
+  if (u >= 13.5 && u < 16.2) {
+    statement(['This', 'is', 'a', 'duel.'], 1720, 500, 96, C.chalk, 13.50, 0.09, 0.36, 16.00, 0.26, { align: 'right' });
+  }
+}
+function act1Gag(u) {
+  if (u < 3.8) return;
+  const tapeX = (f) => TAPE_X0 + f * TAPE_W;
+  const limIn = appEase(inv(4.00, 4.30, u));
+  if (limIn > 0) { const lx = tapeX(LIMIT_AT), hh = lerp(10, 34, limIn); ctx.strokeStyle = C.coral; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(lx, TAPE_Y - hh / 2); ctx.lineTo(lx, TAPE_Y + hh / 2); ctx.stroke(); }
+  const youF = trk(u, [[4.20, 0.06, 14, 0.8], [4.80, 0.30, 2.6, 0.96]]);
+  const oppF = trk(u, [[4.30, 0.10, 14, 0.8], [4.80, 0.52, 2.8, 0.96], [5.80, LIMIT_AT + 0.07, 2.2, 0.92]]);
+  const md = trk(u, [[4.20, 0, 18, 0.6], [4.24, 26, 16, 0.7], [10.40, 0, 10, 0.92]]);
+  if (md > 0.6) { dot(tapeX(youF), TAPE_Y, md, C.volt); dot(tapeX(oppF), TAPE_Y, md, C.sky); }
+  if (u >= 6.20) {
+    const lx = tapeX(LIMIT_AT), ex = tapeX(oppF);
+    fill(C.coral, lx, TAPE_Y - 6, Math.max(2, ex - lx), 12, 6);
+  }
+  if (u < 10.40) rise('OVER', tapeX(LIMIT_AT) + 12, TAPE_Y - 26, 26, C.coral, 6.50, 0.26, { w: 700, fam: 'SG', track: 0.02 });
+  else lift('OVER', tapeX(LIMIT_AT) + 12, TAPE_Y - 26, 26, C.coral, 10.40, 0.22, { w: 700, fam: 'SG', track: 0.02 });
+  const lab = appEase(inv(4.40, 4.80, u)) - appEase(inv(10.30, 10.60, u));
+  if (lab > 0) {
+    ctx.save(); ctx.beginPath(); ctx.rect(TAPE_X0 - 30, TAPE_Y + 12, TAPE_W + 60, 30); ctx.clip();
+    ctx.translate(0, (1 - lab) * 34);
+    txt('0', TAPE_X0, TAPE_Y + 32, 16, C.mute, { w: 600, fam: 'SG', track: 0 });
+    txt('30 min limit', tapeX(LIMIT_AT), TAPE_Y + 32, 16, C.coral, { w: 600, fam: 'SG', track: 0, align: 'right' });
+    ctx.restore();
+  }
+}
+function turnDrop(u) {
+  if (u < 9.50 || u > 11.20) return;
+  const p = appEase(inv(9.50, 10.80, u));
+  txt('$5', lerp(925, 960, p), lerp(505, 545, p * p), lerp(110, 26, p), C.volt, { align: 'center' });
+}
+function sceneHome(u) {
+  const e = appEase(inv(10.60, 11.50, u));
+  if (e <= 0) return;
+  const clip = phoneFrame(u, e);
+  if (!clip) return;
+  ctx.save(); ctx.beginPath(); ctx.rect(CX0 - 4, 168, TAPE_W + 8, 800); ctx.clip(); ctx.translate(0, (1 - e) * 60);
+  txt('Nopeek', CX0, 222, 36, C.chalk, { fam: 'BSD' });
+  fill(C.mute, CX1 - 14, 200, 28, 20, 4);
+  fill(C.turf, CX0, 250, TAPE_W, 330, 14);
+  statusChip(CX0 + 16, 270, 'SAFE', C.volt, 'check', false);
+  txt('· 18:42 left', CX0 + 88, 285, 14, C.chalk, { w: 500, fam: 'SG', track: 0 });
+  txt('TikTok · 30m limit', CX0 + 16, 322, 18, C.chalk, { w: 700, fam: 'SG', track: 0 });
+  txt('vs alex.skr', CX0 + 16, 348, 14, C.mute, { w: 500, fam: 'SG', track: 0 });
+  pot(CX0 + 16, 366, 40, 52, 1);
+  txt('$10 pot', CX0 + 68, 400, 28, C.chalk, { fam: 'BSD' });
+  primaryBtn(CX0 + 16, 448, TAPE_W - 32, 52, 'View duel', 0);
+  txt('Recent', CX0, 630, 22, C.chalk, { w: 700, fam: 'SG', track: 0 });
+  const rows = [
+    ['vs alex.skr', 'TikTok · 30m a day', '$10', '11 min left', 0.42, 0.62, false],
+    ['Mon · vs marcus.skr', 'Won +$5', '+$5', 'Mon', 1, 0.3, false],
+    ['Sun · vs jay.skr', 'Lost −$5', '−$5', 'Sun', 0.7, 0.95, true],
+  ];
+  rows.forEach((r, i) => {
+    const y = 650 + i * 96;
+    fill(C.turf, CX0, y, TAPE_W, 84, 14);
+    txt(r[0], CX0 + 14, y + 26, 15, C.chalk, { w: 700, fam: 'SG', track: 0 });
+    txt(r[1], CX0 + 14, y + 46, 13, C.mute, { w: 500, fam: 'SG', track: 0 });
+    txt(r[2], CX1 - 14, y + 26, 15, C.chalk, { w: 700, fam: 'SG', track: 0, align: 'right' });
+    txt(r[3], CX1 - 14, y + 46, 13, C.mute, { w: 500, fam: 'SG', track: 0, align: 'right' });
+    const tx0 = CX0 + 14, tx1 = CX0 + 210;
+    ctx.strokeStyle = C.turf2; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(tx0, y + 68); ctx.lineTo(tx1, y + 68); ctx.stroke();
+    dot(tx0 + (tx1 - tx0) * r[4], y + 70, 9, C.volt);
+    dot(tx0 + (tx1 - tx0) * r[5], y + 70, 9, r[6] ? C.coral : C.sky);
+  });
+  ctx.restore();
+}
 function draw(s) {
   t = s;
   ctx.fillStyle = C.pitch; ctx.fillRect(0, 0, W, H);
@@ -162,9 +296,12 @@ function draw(s) {
   ctx.translate(W/2, H/2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.cx, -cam.cy);
   /* world: spine draws through every act; hairline already drawing at t=0 */
   drawSpine(t, spine(t));
-  /* act bodies land in Tasks 3-5; screen-space type below never scales */
+  if (t < 11.0) act1Gag(t);
+  if (t >= 9.0 && t < 16.5) sceneHome(t);
   ctx.restore();
-  /* screen-space type lives outside camera so it never scales (Tasks 3-5) */
+  /* screen-space type lives outside camera so it never scales */
+  if (t < 16.2) act1Type(t);
+  if (t >= 9.0 && t < 11.5) turnDrop(t);
 }
 window.seek = (s) => draw(s);
 const FACES = ['900 100px BSD', '800 100px BSD', '500 100px SG', '600 100px SG', '700 100px SG'];
