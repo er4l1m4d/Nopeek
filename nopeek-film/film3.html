@@ -401,7 +401,10 @@ function sceneDuel3(u) {
   ctx.restore();
 }
 function proofType(u) {
-  if (u >= 38.2 && u < 40.2) statement(['The', 'money', 'settles', 'itself.'], 960, 930, 84, C.chalk, 38.20, 0.09, 0.34, 40.00, 0.26);
+  if (u >= 38.2 && u < 40.2) {
+    statement(['The', 'money'], 960, 872, 76, C.chalk, 38.20, 0.09, 0.34, 40.00, 0.26);
+    statement(['settles', 'itself.'], 960, 954, 76, C.chalk, 38.38, 0.09, 0.34, 40.00, 0.26);
+  }
 }
 function draw(s) {
   t = s;
