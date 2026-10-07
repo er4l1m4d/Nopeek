@@ -46,12 +46,90 @@ export interface RevokedEntry {
   serial: string;
 }
 
+/**
+ * The trust anchor, held in code rather than passed in by a caller.
+ *
+ * verifyChainToRoot(chain, rootPem) is fine as a primitive and dangerous as the only
+ * option: one wiring slip in the oracle - trusting a root from the request body, or
+ * from the device's own enrolled chain - collapses the whole design into the
+ * self-consistency check the plan rejected as ledger Row 9. This constant is the
+ * anchor, fetched out of band from https://android.googleapis.com/attestation/root
+ * and cross-checked against fixtures/google-attestation-root.pem by test.
+ */
+export const PINNED_ATTESTATION_ROOT_PEM = `-----BEGIN CERTIFICATE-----
+MIIFHDCCAwSgAwIBAgIJAPHBcqaZ6vUdMA0GCSqGSIb3DQEBCwUAMBsxGTAXBgNV
+BAUTEGY5MjAwOWU4NTNiNmIwNDUwHhcNMjIwMzIwMTgwNzQ4WhcNNDIwMzE1MTgw
+NzQ4WjAbMRkwFwYDVQQFExBmOTIwMDllODUzYjZiMDQ1MIICIjANBgkqhkiG9w0B
+AQEFAAOCAg8AMIICCgKCAgEAr7bHgiuxpwHsK7Qui8xUFmOr75gvMsd/dTEDDJdS
+Sxtf6An7xyqpRR90PL2abxM1dEqlXnf2tqw1Ne4Xwl5jlRfdnJLmN0pTy/4lj4/7
+tv0Sk3iiKkypnEUtR6WfMgH0QZfKHM1+di+y9TFRtv6y//0rb+T+W8a9nsNL/ggj
+nar86461qO0rOs2cXjp3kOG1FEJ5MVmFmBGtnrKpa73XpXyTqRxB/M0n1n/W9nGq
+C4FSYa04T6N5RIZGBN2z2MT5IKGbFlbC8UrW0DxW7AYImQQcHtGl/m00QLVWutHQ
+oVJYnFPlXTcHYvASLu+RhhsbDmxMgJJ0mcDpvsC4PjvB+TxywElgS70vE0XmLD+O
+JtvsBslHZvPBKCOdT0MS+tgSOIfga+z1Z1g7+DVagf7quvmag8jfPioyKvxnK/Eg
+sTUVi2ghzq8wm27ud/mIM7AY2qEORR8Go3TVB4HzWQgpZrt3i5MIlCaY504LzSRi
+igHCzAPlHws+W0rB5N+er5/2pJKnfBSDiCiFAVtCLOZ7gLiMm0jhO2B6tUXHI/+M
+RPjy02i59lINMRRev56GKtcd9qO/0kUJWdZTdA2XoS82ixPvZtXQpUpuL12ab+9E
+aDK8Z4RHJYYfCT3Q5vNAXaiWQ+8PTWm2QgBR/bkwSWc+NpUFgNPN9PvQi8WEg5Um
+AGMCAwEAAaNjMGEwHQYDVR0OBBYEFDZh4QB8iAUJUYtEbEf/GkzJ6k8SMB8GA1Ud
+IwQYMBaAFDZh4QB8iAUJUYtEbEf/GkzJ6k8SMA8GA1UdEwEB/wQFMAMBAf8wDgYD
+VR0PAQH/BAQDAgIEMA0GCSqGSIb3DQEBCwUAA4ICAQB8cMqTllHc8U+qCrOlg3H7
+174lmaCsbo/bJ0C17JEgMLb4kvrqsXZs01U3mB/qABg/1t5Pd5AORHARs1hhqGIC
+W/nKMav574f9rZN4PC2ZlufGXb7sIdJpGiO9ctRhiLuYuly10JccUZGEHpHSYM2G
+tkgYbZba6lsCPYAAP83cyDV+1aOkTf1RCp/lM0PKvmxYN10RYsK631jrleGdcdkx
+oSK//mSQbgcWnmAEZrzHoF1/0gso1HZgIn0YLzVhLSA/iXCX4QT2h3J5z3znluKG
+1nv8NQdxei2DIIhASWfu804CA96cQKTTlaae2fweqXjdN1/v2nqOhngNyz1361mF
+mr4XmaKH/ItTwOe72NI9ZcwS1lVaCvsIkTDCEXdm9rCNPAY10iTunIHFXRh+7KPz
+lHGewCq/8TOohBRn0/NNfh7uRslOSZ/xKbN9tMBtw37Z8d2vvnXq/YWdsm1+JLVw
+n6yYD/yacNJBlwpddla8eaVMjsF6nBnIgQOf9zKSe06nSTqvgwUHosgOECZJZ1Eu
+zbH4yswbt02tKtKEFhx+v+OTge/06V+jGsqTWLsfrOCNLuA8H++z+pUENmpqnnHo
+vaI47gC+TNpkgYGkkBT6B/m/U01BuOBBTzhIlMEZq9qkDWuM2cA5kW5V3FJUcfHn
+w1IdYIg2Wxg7yHcQZemFQg==
+-----END CERTIFICATE-----
+`;
+
+/**
+ * base64 without a runtime global.
+ *
+ * `Buffer` works on Deno 2 but x509.ts is the only non-test file in this directory
+ * that would have needed it, and the whole reason for a hand-written parser is one
+ * code path across Node (tests) and Deno (deployed). atob/btoa are defined in both.
+ */
+function b64Decode(value: string): Uint8Array {
+  const binary = atob(value.replace(/[^A-Za-z0-9+/=]/g, ""));
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+function b64Encode(bytes: Uint8Array): string {
+  let binary = "";
+  // Chunked so a large chain cannot blow the argument limit.
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+/**
+ * WebCrypto takes ownership of the exact bytes handed to it, and this module passes
+ * views whose byteOffset is non-zero. evidence.ts already copies for the same reason;
+ * the deployed runtime is the one that would otherwise differ from the tested one.
+ */
+function tight(bytes: Uint8Array): Uint8Array {
+  const copy = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  return copy;
+}
+
 export interface ChainLink {
   subjectDn: string;
   issuerDn: string;
   serialHex: string;
   signatureAlgorithmOid: string;
   issuerFound: boolean;
+  /** True only when the issuer is the certificate immediately following this one. */
+  linkIsNextCertificate: boolean;
   signatureValid: boolean;
 }
 
@@ -188,16 +266,26 @@ function nameToText(buf: Uint8Array, name: Tlv): string {
 
 export function pemToDerBlocks(pem: string): Uint8Array[] {
   return [...pem.matchAll(/-----BEGIN CERTIFICATE-----\s*([\s\S]*?)\s*-----END CERTIFICATE-----/g)]
-    .map((m) => Uint8Array.from(Buffer.from(m[1].replace(/\s+/g, ""), "base64")));
+    .map((m) => b64Decode(m[1]));
 }
 
 function parseCertificate(der: Uint8Array): Certificate {
   const cert = readTlv(der, 0);
+  // Guard the structural preconditions so garbage input raises a domain error the
+  // handler can map to a rejection, rather than a TypeError about reading 'der' of
+  // undefined which index.ts would surface as a retryable HTTP 500.
+  if (cert.cls !== 0 || !cert.constructed || cert.tagNumber !== 16) {
+    throw new Error("x509: certificate is not an outer SEQUENCE");
+  }
   const top = childrenOf(der, cert);
+  if (top.length < 3) throw new Error("x509: certificate has fewer than 3 top-level fields");
   const tbsTlv = top[0];
   const sigValueTlv = top[2];
 
   const tbsChildren = childrenOf(der, tbsTlv);
+  if (tbsChildren.length < (tbsChildren[0].cls === 2 ? 7 : 6)) {
+    throw new Error("x509: TBSCertificate is truncated");
+  }
   // TBSCertificate is [version]? serialNumber signature issuer validity subject
   // subjectPublicKeyInfo ..., so an explicit [0] version shifts everything by one.
   const i = tbsChildren[0].cls === 2 && tbsChildren[0].tagNumber === 0 ? 1 : 0;
@@ -222,7 +310,9 @@ function parseCertificate(der: Uint8Array): Certificate {
 }
 
 function parseChain(chainPem: string): Certificate[] {
-  return pemToDerBlocks(chainPem).map(parseCertificate);
+  const blocks = pemToDerBlocks(chainPem);
+  if (blocks.length === 0) throw new Error("x509: no certificates in the presented chain");
+  return blocks.map(parseCertificate);
 }
 
 function findExtension(leaf: Certificate, oid: string): Tlv | null {
@@ -293,22 +383,25 @@ async function verifyWithSpki(
     if (algorithmOid in ECDSA_HASH) {
       const curve = ecCurveOf(spkiDer);
       if (!curve) return false; // unknown curve: refuse rather than guess
-      const key = await crypto.subtle.importKey("spki", spkiDer as BufferSource,
+      const key = await crypto.subtle.importKey("spki", tight(spkiDer) as BufferSource,
         { name: "ECDSA", namedCurve: curve.name }, false, ["verify"]);
       return await crypto.subtle.verify(
         { name: "ECDSA", hash: ECDSA_HASH[algorithmOid] }, key,
         derEcdsaSigToRaw(signature, curve.coordinateBytes) as BufferSource,
-        message as BufferSource,
+        tight(message) as BufferSource,
       );
     }
     if (algorithmOid === OID_RSA_SHA256) {
-      const key = await crypto.subtle.importKey("spki", spkiDer as BufferSource,
+      const key = await crypto.subtle.importKey("spki", tight(spkiDer) as BufferSource,
         { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
       return await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key,
-        signature as BufferSource, message as BufferSource);
+        tight(signature) as BufferSource, tight(message) as BufferSource);
     }
-    // Ed448/Ed25519 and anything else: refuse rather than treat as verified. Callers
-    // fail closed on false, so an unsupported algorithm can never mint a PASS.
+    // Anything unrecognised - including the Ed25519/Ed448 roots Google also publishes -
+    // returns false rather than being treated as verified. Callers fail closed on
+    // false, so an unsupported algorithm can never mint a PASS. Note this branch is
+    // currently exercised only by the unknown-curve case: no EdDSA root fixture exists
+    // in this repo, so do not claim coverage of it.
     return false;
   } catch {
     return false;
@@ -325,15 +418,15 @@ export async function verifyEcdsaSignature(
   bytes: Uint8Array,
   signatureB64: string,
 ): Promise<boolean> {
-  const spki = Uint8Array.from(Buffer.from(spkiB64, "base64"));
-  const signature = Uint8Array.from(Buffer.from(signatureB64, "base64"));
+  const spki = b64Decode(spkiB64);
+  const signature = b64Decode(signatureB64);
   try {
-    const key = await crypto.subtle.importKey("spki", spki as BufferSource,
+    const key = await crypto.subtle.importKey("spki", tight(spki) as BufferSource,
       { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
     // Public API takes raw P-1363 signatures, exactly what the device produces with
     // "SHA256withECDSA"; no DER unwrapping on this path.
     return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key,
-      signature as BufferSource, bytes as BufferSource);
+      tight(signature) as BufferSource, tight(bytes) as BufferSource);
   } catch {
     return false;
   }
@@ -363,9 +456,18 @@ export async function verifyChainSignatures(chainPem: string): Promise<boolean> 
 }
 
 /**
- * Chain signatures must verify AND the terminal certificate must be byte-identical to
- * the pinned root. Identity is the only thing trusted without a signature check; the
- * root's self-signature proves nothing about who issued it.
+ * The pinned-root form of chain verification. This is the function the oracle must
+ * call: verifyChainToRoot's rootPem argument is a primitive that is easy to wire to
+ * the wrong bytes, and wiring it wrong is silent and total.
+ */
+export async function verifyChainToPinnedRoot(chainPem: string): Promise<boolean> {
+  return verifyChainToRoot(chainPem, PINNED_ATTESTATION_ROOT_PEM);
+}
+
+/**
+ * Chain signatures verify AND the terminal certificate is byte-identical to
+ * `rootPem`. Identity is the only thing trusted without a signature check; a root's
+ * self-signature proves nothing about who issued it.
  */
 export async function verifyChainToRoot(chainPem: string, rootPem: string): Promise<boolean> {
   if (!(await verifyChainSignatures(chainPem))) return false;
@@ -383,10 +485,14 @@ export async function verifyChainToRoot(chainPem: string, rootPem: string): Prom
 export async function describeChain(chainPem: string): Promise<ChainLink[]> {
   const certs = parseChain(chainPem);
   const out: ChainLink[] = [];
-  for (const cert of certs) {
-    // Issuer is located by subject DN rather than by position, so a reordered or
-    // substituted chain reports a broken link instead of being optimistically assumed.
+  for (const [index, cert] of certs.entries()) {
     const issuer = certs.find((candidate) => candidate.subjectDn === cert.issuerDn) ?? null;
+    // DN lookup alone cannot express ordering: on a reordered chain every issuer is
+    // still present somewhere, so all links read valid while verifyChainSignatures
+    // says false. The Evidence screen would then contradict the settlement decision,
+    // so ordering is reported explicitly.
+    const next = certs[index + 1] ?? null;
+    const linkIsNextCertificate = next !== null && issuer !== null && next.subjectDn === issuer.subjectDn;
     const signatureValid = issuer
       ? await verifyWithSpki(issuer.spkiDer, cert.signatureAlgorithmOid, cert.tbs, cert.signatureDer)
       : false;
@@ -396,6 +502,7 @@ export async function describeChain(chainPem: string): Promise<ChainLink[]> {
       serialHex: cert.serialHex,
       signatureAlgorithmOid: cert.signatureAlgorithmOid,
       issuerFound: issuer !== null,
+      linkIsNextCertificate,
       signatureValid,
     });
   }
@@ -407,20 +514,34 @@ export function serialNumbers(chainPem: string): string[] {
 }
 
 /**
- * Google's published revocation entries are hex serials, sometimes zero-padded and
- * sometimes carrying a leading "0x"; compare on normalised hex so formatting noise
- * cannot let a revoked batch attestation key through.
+ * Google's revocation entries are { issuer, serial } pairs. Serial uniqueness is only
+ * guaranteed *per issuer*, and this project's own device leaf carries serial "01" - so
+ * matching on serial alone means one unrelated entry in the published feed would mark a
+ * genuine locked, verified-boot device revoked, which under the fail-closed rule takes
+ * an honest user's stake. Both fields must agree.
  */
 export function isSerialRevoked(chainPem: string, revoked: RevokedEntry[]): boolean {
   if (revoked.length === 0) return false;
-  const normalise = (value: string) => {
-    let hex = value.trim().toLowerCase().replace(/^0x/, "");
-    if (hex.length % 2 === 1) hex = `0${hex}`;
+  const normaliseSerial = (value: string) => {
+    const trimmed = value.trim().toLowerCase().replace(/^0x/, "");
+    if (!/^[0-9a-f]+$/.test(trimmed)) {
+      // Google's feed is external input. A format change must be loud: silently
+      // treating an unparseable serial as "not revoked" is how a leaked attestation
+      // key keeps verifying forever.
+      throw new Error(`x509: revoked serial is not hex: "${value}"`);
+    }
+    let hex = trimmed.length % 2 === 1 ? `0${trimmed}` : trimmed;
     while (hex.length > 2 && hex.startsWith("00")) hex = hex.slice(2);
     return hex;
   };
-  const blocked = new Set(revoked.map((entry) => normalise(entry.serial)));
-  return serialNumbers(chainPem).some((serial) => blocked.has(normalise(serial)));
+  const normaliseIssuer = (value: string) => value.trim().toLowerCase().replace(/\s+/g, "");
+  const certs = parseChain(chainPem);
+  // Index 0 is the leaf: its serial is assigned per batch key, not published in a
+  // CA-level revocation feed, so only the issuing certificates are checked.
+  return certs.slice(1).some((cert) => revoked.some((entry) =>
+    normaliseIssuer(entry.issuer) === normaliseIssuer(cert.issuerDn)
+    && normaliseSerial(entry.serial) === normaliseSerial(cert.serialHex)
+  ));
 }
 
 // ---------------------------------------------------------------------------
@@ -493,10 +614,16 @@ export async function readAttestationExtension(chainPem: string): Promise<Attest
 
   const attestationLevel = securityLevelOf(attestationLevelTlv);
   const keymasterLevel = securityLevelOf(keymasterLevelTlv);
-  if (attestationLevel !== keymasterLevel) {
-    // An attestation that calls itself software while the key claims trusted
-    // environment is not something to move money on. Fail closed.
-    throw new Error(`x509: security level disagreement (${attestationLevel} vs ${keymasterLevel})`);
+  // Reject a software attestation outright. Deliberately *not* a strict-equality
+  // check: a key held in StrongBox and attested by the TEE is expected to report
+  // different levels for the two fields, and requiring equality would forfeit a
+  // stronger device's honest duel. Whether the pair can legitimately differ is an
+  // enum-semantics question that must be cited against AOSP before Task 14 relies on
+  // it for a StrongBox device; this device is TEE-only, so nothing here is exercised.
+  if (attestationLevel.startsWith("Software") || keymasterLevel.startsWith("Software")) {
+    throw new Error(
+      `x509: software-level attestation (${attestationLevel}/${keymasterLevel}) is not settleable`,
+    );
   }
 
   const software = fields[6];
@@ -508,7 +635,18 @@ export async function readAttestationExtension(chainPem: string): Promise<Attest
   if (!rotOuter) throw new Error("x509: RootOfTrust absent from hardwareEnforced");
   const rot = readTlv(buf, rotOuter.contentStart);
   const [, lockedTlv, bootStateTlv] = childrenOf(buf, rot);
-  const bootStateIndex = bytesOf(buf, bootStateTlv).at(-1) as number;
+  // Strict single-byte reads. "Take the last byte" on an unvalidated field defaults to
+  // the permissive value for a zero-length BOOLEAN, and these two fields are the
+  // hardware-enforced half of spec 4.3 checks 6-7 - the ones that decide whether a
+  // report can be trusted at all. A malformed field must raise, never guess true.
+  const lockedBytes = bytesOf(buf, lockedTlv);
+  if (lockedBytes.length !== 1 || (lockedBytes[0] !== 0xff && lockedBytes[0] !== 0x00)) {
+    throw new Error("x509: deviceLocked is not a single-byte DER BOOLEAN");
+  }
+  const bootBytes = bytesOf(buf, bootStateTlv);
+  if (bootBytes.length !== 1 || bootBytes[0] >= VERIFIED_BOOT_STATE.length) {
+    throw new Error("x509: verifiedBootState is not a known single-byte ENUMERATED");
+  }
 
   const appIdOuter = findTag(buf, software, 709);
   if (!appIdOuter) throw new Error("x509: attestationApplicationId absent from softwareEnforced");
@@ -524,13 +662,13 @@ export async function readAttestationExtension(chainPem: string): Promise<Attest
   }
 
   return {
-    attestationChallengeB64: Buffer.from(bytesOf(buf, challengeTlv)).toString("base64"),
+    attestationChallengeB64: b64Encode(bytesOf(buf, challengeTlv)),
     securityLevel: attestationLevel,
-    deviceLocked: bytesOf(buf, lockedTlv).at(-1) !== 0,
-    verifiedBootState: VERIFIED_BOOT_STATE[bootStateIndex] ?? `Unknown(${bootStateIndex})`,
+    deviceLocked: lockedBytes[0] === 0xff,
+    verifiedBootState: VERIFIED_BOOT_STATE[bootBytes[0]],
     applicationPackageName: new TextDecoder().decode(packageName),
-    signingCertDigestB64: Buffer.from(digest).toString("base64"),
-    leafSpkiB64: Buffer.from(leaf.spkiDer).toString("base64"),
+    signingCertDigestB64: b64Encode(digest),
+    leafSpkiB64: b64Encode(leaf.spkiDer),
     rootIssuerDn: certs[certs.length - 1].issuerDn,
   };
 }

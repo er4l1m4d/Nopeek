@@ -2,22 +2,28 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  describeChain,
   isSerialRevoked,
+  PINNED_ATTESTATION_ROOT_PEM,
   readAttestationExtension,
   serialNumbers,
   verifyChainSignatures,
+  verifyChainToPinnedRoot,
   verifyChainToRoot,
   verifyEcdsaSignature,
+  type ChainLink,
+  type RevokedEntry,
 } from "./x509.ts";
 
 const dir = new URL("./fixtures/", import.meta.url);
 const deviceChainPem = readFileSync(new URL("device-chain.pem", dir), "utf8");
 const pinnedRootPem = readFileSync(new URL("google-attestation-root.pem", dir), "utf8");
-// A second, genuinely valid Google attestation root. This device's chain does NOT
-// terminate here, so accepting it would prove the check is "is this any old Google
-// root" rather than "does this chain end at the root we pinned".
+// A second, genuinely valid Google attestation root (self-signed, ECDSA secp384r1 -
+// identified by name only so no reader assumes Ed448 from the filename). This device's
+// chain does NOT terminate here, so accepting it would prove the check was "is this any
+// old Google root" rather than "does this chain end at the root we pinned".
 const otherGoogleRootPem = readFileSync(
-  new URL("google-attestation-root-ca1-edwards.pem", dir),
+  new URL("google-attestation-root-ca1-p384.pem", dir),
   "utf8",
 );
 const enrolledSpkiB64 = readFileSync(new URL("device-spki.b64", dir), "utf8").trim();
@@ -102,21 +108,132 @@ test("every certificate in the chain exposes a serial for revocation checking", 
   serials.forEach((s) => assert.match(s, /^[0-9a-f]+$/));
 });
 
-test("isSerialRevoked flags a batch attestation key Google has published as leaked", () => {
-  const serials = serialNumbers(deviceChainPem);
-  const middle = serials[1];
+test("isSerialRevoked flags a batch attestation key Google published as leaked", async () => {
+  const links = await describeChain(deviceChainPem);
   assert.equal(isSerialRevoked(deviceChainPem, []), false);
-  // Google's revocation entries are { issuer, serial } pairs; issuer is matched
-  // case- and padding-insensitively, so test both the bare and 0-padded form.
-  const padded = middle.startsWith("0") ? middle : `0${middle}`;
-  for (const candidate of [middle, padded]) {
+
+  const revoked: RevokedEntry[] = [
+    { issuer: links[1].issuerDn, serial: links[1].serialHex },
+  ];
+  assert.equal(isSerialRevoked(deviceChainPem, revoked), true);
+
+  // Google's published serials are not always formatted the way our parser renders
+  // them, so padding, case, a 0x prefix and stray spaces must all still match.
+  const serial = links[1].serialHex;
+  for (const variant of [serial.toUpperCase(), `0${serial}`, `0x${serial}`, `  ${serial} `]) {
     assert.equal(
-      isSerialRevoked(deviceChainPem, [{ issuer: "any", serial: candidate }]),
+      isSerialRevoked(deviceChainPem, [{ issuer: links[1].issuerDn, serial: variant }]),
       true,
-      `serial ${candidate} should have been flagged`,
+      `formatting variant "${variant}" should still be recognised`,
     );
   }
 });
+
+test("isSerialRevoked requires the issuer to match, not the serial alone", async () => {
+  const links = await describeChain(deviceChainPem);
+  const leafSerial = links[0].serialHex;
+  // This device's leaf serial happens to be "01", one of the most common serial
+  // numbers in existence. Matching on serial alone means any unrelated CA entry in
+  // Google's feed would mark a genuine, locked, verified-boot device as revoked -
+  // and a revoked device is UNVERIFIED, which under the fail-closed rule forfeits
+  // an honest user's stake.
+  assert.equal(
+    isSerialRevoked(deviceChainPem, [{ issuer: "CN=Unrelated CA", serial: leafSerial }]),
+    false,
+    "a different issuer must not make this chain revoked",
+  );
+  // The near-miss that matters: a real serial paired with a different certificate's issuer.
+  assert.equal(
+    isSerialRevoked(deviceChainPem, [{ issuer: links[2].issuerDn, serial: links[1].serialHex }]),
+    false,
+    "serial of one certificate with another's issuer must not match",
+  );
+  // Whitespace and case in the published issuer string must not break matching.
+  assert.equal(
+    isSerialRevoked(deviceChainPem, [
+      { issuer: `  ${links[1].issuerDn.toUpperCase()} `, serial: links[1].serialHex },
+    ]),
+    true,
+  );
+});
+
+test("isSerialRevoked rejects an unparseable serial rather than silently ignoring it", async () => {
+  const links = await describeChain(deviceChainPem);
+  const issuer = links[1].issuerDn;
+  // Google's feed is external input. If its format ever changes, an entry this parser
+  // cannot understand must fail loudly: treating it as "does not match" is how a leaked
+  // attestation key keeps verifying forever. Note a purely decimal string is still
+  // legal hex, so it is not a valid rejection case; only non-hex characters are.
+  assert.throws(
+    () => isSerialRevoked(deviceChainPem, [{ issuer, serial: "ff:aa" }]),
+    /hex/,
+  );
+  assert.throws(
+    () => isSerialRevoked(deviceChainPem, [{ issuer, serial: "1234567890g" }]),
+    /hex/,
+  );
+});
+
+test("a chain with no attestation extension is refused rather than read as compliant", async () => {
+  // The strictness rule that matters here is direction: a chain that cannot supply
+  // RootOfTrust must raise, never fall back to deviceLocked=true. The pinned root is
+  // a self-signed CA certificate with no such extension, so it is a case I can build
+  // without forging anything.
+  await assert.rejects(
+    () => readAttestationExtension(singleCertPem(pinnedRootPem)),
+    /x509:/,
+  );
+  // And a chain with no certificates at all must raise a domain error, not a TypeError
+  // about reading 'der' of undefined, which the handler would surface as a 500.
+  await assert.rejects(() => readAttestationExtension("not a pem"), /x509:/);
+});
+
+test("describeChain reports a reordered chain as broken", async () => {
+  // Its doc comment promises that issuer lookup by DN, rather than by position,
+  // surfaces a reordered chain. If the Evidence screen shows all-green for bytes the
+  // settlement path rejected, the public re-verification story contradicts itself.
+  const reordered = reorderChain(deviceChainPem, [0, 2, 1, 3]);
+  assert.equal(await verifyChainSignatures(reordered), false);
+  const links: ChainLink[] = await describeChain(reordered);
+  assert.ok(
+    links.some((link) => !link.linkIsNextCertificate || !link.signatureValid),
+    "describeChain must not report every link valid for a chain verifyChainSignatures rejects",
+  );
+});
+
+test("the pinned root is bound in code, not passed in by a caller", async () => {
+  // verifyChainToRoot(chain, rootPem) trusts whatever root the caller supplies. One
+  // wiring slip in the oracle - root from the request body, or from the device's own
+  // enrolled chain - collapses the whole design into the self-consistency check the
+  // plan rejected as ledger Row 9. The pinned bytes must live in the module.
+  assert.ok(PINNED_ATTESTATION_ROOT_PEM.includes("BEGIN CERTIFICATE"));
+  // The fixture the tests read and the constant the code trusts must be one document.
+  assert.equal(
+    PINNED_ATTESTATION_ROOT_PEM.replace(/\s+/g, ""),
+    pinnedRootPem.replace(/\s+/g, ""),
+    "pinned constant drifted from fixtures/google-attestation-root.pem",
+  );
+  assert.equal(await verifyChainToPinnedRoot(deviceChainPem), true);
+  assert.equal(await verifyChainToPinnedRoot(otherGoogleRootChainSubstitute()), false);
+});
+
+/** Builds a chain that ends at the *other* valid Google root, to prove pinning bites. */
+function otherGoogleRootChainSubstitute(): string {
+  return deviceChainPem + "\n" + otherGoogleRootPem;
+}
+
+function reorderChain(pem: string, order: number[]): string {
+  const blocks = [...pem.matchAll(/-----BEGIN CERTIFICATE-----\s*([\s\S]*?)\s*-----END CERTIFICATE-----/g)]
+    .map((m) => m[1]);
+  return order.map((i) => `-----BEGIN CERTIFICATE-----\n${blocks[i]}\n-----END CERTIFICATE-----`).join("\n") + "\n";
+}
+
+/** First certificate only - used to present a chain that carries no attestation. */
+function singleCertPem(pem: string): string {
+  const match = /-----BEGIN CERTIFICATE-----\s*([\s\S]*?)\s*-----END CERTIFICATE-----/.exec(pem);
+  assert.ok(match, "fixture had no certificate");
+  return `-----BEGIN CERTIFICATE-----\n${match![1]}\n-----END CERTIFICATE-----\n`;
+}
 
 /**
  * Flips one byte inside the leaf's P-256 public key. Observed DER (probe-cert.mjs):
