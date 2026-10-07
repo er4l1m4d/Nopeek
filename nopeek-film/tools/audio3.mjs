@@ -1,6 +1,6 @@
 // audio3.mjs — the v3 soundtrack: soft, sparse, cut to the 45s picture clock.
 // 100 BPM half-time (beat 0.6s, bar 2.4s), 45.000s, 44.1kHz stereo.
-// ~22 cues; breach is the loudest single moment and still soft; no clap.
+// 25 cues; breach is the loudest single moment and still soft; no clap.
 // Seeded noise: the mix is deterministic like the frames.
 //   node tools/audio3.mjs            -> out/mix.wav  (FILM=film3.html chain copies it)
 import { writeFileSync } from 'node:fs';

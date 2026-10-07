@@ -57,7 +57,7 @@ const DUR = 45.0;
 const BPM = 100;
 const ACTS = [[0, 11], [11, 16], [16, 34], [34, 40], [40, 45]];
 const CAM = [
-  { t: 0.00, z: 2.60, cx: 960, cy: 540 },
+  { t: 0.00, z: 2.60, cx: 960, cy: 700 },
   { t: 7.00, z: 1.90, cx: 960, cy: 560 },
   { t: 11.00, z: 1.35, cx: 960, cy: 540 },
   { t: 20.50, z: 1.60, cx: 1170, cy: 500 },
@@ -131,18 +131,24 @@ function statement(words, x, y, size, color, t0, gap, durIn, tExit, durOut, o) {
 const TAPE_Y = 760, TAPE_X0 = 770, TAPE_X1 = 1150;
 const TAPE_W = TAPE_X1 - TAPE_X0;
 const LIMIT_AT = 0.82;
-const STEPPER_ON = (u) => u >= 14.5 && u < 34.0;
+const STEPPER_ON = (u) => u >= 15.8 && u < 34.0;
 function spine(u) {
   const y = trk(u, [[0, TAPE_Y], [11.5, 540, 6, 0.98], [14.0, 244, 5.2, 0.98], [16.0, 185, 6, 0.98], [34.0, 540, 7.4, 0.99]]);
   const th = trk(u, [[0, 2], [5.5, 12, 8, 0.85], [14.0, 3, 7, 0.95], [16.0, 6, 7, 0.95], [34.0, 12, 9, 0.95]]);
-  const seg = trk(u, [[0, 1], [16.0, 6, 6.5, 0.99], [34.0, 1, 8, 0.99]]);
+  const seg = trk(u, [[0, 1], [16.0, 5, 6.5, 0.99], [34.0, 1, 8, 0.99]]);
   const gap = (seg - 1) * (TAPE_W / 46);
   const segW = (TAPE_W - gap * (seg - 1)) / Math.max(1, Math.round(seg));
-  const step = trk(u, [[11.5, 1, 9, 0.8], [18.5, 2, 9, 0.8], [22.0, 3, 9, 0.8], [25.5, 4, 9, 0.8], [29.0, 5, 9, 0.8], [32.5, 6, 9, 0.8]]);
+  const step = trk(u, [[11.5, 1, 9, 0.8], [18.5, 2, 9, 0.8], [22.0, 3, 9, 0.8], [25.5, 4, 9, 0.8], [29.0, 5, 9, 0.8]]);
   return { y, th, seg, segW, gap, step };
 }
 function drawSpine(u, sp) {
   const half = sp.th / 2;
+  if (u < 3.8 && sp.seg < 1.5) {
+    /* the opening hairline draws in chalk from frame 0 — never a black thumbnail */
+    const grow = inv(-0.5, 0.5, u);
+    if (grow > 0) fill(C.chalk, TAPE_X0, sp.y - 2, TAPE_W * grow, 4, 2);
+    return;
+  }
   for (let i = 0; i < Math.round(sp.seg); i++) {
     const x = TAPE_X0 + i * (sp.segW + sp.gap);
     const done = STEPPER_ON(u) && (i + 1) <= sp.step;
@@ -295,8 +301,8 @@ const STEPS3 = [
   [30.4, 34.0, 'Lock it.', 'Review and approve.', 4],
 ];
 function cursor3(u) {
-  const X = trk(u, [[15.5, 1300, 6, 0.95], [16.8, 838, 6.5, 0.95], [19.8, 830, 6.5, 0.95], [23.4, 960, 6, 0.95], [27.0, 900, 6.5, 0.95], [30.6, 960, 6, 0.95], [33.8, 1300, 6, 0.95]]);
-  const Y = trk(u, [[15.5, 500, 6, 0.95], [16.8, 400, 6.5, 0.95], [19.8, 480, 6.5, 0.95], [23.4, 480, 6, 0.95], [27.0, 420, 6.5, 0.95], [30.6, 740, 6, 0.95], [33.8, 500, 6, 0.95]]);
+  const X = trk(u, [[15.5, 1300, 6, 0.95], [16.8, 838, 6.5, 0.95], [19.8, 830, 6.5, 0.95], [23.4, 960, 6, 0.95], [27.0, 900, 6.5, 0.95], [30.6, 960, 6, 0.95], [32.0, 960, 6, 0.95], [33.2, 960, 6, 0.95], [33.8, 1300, 6, 0.95]]);
+  const Y = trk(u, [[15.5, 500, 6, 0.95], [16.8, 360, 6.5, 0.95], [19.8, 540, 6.5, 0.95], [23.4, 500, 6, 0.95], [27.0, 388, 6.5, 0.95], [30.6, 728, 6, 0.95], [32.0, 728, 6, 0.95], [33.2, 728, 6, 0.95], [33.8, 500, 6, 0.95]]);
   return { x: X, y: Y };
 }
 function drawCursor(u) {
@@ -373,7 +379,7 @@ function sceneDuel3(u) {
   ctx.save(); ctx.beginPath(); ctx.rect(CX0 - 4, 150, TAPE_W + 8, 830); ctx.clip();
   pot(CX0, 190, 44, 56, 1);
   txt('$10 pot', CX0 + 62, 222, 36, C.chalk, { fam: 'BSD' });
-  txt('Your $5 and alex.skr\u2019s $5, held until midnight UTC.', CX0 + 62, 246, 13, C.mute, { w: 500, fam: 'SG', track: 0 });
+  txt('Your $5 and alex.skr\u2019s $5, held until midnight UTC.', CX0 + 62, 246, 14, C.mute, { w: 500, fam: 'SG', track: 0 });
   fill(C.turf, CX0, 300, TAPE_W, 132, 14);
   txt('You', CX0 + 16, 328, 14, C.mute, { w: 500, fam: 'SG', track: 0 });
   txt(clock3(youMin), CX0 + 16, 384, 60, C.volt, { fam: 'BSD' });
@@ -396,14 +402,42 @@ function sceneDuel3(u) {
     txt('You beat alex.skr', CX0 + 20, 730, 16, C.pitch, { w: 700, fam: 'SG', track: 0 });
     const p = appEase(inv(38.2, 39.6, u));
     txt('$' + (10 * p).toFixed(2), CX0 + 20, 790, 60, C.pitch, { fam: 'BSD' });
-    txt('Transaction 5Hq2…tK9x', CX0 + 20, 812, 12, C.moss || '#455413', { w: 600, fam: 'SG', track: 0 });
+    txt('Transaction 5Hq2…tK9x', CX0 + 20, 812, 13, C.moss || '#455413', { w: 600, fam: 'SG', track: 0 });
   }
   ctx.restore();
 }
 function proofType(u) {
+  if (u >= 34.30 && u < 37.00) {
+    statement(['The', 'phone', 'counts.'], 960, 940, 76, C.chalk, 34.30, 0.09, 0.34, 36.80, 0.26);
+  }
   if (u >= 38.2 && u < 40.2) {
     statement(['The', 'money'], 960, 872, 76, C.chalk, 38.20, 0.09, 0.34, 40.00, 0.26);
     statement(['settles', 'itself.'], 960, 954, 76, C.chalk, 38.38, 0.09, 0.34, 40.00, 0.26);
+  }
+}
+/* ---- Fix pass: full-frame floods carry every handoff (no cuts) ---- */
+function floodDisc(x, y, r) {
+  if (r <= 0) return;
+  if (r >= 1400) { ctx.fillStyle = C.volt; ctx.fillRect(0, 0, W, H); return; }
+  ctx.fillStyle = C.volt; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+}
+function floods(u) {
+  /* turn: volt bursts out of the $5 drop, holds, contracts into the phone top */
+  if (u >= 10.55 && u < 11.55) {
+    const grow = appEase(inv(10.55, 11.00, u));
+    const shrink = appEase(inv(11.15, 11.55, u));
+    const r = 1500 * grow * (1 - shrink);
+    const cx = lerp(960, 960, shrink), cy = lerp(540, 185, shrink);
+    floodDisc(cx, cy, r);
+  }
+  /* approve: volt bursts out of the pressed button, holds, contracts to the tape */
+  if (u >= 33.20 && u < 34.05) {
+    const grow = appEase(inv(33.20, 33.60, u));
+    const shrink = appEase(inv(33.75, 34.05, u));
+    const r = 1500 * grow * (1 - shrink);
+    const cx = 960, cy = lerp(728, 540, shrink);
+    floodDisc(cx, cy, r);
+    if (shrink > 0 && shrink < 1) fill(C.volt, 960 - 300 * shrink, 536, 600 * shrink, 8, 4);
   }
 }
 /* ---- Task 5: Lockup (40-45) ---- */
@@ -444,7 +478,7 @@ function draw(s) {
   /* world: spine draws through every act; at lockup it has become the underline */
   if (t < 40.0) drawSpine(t, spine(t));
   if (t < 11.0) act1Gag(t);
-  if (t >= 9.0 && t < 16.5) sceneHome(t);
+  if (t >= 9.0 && t < 16.0) sceneHome(t);
   if (t >= 16.0 && t < 34.5) { sceneSteps(t); drawCursor(t); }
   if (t >= 34.0 && t < 40.5) sceneDuel3(t);
   if (t >= 39.6) sceneMark(t);
@@ -454,6 +488,7 @@ function draw(s) {
   if (t >= 9.0 && t < 11.5) turnDrop(t);
   if (t >= 16.0 && t < 34.0) actHowType(t);
   if (t >= 34.0 && t < 40.5) proofType(t);
+  floods(t);
 }
 window.seek = (s) => draw(s);
 const FACES = ['900 100px BSD', '800 100px BSD', '500 100px SG', '600 100px SG', '700 100px SG'];
