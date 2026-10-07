@@ -1,0 +1,20 @@
+# Byte-exact reference data. These are inputs to tests that compare hashes, base64
+# SPKIs and certificate chains; a line-ending rewrite on checkout would change the
+# bytes without changing anything a human would notice.
+#
+# Encountered for real on 2026-10-07: git warned "LF will be replaced by CRLF" when
+# the Redmi attestation fixtures were first committed.
+
+supabase/functions/oracle/fixtures/** -text
+supabase/functions/oracle/fixtures/**/*.der binary
+supabase/functions/oracle/fixtures/**/*.pem -text
+
+# Deliberately narrow. This machine has core.autocrlf=true; adding `* text eol=lf`
+# rules for source files would rewrite the working copy of every .kt/.ts in the repo
+# mid-plan to solve a problem nobody reported. Revisit only if the repo goes
+# multi-OS (plan Task 19 makes it public).
+
+# Never let a build artifact or keystore material sneak in.
+*.keystore binary
+*.jks binary
+*.apk binary
