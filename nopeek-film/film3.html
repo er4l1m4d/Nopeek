@@ -406,18 +406,48 @@ function proofType(u) {
     statement(['settles', 'itself.'], 960, 954, 76, C.chalk, 38.38, 0.09, 0.34, 40.00, 0.26);
   }
 }
+/* ---- Task 5: Lockup (40-45) ---- */
+function sceneMark(u) {
+  if (u < 40.0) return;
+  /* the win volt contracts into the marker disc, then the eye opens */
+  const shrink = appEase(inv(39.6, 40.6, u));
+  if (shrink < 1) { fill(C.volt, lerp(770, 900, shrink), lerp(620, 320, shrink), lerp(380, 120, shrink), lerp(200, 120, shrink), 40); }
+  const eyeIn = appEase(inv(40.40, 40.90, u));
+  if (eyeIn > 0) {
+    ctx.save(); ctx.translate(0, (1 - eyeIn) * 30);
+    dot(900, 380, 120 * eyeIn, C.volt);
+    dot(900, 380, 48 * eyeIn, C.pitch);
+    fill(C.chalk, 980, 320, 36 * eyeIn, 120 * eyeIn, 8);
+    ctx.restore();
+  }
+  /* NOPEEK wipes out from behind the wall */
+  const wipe = appEase(inv(41.00, 41.60, u));
+  if (wipe > 0) {
+    ctx.save(); ctx.beginPath(); ctx.rect(960 - 460 * wipe, 470, 920 * wipe, 130); ctx.clip();
+    txt('NOPEEK', 960, 570, 128, C.chalk, { align: 'center' });
+    ctx.restore();
+  }
+  /* the spine comes home as the underline */
+  const ul = appEase(inv(41.80, 42.60, u));
+  if (ul > 0) fill(C.volt, 960 - 300 * ul, 600, 600 * ul, 8, 4);
+  if (u >= 42.60) {
+    statement(['Get', 'Nopeek', 'now.'], 960, 720, 64, C.chalk, 42.60, 0.09, 0.34, 45.01, 0.30);
+    rise('Android first · Test stakes today', 960 - measure('Android first · Test stakes today', 20, { w: 500, fam: 'SG', track: 0 }) / 2, 770, 20, C.mute, 43.00, 0.40, { w: 500, fam: 'SG', track: 0, align: 'left' });
+  }
+}
 function draw(s) {
   t = s;
   ctx.fillStyle = C.pitch; ctx.fillRect(0, 0, W, H);
   const cam = camAt(t);
   ctx.save();
   ctx.translate(W/2, H/2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.cx, -cam.cy);
-  /* world: spine draws through every act; hairline already drawing at t=0 */
-  drawSpine(t, spine(t));
+  /* world: spine draws through every act; at lockup it has become the underline */
+  if (t < 40.0) drawSpine(t, spine(t));
   if (t < 11.0) act1Gag(t);
   if (t >= 9.0 && t < 16.5) sceneHome(t);
   if (t >= 16.0 && t < 34.5) { sceneSteps(t); drawCursor(t); }
   if (t >= 34.0 && t < 40.5) sceneDuel3(t);
+  if (t >= 39.6) sceneMark(t);
   ctx.restore();
   /* screen-space type lives outside camera so it never scales */
   if (t < 16.2) act1Type(t);
