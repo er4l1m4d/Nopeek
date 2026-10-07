@@ -77,24 +77,92 @@ function camAt(u) {
   const dy = 1.2 * Math.sin(Math.PI * 0.0667 * u);
   return { z: Math.exp(lerp(Math.log(a.z), Math.log(b.z), k)) * dz, cx: lerp(a.cx, b.cx, k) + dx, cy: lerp(a.cy, b.cy, k) + dy };
 }
+function tw(u, t0, t1, a, b, e) { e = e || appEase; return a + (b - a) * e(inv(t0, t1, u)); }
+const TAU = Math.PI * 2;
+function rr(x, y, w, h, r) {
+  r = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+  else { ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+}
+function fill(color, x, y, w, h, r) { ctx.fillStyle = color; rr(x, y, w, h, r || 0); ctx.fill(); }
+function stroke(color, x, y, w, h, r, lw) { ctx.strokeStyle = color; ctx.lineWidth = lw || 1.5; rr(x, y, w, h, r || 0); ctx.stroke(); }
+function dot(x, y, d, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, d / 2, 0, TAU); ctx.fill(); }
+function txt(s, x, y, size, color, o) {
+  o = o || {}; const w = o.w || 900, fam = o.fam || 'BSD', track = o.track == null ? -0.012 : o.track;
+  ctx.save(); ctx.font = w + ' ' + size + 'px ' + fam;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = (track * size).toFixed(2) + 'px';
+  ctx.fillStyle = color; ctx.textAlign = o.align || 'left'; ctx.textBaseline = o.base || 'alphabetic';
+  ctx.fillText(s, x, y); ctx.restore(); return ctx.measureText(s).width;
+}
+function measure(s, size, o) {
+  o = o || {}; const w = o.w || 900, fam = o.fam || 'BSD', track = o.track == null ? -0.012 : o.track;
+  ctx.save(); ctx.font = w + ' ' + size + 'px ' + fam;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = (track * size).toFixed(2) + 'px';
+  const m = ctx.measureText(s).width; ctx.restore(); return m;
+}
+function rise(s, x, y, size, color, t0, dur, o) {
+  const p = appEase(inv(t0, t0 + dur, t)); if (p <= 0) return;
+  const h = size * 1.06, tail = size * 0.30;
+  ctx.save(); ctx.beginPath(); ctx.rect(x - 4000, y - h * 1.35, 8000, h * 1.35 + tail); ctx.clip();
+  txt(s, x, y + (1 - p) * (h + tail), size, color, o || {}); ctx.restore();
+}
+function lift(s, x, y, size, color, t0, dur, o) {
+  const p = appEase(inv(t0, t0 + dur, t)); if (p <= 0) return;
+  const h = size * 1.06;
+  ctx.save(); ctx.beginPath(); ctx.rect(x - 4000, y - h * 1.35, 8000, h * 1.35 + size * 0.30); ctx.clip();
+  txt(s, x, y - p * h * 2.0, size, color, o || {}); ctx.restore();
+}
+function statement(words, x, y, size, color, t0, gap, durIn, tExit, durOut, o) {
+  o = o || {}; const sp = size * 0.26;
+  const ws = words.map(w => measure(w, size, o));
+  const total = ws.reduce((a, b) => a + b, 0) + sp * (words.length - 1);
+  const x0 = o.align === 'right' ? x - total : o.align === 'left' ? x : x - total / 2;
+  const mid = x0 + total / 2;
+  if (t < tExit) {
+    let cx = x0;
+    words.forEach((w, i) => { rise(w, cx, y, size, color, t0 + i * gap, durIn, { w: o.w, fam: o.fam, track: o.track, align: 'left' }); cx += ws[i] + sp; });
+  } else {
+    lift(words.join(' '), mid, y, size, color, tExit, durOut, { w: o.w, fam: o.fam, track: o.track, align: 'center' });
+  }
+  return total;
+}
+/* The shared spine: hairline -> gag tape -> stepper -> SharedTape -> underline. Never replaced. */
+const TAPE_Y = 760, TAPE_X0 = 770, TAPE_X1 = 1150;
+const TAPE_W = TAPE_X1 - TAPE_X0;
+const LIMIT_AT = 0.82;
+const STEPPER_ON = (u) => u >= 14.5 && u < 34.0;
+function spine(u) {
+  const y = trk(u, [[0, TAPE_Y], [11.5, 540, 6, 0.98], [14.0, 244, 5.2, 0.98], [16.0, 185, 6, 0.98], [34.0, 540, 7.4, 0.99]]);
+  const th = trk(u, [[0, 2], [5.5, 12, 8, 0.85], [14.0, 3, 7, 0.95], [16.0, 6, 7, 0.95], [34.0, 12, 9, 0.95]]);
+  const seg = trk(u, [[0, 1], [16.0, 6, 6.5, 0.99], [34.0, 1, 8, 0.99]]);
+  const gap = (seg - 1) * (TAPE_W / 46);
+  const segW = (TAPE_W - gap * (seg - 1)) / Math.max(1, Math.round(seg));
+  const step = trk(u, [[11.5, 1, 9, 0.8], [18.5, 2, 9, 0.8], [22.0, 3, 9, 0.8], [25.5, 4, 9, 0.8], [29.0, 5, 9, 0.8], [32.5, 6, 9, 0.8]]);
+  return { y, th, seg, segW, gap, step };
+}
+function drawSpine(u, sp) {
+  const half = sp.th / 2;
+  for (let i = 0; i < Math.round(sp.seg); i++) {
+    const x = TAPE_X0 + i * (sp.segW + sp.gap);
+    const done = STEPPER_ON(u) && (i + 1) <= sp.step;
+    fill(done ? C.volt : (sp.seg > 1.5 ? C.turf2 : (u < 5.5 ? C.line : C.turf2)), x, sp.y - half, sp.segW, sp.th, half);
+  }
+  /* breathing limit tick while gag sits (no dead frame) */
+  if (u >= 4.5 && u < 11 && sp.seg < 1.5) {
+    const br = 1 + 0.06 * Math.sin(TAU * 1.2 * u);
+    fill(C.coral, TAPE_X0 + TAPE_W * LIMIT_AT - 2 * br, sp.y - 14 * br, 4 * br, 28 * br, 2);
+  }
+}
 function draw(s) {
   t = s;
   ctx.fillStyle = C.pitch; ctx.fillRect(0, 0, W, H);
   const cam = camAt(t);
   ctx.save();
   ctx.translate(W/2, H/2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.cx, -cam.cy);
-  /* world: hairline already drawing at t=0 so thumbnail never black */
-  const hl = inv(-0.15, 0.75, t);
-  ctx.fillStyle = C.chalk;
-  ctx.fillRect(960 - 455 * hl, 538, 910 * hl, 4);
-  /* act stubs: full acts land in Tasks 3-5 */
-  ctx.fillStyle = C.mute; ctx.font = '600 28px SG'; ctx.textAlign = 'center';
-  if (t < 7) { /* problem thesis in Task 3 */ }
-  else if (t < 11) { /* turn in Task 3 */ }
-  else if (t < 16) { /* home in Task 3 */ }
-  else if (t < 34) { /* how in Task 4 */ }
-  else if (t < 40) { /* proof in Task 4 */ }
-  else { /* lockup in Task 5 */ }
+  /* world: spine draws through every act; hairline already drawing at t=0 */
+  drawSpine(t, spine(t));
+  /* act bodies land in Tasks 3-5; screen-space type below never scales */
   ctx.restore();
   /* screen-space type lives outside camera so it never scales (Tasks 3-5) */
 }
