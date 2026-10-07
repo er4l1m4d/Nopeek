@@ -4,23 +4,33 @@
 **Captured:** 2026-10-07, package `com.nopeek.app`, debug build
 **Test:** `KeyStoreAttestationTest` run via `am instrument` — **OK (2 tests)**, zero failures
 
-## Verdict: root trust PROVEN; enforcement level still PENDING Task 3
+## Verdict: GATE PASSES — hardware-backed attestation confirmed
 
-The device produces a real 4-level Android Key Attestation chain carrying our
-challenge and package identity, for a key the test itself generated and cannot
-export. **What is now proven and what is not:**
+| Claim | Status | Evidence |
+| --- | --- | --- |
+| Chain is 4 deep, carries our challenge + exact package | **asserted on device, passing** | `am instrument` OK (2 tests) |
+| Chain terminates at **Google's** published root | **PROVEN** | terminal cert byte-identical (sha256 `cedb1cb6dc896ae5…`, 1312 bytes) to the root fetched from `https://android.googleapis.com/attestation/root` — never copied from this chain |
+| **`attestationSecurityLevel` = TrustedEnvironment** | **PROVEN** | decoded from `device-attest-ext.der`: ENUMERATED `01`; AOSP `SecurityLevel ::= ENUMERATED { Software(0), TrustedEnvironment(1), StrongBox(2) }` — same table in every schema version incl. Keymaster 4.1, which is what this device emitted |
+| `keymasterSecurityLevel` = TrustedEnvironment | **PROVEN** | second ENUMERATED, also `01` |
+| `rootOfTrust.deviceLocked = true` | **PROVEN** | tag `[704]` inside **hardwareEnforced**: BOOLEAN `ff` |
+| `rootOfTrust.verifiedBootState = Verified` | **PROVEN** | ENUMERATED `00` = Verified (SelfSigned=1, Unverified=2) |
+| RootOfTrust is hardware-enforced | **PROVEN** | `[704]` appears in the second (hardware) AuthorizationList, not the software one |
 
-| Claim | Status |
-| --- | --- |
-| Chain is 4 deep and carries our challenge + exact package | **asserted on device, passing** |
-| Chain terminates at **Google's** published root | **PROVEN** — terminal cert is byte-identical (sha256 `cedb1cb6dc896ae5…`, 1312 bytes) to the root fetched out of band from `https://android.googleapis.com/attestation/root`, not copied from this chain |
-| `keyMintSecurityLevel` is TEE, not Software | **NOT yet proven.** Requires decoding `device-attest-ext.der`. Until then the deck must not say "hardware-attested" |
-| `deviceLocked` / `verifiedBootState == VERIFIED` | **NOT yet proven.** Same decode |
+Schema identity: `attestationVersion` INTEGER `04`, `keymasterVersion` INTEGER `41`
+(0x29) → **Keymaster 4.1**. `os_version` `[705]` = `0x0249f0` = 150000 → Android 15.0.0.
+`attestationApplicationId` `[709]` decodes to a 14-byte `com.nopeek.app`, confirming the
+exact-length DER assertion on device.
 
-**Wording gate:** "*attested chain rooted at Google*" is safe today.
-"*hardware-attested*" is not, until the security-level check passes — a
-software-KeyMint attestation satisfies every assertion currently made on device,
-including `getEncoded()` yielding no bytes.
+**Wording now permitted:** "hardware-attested", "TEE-backed", "locked bootloader, verified
+boot". **Still not permitted:** "dedicated secure element" (no StrongBox — value 2), and
+"the extension bytes are cryptographically verified" — the chain's **signature**
+verification (`verifyChainToRoot` walking issuer→subject signatures) is the remaining
+part of Task 3. Root *identity* is proven; signature *checking* is not yet implemented.
+
+Method note, because it nearly cost the claim: the decoded value `1` was first read as
+`Software` from memory of a different enum table, which would have forced a downgrade of
+the headline claim. It was checked against AOSP before being acted on. Any future
+security-level interpretation must cite the table, not recall it.
 
 ## Root pinning (was ledger Row 9)
 
