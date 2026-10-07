@@ -13,6 +13,9 @@ import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.nopeek.app.data.UsageReport
+import com.nopeek.app.data.VerificationStatus
+import com.nopeek.app.data.verify.CommitmentVerifier
+import com.nopeek.app.data.verify.LocalRuleCommitmentVerifier
 import java.util.concurrent.TimeUnit
 
 object UsageSyncParamsReader {
@@ -60,6 +63,8 @@ internal class UsageWorker(
     params: WorkerParameters
 ) : Worker(context, params) {
 
+    private val verifier: CommitmentVerifier = LocalRuleCommitmentVerifier()
+
     override fun doWork(): Result {
         val parsed = UsageSyncParamsReader.from(inputData.keyValueMap)
             ?: return Result.failure()
@@ -90,8 +95,13 @@ internal class UsageWorker(
             submittedAt = System.currentTimeMillis()
         )
 
-        // Plan 8.1 Step 3: tamper signals present -> mark the challenge for verification.
-        if (flagForVerification(signals)) {
+        // Plan 8.1 Step 3: tamper signals present -> mark the challenge for
+        // verification. Decided through CommitmentVerifier rather than by reading
+        // the signals directly, so there is exactly one place in the app that
+        // turns evidence into a verdict — Task 15 swaps the binding, not this call
+        // site. Behavior-identical: CommitmentVerifierTest pins verify()==UNVERIFIED
+        // to flagForVerification for every combination of the three signals.
+        if (verifier.verify(report, parsed.limitSeconds) == VerificationStatus.UNVERIFIED) {
             try {
                 kotlinx.coroutines.runBlocking {
                     com.nopeek.app.data.local.AppDatabase.getInstance(applicationContext)

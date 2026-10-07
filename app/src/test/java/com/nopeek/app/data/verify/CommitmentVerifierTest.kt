@@ -75,6 +75,35 @@ class CommitmentVerifierTest {
         assertEquals(VerificationStatus.UNVERIFIED, oracle.verify(contradictory, 600))
     }
 
+    @Test
+    fun oracleVerifierRejectsEvidenceTheOracleMarkedRejectedDespiteClaimingVerified() {
+        // verified and rejectReason together describe an oracle that contradicted
+        // itself. Without a case that sets rejectReason while verified == true, the
+        // guard is unreachable from the suite and deleting it changes nothing.
+        val contradictory = report(10).copy(verified = true, rejectReason = "NONCE_REPLAYED")
+        assertEquals(VerificationStatus.UNVERIFIED, oracle.verify(contradictory, 600))
+    }
+
+    @Test
+    fun localVerifierAgreesWithFlagForVerificationOnEverySignalCombination() {
+        // This equivalence is what makes routing UsageWorker through the verifier
+        // behavior-identical rather than a hope: the worker's existing
+        // PENDING_VERIFICATION trigger must fire exactly when verify says UNVERIFIED.
+        for (revoked in listOf(false, true)) {
+            for (clock in listOf(false, true)) {
+                for (late in listOf(false, true)) {
+                    val signals = TamperSignals(revoked, clock, late)
+                    val verdict = local.verify(report(10, signals), 600)
+                    assertEquals(
+                        "signals=$signals",
+                        com.nopeek.app.data.usage.flagForVerification(signals),
+                        verdict == VerificationStatus.UNVERIFIED,
+                    )
+                }
+            }
+        }
+    }
+
     private fun report(usedSeconds: Int, signals: TamperSignals = TamperSignals()) = UsageReport(
         challengePubkey = "Ch1111111111111111111111111111111111111111322",
         walletPubkey = "6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj",
