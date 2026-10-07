@@ -100,7 +100,9 @@ fun NopeekNavHost(navController: NavHostController, modifier: Modifier = Modifie
                 onExisting = {
                     NopeekPrefs(context).knownUser = true
                     navController.navigate("home") {
-                        popUpTo("splash") { inclusive = true }
+                        // Pop the choice screen itself: it is gone from the graph once routed,
+                        // and leaving it under Home makes system back re-ask the question.
+                        popUpTo("choice") { inclusive = true }
                     }
                 },
             )
@@ -110,13 +112,16 @@ fun NopeekNavHost(navController: NavHostController, modifier: Modifier = Modifie
             OnboardingScreen(onDone = {
                 NopeekPrefs(context).seenOnboarding = true
                 navController.navigate("home") {
-                    popUpTo("splash") { inclusive = true }
+                    // Same trap: without this the finished onboarding sits under Home and
+                    // reappears on the first back press.
+                    popUpTo("choice") { inclusive = true }
                 }
             })
         }
         composable("home") {
             HomeScreen(
                 onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) },
+                onGoToDuels = { navController.navigateToTab("duels") },
                 hasActiveDuel = false,
             )
         }
@@ -127,7 +132,7 @@ fun NopeekNavHost(navController: NavHostController, modifier: Modifier = Modifie
             DuelsScreen(
                 onOpenDuel = { navController.navigate(NavRoutes.activeChallenge("demo-challenge")) },
                 onOpenRecovery = { pk -> navController.navigate(NavRoutes.recoveryLock(pk)) },
-                onSettle = { entity -> settle(navController, scope, context, mwaSender, entity) },
+                onSettle = { entity -> settle(scope, context, mwaSender, entity) },
                 onNewDuel = { navController.navigate("create_challenge") },
             )
         }
@@ -165,12 +170,14 @@ fun NopeekNavHost(navController: NavHostController, modifier: Modifier = Modifie
 }
 
 private fun settle(
-    navController: NavHostController,
     scope: kotlinx.coroutines.CoroutineScope,
     context: Context,
     mwaSender: ActivityResultSender?,
     entity: ChallengeEntity,
 ) {
+    // No navController here on purpose: settlement is fire-and-report. The row flips
+    // to SETTLED through the repository's own observation, so navigating away from
+    // the list on success would only hide the receipt the user just earned.
     if (mwaSender == null) return
     scope.launch {
         val result = ChallengeRepository.getInstance(context).settleWithUser(entity, mwaSender)

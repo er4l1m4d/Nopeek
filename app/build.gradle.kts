@@ -56,6 +56,14 @@ android {
 
     buildFeatures { compose = true }
 
+    // Robolectric-driven Compose tests (ComposeHarnessSmokeTest,
+    // InteractiveComponentContractTest) launch androidx.activity.ComponentActivity,
+    // which is contributed to the merged debug manifest by ui-test-manifest. Without
+    // the merged manifest and resources on the JVM test classpath Robolectric cannot
+    // resolve that activity and every such test dies with
+    // "Unable to resolve activity for Intent ... ComponentActivity".
+    testOptions { unitTests.isIncludeAndroidResources = true }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -67,6 +75,14 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+
+    testOptions {
+        // Robolectric needs the merged manifest and resources so Compose can launch an activity
+        // and resolve fonts on the JVM — the UI contract tests then gate without a device.
+        unitTests {
+            isIncludeAndroidResources = true
+        }
     }
 
     configurations.all {
@@ -106,6 +122,16 @@ dependencies {
     implementation("com.solanamobile:mobile-wallet-adapter-common:2.1.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    // Compose UI contract tests on the JVM: no device is attached during the hackathon window,
+    // so the gate that keeps dead controls and unreadable text from shipping has to run here.
+    testImplementation(composeBom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    // Must be debugImplementation, not testImplementation: Robolectric unit tests read the *debug
+    // variant's merged manifest*, and this is what registers ComponentActivity for createComposeRule.
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     // Task 2: hardware attestation can only be probed on device.
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
