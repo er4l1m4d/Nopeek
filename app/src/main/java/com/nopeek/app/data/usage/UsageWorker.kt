@@ -1,7 +1,5 @@
 package com.nopeek.app.data.usage
 
-import android.app.usage.UsageEvents
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.work.Constraints
@@ -65,24 +63,27 @@ internal class UsageWorker(
 
     private val verifier: CommitmentVerifier = LocalRuleCommitmentVerifier()
 
+    private val collector = UsageEventCollector(applicationContext)
+
     override fun doWork(): Result {
         val parsed = UsageSyncParamsReader.from(inputData.keyValueMap)
             ?: return Result.failure()
 
-        val events = queryUsageEvents(parsed.windowStart, parsed.windowEnd)
-        val usedSeconds = aggregateUsage(
-            events = events,
-            windowStart = parsed.windowStart,
-            windowEnd = parsed.windowEnd,
-            targetPackage = parsed.targetPackage
-        )
+        // One read of the event stream, three figures from it. Used-seconds alone is a
+        // number the app made up; paired with the device-wide active span it becomes a
+        // claim the oracle can disprove, and the digest pins the exact event set the
+        // numbers came from so the same bytes are what gets signed and hashed.
+        val eventSet = collector.collect(parsed.windowStart, parsed.windowEnd)
+        val usedSeconds = collector.usedSecondsFor(eventSet, parsed.targetPackage)
+        val clock = readClockPair()
 
         val signals = detectTamperSignals(
             permissionRevoked = !UsagePermissionHelper.isGranted(applicationContext),
-            clockJumped = detectClockChange(applicationContext),
+            clockJumped = clock.backwardJump,
             reportTime = System.currentTimeMillis(),
             windowEnd = parsed.windowEnd,
-            graceSeconds = parsed.graceSeconds
+            graceSeconds = parsed.graceSeconds,
+            clockJumpedForward = clock.forwardJump,
         )
 
         val report = UsageReport(
@@ -92,7 +93,10 @@ internal class UsageWorker(
             windowStart = parsed.windowStart,
             windowEnd = parsed.windowEnd,
             tamperSignals = signals,
-            submittedAt = System.currentTimeMillis()
+            submittedAt = System.currentTimeMillis(),
+            deviceActiveSeconds = eventSet.deviceActiveSeconds,
+            eventCount = eventSet.eventCount,
+            eventSetDigestHex = eventSet.eventSetDigestHex,
         )
 
         // Plan 8.1 Step 3: tamper signals present -> mark the challenge for
@@ -117,36 +121,45 @@ internal class UsageWorker(
         return Result.success()
     }
 
-    private fun queryUsageEvents(windowStart: Long, windowEnd: Long): List<UsageEvent> {
-        val statsManager = applicationContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val results = mutableListOf<UsageEvent>()
-        val iterator = statsManager.queryEvents(windowStart, windowEnd)
-        val event = UsageEvents.Event()
-        while (iterator.hasNextEvent()) {
-            iterator.getNextEvent(event)
-            when (event.eventType) {
-                UsageEventType.MOVE_TO_FOREGROUND -> results.add(
-                    UsageEvent(event.packageName, event.eventType, event.timeStamp)
-                )
-                UsageEventType.MOVE_TO_BACKGROUND -> results.add(
-                    UsageEvent(event.packageName, event.eventType, event.timeStamp)
-                )
-            }
-        }
-        return results
+    /**
+     * Wall clock and monotonic clock, read together and compared with the previous read.
+     *
+     * Both directions are reported separately because they are different tampering acts:
+     * backward is the classic "reset the clock to end the window", forward is what makes a
+     * back-dated session or an early settlement possible. The pair is stored so the next
+     * run can measure each clock's own gain; monotonic time is the yardstick the user
+     * cannot move.
+     */
+    private fun readClockPair(): ClockReading {
+        val prefs: SharedPreferences =
+            applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val wallNow = System.currentTimeMillis()
+        val elapsedNow = android.os.SystemClock.elapsedRealtime()
+        val lastWall = prefs.getLong(PREF_LAST_WALL_CLOCK, wallNow)
+        val lastElapsed = prefs.getLong(PREF_LAST_ELAPSED_REALTIME, elapsedNow)
+        prefs.edit()
+            .putLong(PREF_LAST_WALL_CLOCK, wallNow)
+            .putLong(PREF_LAST_ELAPSED_REALTIME, elapsedNow)
+            .apply()
+
+        return ClockReading(
+            backwardJump = lastWall - wallNow > CLOCK_JUMP_THRESHOLD_MS,
+            forwardJump = isClockJumpedForward(
+                lastWallMs = lastWall,
+                lastElapsedRealtimeMs = lastElapsed,
+                wallNowMs = wallNow,
+                nowElapsedRealtimeMs = elapsedNow,
+                allowanceMs = CLOCK_JUMP_THRESHOLD_MS,
+            ),
+        )
     }
 
-    private fun detectClockChange(context: Context): Boolean {
-        val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val now = System.currentTimeMillis()
-        val last = prefs.getLong(PREF_LAST_WALL_CLOCK, now)
-        prefs.edit().putLong(PREF_LAST_WALL_CLOCK, now).apply()
-        return last - now > CLOCK_JUMP_THRESHOLD_MS
-    }
+    private class ClockReading(val backwardJump: Boolean, val forwardJump: Boolean)
 
     companion object {
         private const val PREFS_NAME = "nopeek_usage"
         private const val PREF_LAST_WALL_CLOCK = "last_wall_clock"
+        private const val PREF_LAST_ELAPSED_REALTIME = "last_elapsed_realtime"
         private const val CLOCK_JUMP_THRESHOLD_MS = 5 * 60 * 1000L
 
         /**

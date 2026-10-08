@@ -97,20 +97,44 @@ fun aggregateUsage(
  * @param reportTime epoch ms at which the report is produced.
  * @param windowEnd epoch ms of the challenge window end.
  * @param graceSeconds allowed reporting delay before the report is considered late.
+ * @param clockJumpedForward wall clock outran monotonic time during the window; see
+ *   [isClockJumpedForward]. Distinct from [clockJumped], which is a backward jump.
  */
 fun detectTamperSignals(
     permissionRevoked: Boolean,
     clockJumped: Boolean,
     reportTime: Long,
     windowEnd: Long,
-    graceSeconds: Int
+    graceSeconds: Int,
+    clockJumpedForward: Boolean = false,
 ): TamperSignals {
     val reportLate = (reportTime - windowEnd) > (graceSeconds * 1000L)
     return TamperSignals(
         permissionRevoked = permissionRevoked,
         clockChanged = clockJumped,
-        reportLate = reportLate
+        reportLate = reportLate,
+        clockJumpedForward = clockJumpedForward,
     )
+}
+
+/**
+ * Whether the wall clock advanced further than real time did between two observations.
+ *
+ * Monotonic time (`SystemClock.elapsedRealtime`) cannot be set by the user, so it is the
+ * yardstick. A device that moved the clock forward to end a window early, or back-dated a
+ * session, shows up as wall-clock gain exceeding monotonic gain by more than [allowanceMs]
+ * — the tolerance for scheduling jitter between the two reads.
+ */
+fun isClockJumpedForward(
+    lastWallMs: Long,
+    lastElapsedRealtimeMs: Long,
+    wallNowMs: Long,
+    nowElapsedRealtimeMs: Long,
+    allowanceMs: Long,
+): Boolean {
+    val monotonicGain = nowElapsedRealtimeMs - lastElapsedRealtimeMs
+    if (monotonicGain < 0L) return false
+    return wallNowMs - lastWallMs > monotonicGain + allowanceMs
 }
 
 /** Plan 8.1 Step 2: submit to the oracle's POST /submit-report (no-op until backend configured). */

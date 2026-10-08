@@ -24,9 +24,16 @@ enum class VerificationStatus {
 data class TamperSignals(
     val permissionRevoked: Boolean = false,
     val clockChanged: Boolean = false,
-    val reportLate: Boolean = false
+    val reportLate: Boolean = false,
+    /**
+     * Wall clock ran ahead of monotonic time during the window — the way a device ends
+     * a challenge early or back-dates a session. Kept distinct from [clockChanged] (a
+     * backward jump) because the two are different attacks with different evidence.
+     */
+    val clockJumpedForward: Boolean = false,
 ) {
-    fun isCompromised(): Boolean = permissionRevoked || clockChanged || reportLate
+    fun isCompromised(): Boolean =
+        permissionRevoked || clockChanged || reportLate || clockJumpedForward
 }
 
 /**

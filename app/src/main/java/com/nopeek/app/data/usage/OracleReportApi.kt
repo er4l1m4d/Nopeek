@@ -46,6 +46,7 @@ fun reportPayload(report: UsageReport): Map<String, Any> = mapOf(
 fun tamperSignalNames(signals: TamperSignals): List<String> = buildList {
     if (signals.permissionRevoked) add("PERMISSION_REVOKED")
     if (signals.clockChanged) add("CLOCK_CHANGED")
+    if (signals.clockJumpedForward) add("CLOCK_JUMPED_FORWARD")
     if (signals.reportLate) add("REPORT_LATE")
 }
 

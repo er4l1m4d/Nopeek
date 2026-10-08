@@ -79,6 +79,15 @@ create policy "settlement_results public read"
   on settlement_results for select
   using (true);
 
+-- GRANT is a separate layer from the policy just above: the policy decides WHICH
+-- ROWS a role sees, the grant decides whether that role may address the TABLE at
+-- all. PostgREST needs both. When Project Settings -> API -> "Automatically
+-- expose new tables" is off, tables created afterwards get no SELECT to anon and
+-- the app's settlement polling silently returns nothing -- so it is granted
+-- explicitly here, which makes this file correct under either setting. GRANT is
+-- idempotent, so re-running is safe.
+grant select on public.settlement_results to anon;
+
 -- ---------------------------------------------------------------------
 -- 2. Attestation: enrolled device keys
 --
@@ -226,9 +235,12 @@ select check_name, result from (
                             'verified','reject_reason')),
       'MISSING — the paste was truncated')
   union all
-  -- The GRANT layer, which is separate from RLS. anon will show INSERT/UPDATE/
-  -- DELETE on every table; that is Supabase's default and is NOT a hole, because
-  -- RLS with no policy filters every row away. Do not start revoking in a panic.
+  -- The GRANT layer, separate from RLS. PostgREST only ever issues SELECT /
+  -- INSERT / UPDATE / DELETE (and RPC), so those are the privileges that are
+  -- actually reachable by whoever holds the key shipped in the APK;
+  -- REFERENCES / TRIGGER / TRUNCATE are not reachable through the API at all.
+  -- Expected now: exactly one data privilege, settlement_results:SELECT.
+  -- Anything else in this list is a hole worth closing.
   select 5, 'anon_grants', coalesce((
       select string_agg(table_name || ':' || privilege_type, ', ' order by table_name, privilege_type)
        from information_schema.role_table_grants
