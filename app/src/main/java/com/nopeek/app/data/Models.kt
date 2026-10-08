@@ -4,7 +4,9 @@ package com.nopeek.app.data
  * The result of verifying a usage report against a challenge limit.
  *
  * Contract mirrors the oracle settle logic in the plan:
- *  - Tamper signals (permission revoked, clock changed, report late) -> UNVERIFIED (treats report as untrustworthy).
+ *  - Any tamper signal at all -> UNVERIFIED (the report is not trustworthy). Stated as a
+ *    rule rather than a list of causes, so adding a signal to [TamperSignals] cannot
+ *    leave this doc quietly describing three of four.
  *  - Otherwise, PASS if usedSeconds <= limitSeconds, else FAIL.
  */
 enum class VerificationStatus {

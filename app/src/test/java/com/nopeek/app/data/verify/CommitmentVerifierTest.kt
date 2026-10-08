@@ -4,6 +4,7 @@ import com.nopeek.app.data.TamperSignals
 import com.nopeek.app.data.UsageReport
 import com.nopeek.app.data.VerificationStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -92,16 +93,34 @@ class CommitmentVerifierTest {
         for (revoked in listOf(false, true)) {
             for (clock in listOf(false, true)) {
                 for (late in listOf(false, true)) {
-                    val signals = TamperSignals(revoked, clock, late)
-                    val verdict = local.verify(report(10, signals), 600)
-                    assertEquals(
-                        "signals=$signals",
-                        com.nopeek.app.data.usage.flagForVerification(signals),
-                        verdict == VerificationStatus.UNVERIFIED,
-                    )
+                    for (forward in listOf(false, true)) {
+                        // Named, not positional: a fourth boolean on a data class of
+                        // booleans is exactly how a reorder would mis-map silently.
+                        val signals = TamperSignals(
+                            permissionRevoked = revoked,
+                            clockChanged = clock,
+                            reportLate = late,
+                            clockJumpedForward = forward,
+                        )
+                        val verdict = local.verify(report(10, signals), 600)
+                        assertEquals(
+                            "signals=$signals",
+                            com.nopeek.app.data.usage.flagForVerification(signals),
+                            verdict == VerificationStatus.UNVERIFIED,
+                        )
+                    }
                 }
             }
         }
+    }
+
+    @Test
+    fun forwardClockJumpAloneIsEnoughToFailVerification() {
+        // Pinned separately so the new dimension cannot be dropped from isCompromised()
+        // without a named test failing, rather than only showing up as one of 16 rows.
+        val onlyForward = TamperSignals(clockJumpedForward = true)
+        assertEquals(VerificationStatus.UNVERIFIED, local.verify(report(10, onlyForward), 600))
+        assertTrue(com.nopeek.app.data.usage.flagForVerification(onlyForward))
     }
 
     private fun report(usedSeconds: Int, signals: TamperSignals = TamperSignals()) = UsageReport(

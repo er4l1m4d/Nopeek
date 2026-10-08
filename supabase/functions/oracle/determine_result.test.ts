@@ -39,9 +39,26 @@ test("UNVERIFIED wins over usage numbers even when under limit", () => {
   );
 });
 
-test("unknown tamper signals do not force UNVERIFIED", () => {
-  assert.equal(determineResult(report(100, ["APP_UNINSTALLED"]), rule), "PASS");
-  assert.equal(determineResult(report(5000, ["APP_UNINSTALLED"]), rule), "FAIL");
+test("CLOCK_JUMPED_FORWARD -> UNVERIFIED", () => {
+  // The forward jump is the attack that ends a window early or back-dates a session.
+  // It reaches the oracle by name, so the name has to be blocking here or the signal
+  // is decoration: the device would flag itself and still keep its stake.
+  assert.equal(determineResult(report(10, ["CLOCK_JUMPED_FORWARD"]), rule), "UNVERIFIED");
+});
+
+test("REPORT_LATE -> UNVERIFIED", () => {
+  assert.equal(determineResult(report(10, ["REPORT_LATE"]), rule), "UNVERIFIED");
+});
+
+test("an unrecognised tamper name fails closed", () => {
+  // Not a policy hole, a name the app has not invented yet. The device owns this
+  // vocabulary, so an allowlist here means a new tamper flag is silently a no-op
+  // until someone remembers to edit the oracle. Everything this system has decided
+  // about inputs it cannot positively establish is: reject.
+  assert.equal(determineResult(report(10, ["APP_UNINSTALLED"]), rule), "UNVERIFIED");
+  assert.equal(determineResult(report(10, ["SIGNAL_INVENTED_NEXT_YEAR"]), rule), "UNVERIFIED");
+  // And an empty list still means no tamper was found.
+  assert.equal(determineResult(report(10, []), rule), "PASS");
 });
 
 test("creator PASS, opponent FAIL -> CREATOR_WON with codes 1/2", () => {

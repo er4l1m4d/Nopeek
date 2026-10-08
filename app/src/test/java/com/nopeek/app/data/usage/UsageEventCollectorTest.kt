@@ -104,7 +104,29 @@ class UsageEventCollectorTest {
         // A package that never appeared is zero, and the whole-device figure is
         // neither of those — the invariant the oracle checks is used <= active.
         assertEquals(0, usedSecondsWithin(set, "com.never"))
-        assertTrue(usedSecondsWithin(set, "com.a") <= set.deviceActiveSeconds.toInt())
+    }
+
+    @Test
+    fun sessionStartedBeforeTheWindowIsStillChargedInsideIt() {
+        // com.a went foreground an hour before the window opened and paused 30 minutes
+        // into it. The app WAS foreground for those 30 minutes, so a report of 0 s is a
+        // lie — and "never leave the app, straddle the boundary" is how you win a duel
+        // without any evidence of use. The collector therefore reads a lookbehind before
+        // windowStart and clamps, rather than asking the platform only about the window.
+        val ws = 3_600_000L
+        val we = 7_200_000L
+        val set = buildEventSet(
+            listOf(fg("com.a", 0L), bg("com.a", ws + 1_800_000L)),
+            ws,
+            we,
+        )
+        assertEquals(1800, usedSecondsWithin(set, "com.a"))
+        assertEquals(1800L, set.deviceActiveSeconds)
+
+        // The lookbehind is for span arithmetic only. The committed event set stays
+        // window-scoped — spec 4.2 hashes the triples "for the whole window" — so the
+        // pre-window foreground event is context, not evidence, and is not counted.
+        assertEquals(1, set.eventCount)
     }
 
     @Test
@@ -144,10 +166,59 @@ class UsageEventCollectorTest {
                 allowanceMs = 5_000L,
             ),
         )
+    }
 
-        // The signal reaches the verdict: it marks the report compromised and is
-        // named on the wire, so the oracle's "any tamper signal -> UNVERIFIED" rule
-        // fails it closed without the oracle needing to know the name.
+    @Test
+    fun monotonicClockGoingBackwardsIsReportedAsUnverifiable() {
+        // `elapsedRealtime` is milliseconds since boot, so a negative gain can only mean
+        // the device rebooted between the two observations - and the stored pair is now
+        // measured against a different boot epoch. Returning false here would mean a
+        // power-button reboot mid-duel turns the forward-jump check off, which is the
+        // same shape as the fail-open bugs found in the verifier review: a check that
+        // cannot evaluate must reject, not clear.
+        assertTrue(
+            isClockJumpedForward(
+                lastWallMs = 1_000_000L,
+                lastElapsedRealtimeMs = 5_000_000L,
+                wallNowMs = 1_010_000L,
+                nowElapsedRealtimeMs = 40_000L,
+                allowanceMs = 5_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun allowanceIsSizedToTheWindowAndCapsBelowTheCheatsItProtectsAgainst() {
+        // Task 15's demo window is 120 s against a 60 s limit. Reusing the 5-minute
+        // backward-jump threshold here would hand out 299 s of free forward drift per
+        // observation pair - more than the window and more than the limit combined.
+        assertEquals(12_000L, forwardJumpAllowanceMs(0L, 120_000L))
+        // Long windows cap rather than scale, so a 60-minute duel does not buy 6 free
+        // minutes of clock.
+        assertEquals(60_000L, forwardJumpAllowanceMs(0L, 3_600_000L))
+        // And the floor keeps a sub-minute window from allowing nothing at all, which
+        // would forfeit an honest stake over one NTP correction.
+        assertEquals(5_000L, forwardJumpAllowanceMs(0L, 20_000L))
+
+        // Consequence at the demo's own size: 4 minutes of forward drift inside a
+        // 120 s window is now caught, where it previously sat under the threshold.
+        assertTrue(
+            isClockJumpedForward(
+                lastWallMs = 0L,
+                lastElapsedRealtimeMs = 0L,
+                wallNowMs = 240_000L,
+                nowElapsedRealtimeMs = 10_000L,
+                allowanceMs = forwardJumpAllowanceMs(0L, 120_000L),
+            ),
+        )
+    }
+
+    @Test
+    fun forwardJumpSignalReachesTheVerdict() {
+        // The signal marks the report compromised and is named on the wire. Naming is
+        // what matters: `determine_result.ts` blocks on any non-empty tamper list, so
+        // the oracle fails this closed without having to learn the new name - and any
+        // flag added on the device side later blocks too.
         val signals = TamperSignals(clockJumpedForward = true)
         assertTrue(signals.isCompromised())
         assertEquals(listOf("CLOCK_JUMPED_FORWARD"), tamperSignalNames(signals))

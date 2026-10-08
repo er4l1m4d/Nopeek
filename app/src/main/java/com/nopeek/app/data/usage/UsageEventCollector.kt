@@ -9,13 +9,15 @@ import java.security.MessageDigest
  * Everything the oracle needs to cross-check a usage report, derived from ONE read of
  * the device's event stream.
  *
- * The point of collecting the whole device rather than only the target package is the
- * consistency bound: a report claiming 40 minutes of Instagram on a device whose own
- * event stream says it was active for 12 minutes is physically impossible, and the
- * oracle rejects it (`USAGE_EXCEEDS_ACTIVE`) without trusting this app's arithmetic.
- * That only works if the device-wide figure is honest, so it is the union of all
- * packages' foreground spans — NOT the sum, which a device with two overlapping
- * sessions would inflate.
+ * What this constrains is internal contradiction, not truthfulness. A device cannot
+ * inflate `deviceActiveSeconds` to make a large `usedSeconds` look plausible, because the
+ * figure is the union of every package's foreground span and the digest commits the whole
+ * stream behind it. What it cannot do is prove the phone was quiet when it wasn't: that
+ * would need screen-on broadcasts a background app cannot get, and spec 5 says so out
+ * loud. The honest reading is that these three numbers make a lie checkable by someone
+ * else, not that they make a lie impossible.
+ *
+ * Union, not sum: two packages foreground at once are one stretch of device activity.
  */
 data class EventSet(
     val events: List<UsageEvent>,
@@ -23,9 +25,9 @@ data class EventSet(
     val windowEndMs: Long,
     /** Union of every package's foreground span inside the window, in whole seconds. */
     val deviceActiveSeconds: Long,
-    /** Count of distinct `package:eventType:timestamp` triples, matching the digest's domain. */
+    /** Count of distinct `package:eventType:timestamp` triples inside the window, which is the digest's domain. */
     val eventCount: Int,
-    /** Lowercase hex SHA-256 over the sorted, de-duplicated triples joined by newlines. */
+    /** Lowercase hex SHA-256 over the sorted, de-duplicated in-window triples joined by newlines. */
     val eventSetDigestHex: String,
 )
 
@@ -48,28 +50,36 @@ class UsageEventCollector(private val context: Context) {
         usedSecondsWithin(eventSet, targetPackage)
 
     /**
-     * Reads foreground/background transitions for the window.
+     * Reads the device's event stream for the window, plus a lookbehind.
      *
-     * `queryEvents` returns events up to the moment of the call, so an open session is
-     * charged to [windowEndMs] by `buildEventSet` — the same rule `aggregateUsage` uses.
+     * The lookbehind exists because a session that opened before `windowStartMs` and is
+     * still running produces no foreground event inside the window at all — asking only
+     * about the window would report 0 s used for an app that never left the screen.
+     * `buildEventSet` clamps those spans to the window and keeps them out of the
+     * committed digest, so the lookbehind buys accuracy in the arithmetic without
+     * changing what the device signs.
+     *
+     * Every event type is kept. `foregroundIntervals` and `aggregateUsage` pick the two
+     * they care about; the digest must cover the whole stream, or a report with no
+     * evidence collected is indistinguishable from a phone that was genuinely idle.
      */
     private fun queryEvents(windowStartMs: Long, windowEndMs: Long): List<UsageEvent> {
         val manager = context.applicationContext
             .getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val out = ArrayList<UsageEvent>()
-        val stream = manager.queryEvents(windowStartMs, windowEndMs)
+        val stream = manager.queryEvents(windowStartMs - LOOKBEHIND_MS, windowEndMs)
         val event = UsageEvents.Event()
         while (stream.hasNextEvent()) {
             stream.getNextEvent(event)
-            if (event.eventType == UsageEventType.MOVE_TO_FOREGROUND ||
-                event.eventType == UsageEventType.MOVE_TO_BACKGROUND
-            ) {
-                event.packageName?.let { pkg ->
-                    out.add(UsageEvent(pkg, event.eventType, event.timeStamp))
-                }
-            }
+            val pkg = event.packageName ?: continue
+            out.add(UsageEvent(pkg, event.eventType, event.timeStamp))
         }
         return out
+    }
+
+    companion object {
+        /** How far before the window to read, so a session straddling the start is charged. */
+        const val LOOKBEHIND_MS = 6 * 60 * 60 * 1000L
     }
 }
 
@@ -79,7 +89,14 @@ fun buildEventSet(
     windowStartMs: Long,
     windowEndMs: Long,
 ): EventSet {
-    val triples = events
+    // Committed domain: everything the device reported INSIDE the window, every event
+    // type, all packages — spec 4.2. Not filtered to foreground/background, because a
+    // narrower hash is what would make "no evidence collected" and "a quiet phone" the
+    // same bytes. Events outside the window may be passed in for span arithmetic (a
+    // session that opened before windowStart and is charged inside it) and are dropped
+    // here.
+    val inWindow = events.filter { it.timestamp in windowStartMs..windowEndMs }
+    val triples = inWindow
         .map { "${it.packageName}:${it.eventType}:${it.timestamp}" }
         .toSortedSet()
         .toList()

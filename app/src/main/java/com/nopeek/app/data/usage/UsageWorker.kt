@@ -71,11 +71,12 @@ internal class UsageWorker(
 
         // One read of the event stream, three figures from it. Used-seconds alone is a
         // number the app made up; paired with the device-wide active span it becomes a
-        // claim the oracle can disprove, and the digest pins the exact event set the
-        // numbers came from so the same bytes are what gets signed and hashed.
+        // claim the oracle can disprove. The digest commits the exact window's event set
+        // these came from. It reaches the oracle in Task 13's signed payload — today
+        // `reportPayload` still sends only the legacy fields, so nothing yet checks it.
         val eventSet = collector.collect(parsed.windowStart, parsed.windowEnd)
         val usedSeconds = collector.usedSecondsFor(eventSet, parsed.targetPackage)
-        val clock = readClockPair()
+        val clock = readClockPair(parsed.windowStart, parsed.windowEnd)
 
         val signals = detectTamperSignals(
             permissionRevoked = !UsagePermissionHelper.isGranted(applicationContext),
@@ -104,7 +105,7 @@ internal class UsageWorker(
         // the signals directly, so there is exactly one place in the app that
         // turns evidence into a verdict — Task 15 swaps the binding, not this call
         // site. Behavior-identical: CommitmentVerifierTest pins verify()==UNVERIFIED
-        // to flagForVerification for every combination of the three signals.
+        // to flagForVerification for every combination of the four signals.
         if (verifier.verify(report, parsed.limitSeconds) == VerificationStatus.UNVERIFIED) {
             try {
                 kotlinx.coroutines.runBlocking {
@@ -130,17 +131,27 @@ internal class UsageWorker(
      * run can measure each clock's own gain; monotonic time is the yardstick the user
      * cannot move.
      */
-    private fun readClockPair(): ClockReading {
+    private fun readClockPair(windowStartMs: Long, windowEndMs: Long): ClockReading {
         val prefs: SharedPreferences =
             applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val wallNow = System.currentTimeMillis()
         val elapsedNow = android.os.SystemClock.elapsedRealtime()
-        val lastWall = prefs.getLong(PREF_LAST_WALL_CLOCK, wallNow)
-        val lastElapsed = prefs.getLong(PREF_LAST_ELAPSED_REALTIME, elapsedNow)
+        // 0 means "no previous observation", which is why the defaults are not
+        // wallNow/elapsedNow: seeding them from now would make the first run look like a
+        // clean comparison of two identical instants and quietly pass.
+        val lastWall = prefs.getLong(PREF_LAST_WALL_CLOCK, 0L)
+        val lastElapsed = prefs.getLong(PREF_LAST_ELAPSED_REALTIME, 0L)
         prefs.edit()
             .putLong(PREF_LAST_WALL_CLOCK, wallNow)
             .putLong(PREF_LAST_ELAPSED_REALTIME, elapsedNow)
             .apply()
+
+        if (lastWall == 0L || lastElapsed == 0L) {
+            // Nothing to compare against yet. This is not evidence of innocence either,
+            // so it is recorded in ATTESTATION_DEPLOY_NOTES as a known limitation rather
+            // than flagged — flagging would forfeit every honest first report.
+            return ClockReading(backwardJump = false, forwardJump = false)
+        }
 
         return ClockReading(
             backwardJump = lastWall - wallNow > CLOCK_JUMP_THRESHOLD_MS,
@@ -149,7 +160,7 @@ internal class UsageWorker(
                 lastElapsedRealtimeMs = lastElapsed,
                 wallNowMs = wallNow,
                 nowElapsedRealtimeMs = elapsedNow,
-                allowanceMs = CLOCK_JUMP_THRESHOLD_MS,
+                allowanceMs = forwardJumpAllowanceMs(windowStartMs, windowEndMs),
             ),
         )
     }

@@ -30,14 +30,25 @@ export const REPORT_CODE: Record<Verdict, number> = {
   UNVERIFIED: 3,
 };
 
-const BLOCKING_TAMPERS = ["PERMISSION_REVOKED", "CLOCK_CHANGED"];
+/**
+ * Any tamper signal at all disqualifies a report.
+ *
+ * Deliberately not a list of names. The device owns this vocabulary — it decides what
+ * goes in the array — so a blocklist would mean every new tamper flag is a silent no-op
+ * until someone remembers to widen the oracle. The same reasoning is why `checks.ts`
+ * rejects anything it cannot positively establish. An empty array is the only thing that
+ * means "nothing was found".
+ */
+export function hasBlockingTamper(report: UsageReport): boolean {
+  return report.tamperSignals.length > 0;
+}
 
 /** Plan 6.1 Step 3: tamper -> UNVERIFIED; used <= limit -> PASS; else FAIL. */
 export function determineResult(
   report: UsageReport,
   rule: ChallengeRule,
 ): Verdict {
-  if (report.tamperSignals.some((s) => BLOCKING_TAMPERS.includes(s))) {
+  if (hasBlockingTamper(report)) {
     return "UNVERIFIED";
   }
   return report.usedSeconds <= rule.limitSeconds ? "PASS" : "FAIL";
