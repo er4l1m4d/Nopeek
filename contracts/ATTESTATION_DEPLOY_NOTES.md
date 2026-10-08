@@ -117,7 +117,7 @@ self-consistent, and pinning that would certify an attacker-controlled CA.
 
 | Setting | Verified on device |
 | --- | --- |
-| Usage Access granted | ☐ |
+| Usage Access granted | ☑ via `adb shell appops set com.nopeek.app GET_USAGE_STATS allow` (MIUI Settings tap not needed; re-apply after each reinstall) |
 | Battery saver off | ☐ |
 | Nopeek excluded from per-app battery optimization | ☐ |
 | Autostart enabled | ☐ |
@@ -125,11 +125,56 @@ self-consistent, and pinning that would certify an attacker-controlled CA.
 
 ## Usage reading sanity (Task 12 Step 3)
 
-Known interval vs reported, recorded before anyone trusts a number:
+Known interval vs reported, recorded before anyone trusts a number.
+
+**Device:** Redmi, global ROM, `GMHAFAPRYTHUTGAU`. **Run:** 2026-10-08, `.superpowers/sdd/2026-10-06-nopeek-colosseum-compliance-proof/step3.sh`, results under `NOPEEK_STEP3` in logcat.
 
 | App | Expected foreground | `usedSeconds` | `deviceActiveSeconds` | `eventCount` |
 | --- | --- | --- | --- | --- |
-| _tbd_ | | | | |
+| `com.instagram.android` | 95 s wall-clock interval (launch → HOME, driven by adb) | **89** | **92** | 7 |
+
+- 89 s against a 95 s interval is **93.7 %**, and the 6 s deficit is the launch animation:
+  `monkey` returns before the activity is resumed, so the phone was honestly not showing
+  Instagram for those seconds. The direction is right — it under-reports rather than up.
+- `usedSeconds (89) <= deviceActiveSeconds (92)` holds on real data, so the oracle's
+  `USAGE_EXCEEDS_ACTIVE` bound is satisfiable by an honest report and not vacuous.
+- Digest for that window: `201f31212c593c80ab79b096e0f160eada8c860852e83e6176e0109a27144dd6`.
+
+**Event-type histogram over a real 6 h window** — `eventCount=1398`, `deviceActiveSeconds=9178`
+(2.55 h of 6 h active, plausible for a phone in daily use), digest
+`66ef3eb1e36d53a5a7627f83e8c9b863fd6688da9275cb3958fda6a7d1162061`:
+
+```
+typeHistogram = {1=552, 2=552, 5=16, 7=258, 10=635, 11=461, 12=1364,
+                 15=69, 16=69, 17=32, 18=32, 19=191, 20=190, 23=499}
+```
+
+This line exists because of a bug, and it is the check that would have caught it.
+`UsageEventType` declared foreground/background as `100`/`101`; the platform sends `1`/`2`
+(`javap -constants` on android-35). The filter matched nothing, so every window produced an
+empty event set, `usedSeconds = 0`, and a report the oracle scored **PASS** — while 184 JVM
+tests stayed green, because each of them built its events from those same wrong constants.
+Fixed in `1f03bcc`; `UsageEventTypeConstantsTest` now pins both values against the real
+framework class, and this histogram is the device-side proof.
+
+- **FG and BG counts are exactly equal (552/552)** — every open has a close. A stream where
+  they diverge wildly would mean sessions are being cut off and the numbers are not
+  trustworthy.
+- **13 other event types are present and committed** (notifications, screen, activity
+  stopped). The digest covers the whole stream, not just foreground transitions, so "no
+  evidence collected" and "a phone that was genuinely idle" are different bytes.
+- `eventCount` (1398, distinct in-window triples) is smaller than the histogram sum, because
+  the collector deliberately reads a 6 h lookbehind before `windowStart` for span arithmetic
+  while the committed set stays window-scoped. Expected, not data loss.
+- Busiest packages in the window: `com.whatsapp.w4b`, `com.snapchat.android`, `android`,
+  `org.telegram.messenger`, `com.miui.home`, `com.spotify.music`, `com.twitter.android`.
+  **MIUI reports third-party usage honestly** — this is the finding the spec's residual
+  limitations section needed, and it is the assumption Task 15's duel rests on.
+
+**Standing limitation found here:** clearing app data or a first-ever run leaves no prior
+clock observation, so neither clock-jump direction can be evaluated on that run. It is not
+flagged, because flagging would forfeit every honest first report; see the §5 write-up owed
+in Task 19/20.
 
 ## Contract test results
 
