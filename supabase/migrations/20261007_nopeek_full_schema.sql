@@ -186,36 +186,82 @@ alter table usage_reports add constraint usage_reports_verdict_shape check (
 );
 
 -- =====================================================================
--- RUN THIS AFTERWARDS AND SEND ME THE OUTPUT
--- Every row should come back looking sane; a missing table means the paste
--- was truncated, not that the migration is optional.
+-- VERIFICATION — one statement, one result grid
+-- The Supabase SQL Editor only shows the result of the LAST statement in
+-- a multi-statement run, so five separate selects here would display one
+-- row and hide the other four. Everything is unioned into a single
+-- statement instead. Safe to re-run: the schema above is idempotent.
+--
+-- Read 'app_read_path_ok' first — that is the one row the phone polls.
 -- =====================================================================
 
-select 'tables' as check_name,
-       string_agg(table_name::text, ', ' order by table_name) as result
-  from information_schema.tables
- where table_schema = 'public'
-   and table_name in ('challenges','usage_reports','settlement_results','install_keys','report_nonces');
-
-select 'rls_enforced_no_policy' as check_name,
-       string_agg(format('%s=%s', relname, relrowsecurity), ', ' order by relname) as result
-  from pg_class
- where relname in ('challenges','usage_reports','settlement_results','install_keys','report_nonces')
-   and relnamespace = 'public'::regnamespace;
-
-select 'public_policies' as check_name,
-       coalesce(string_agg(tablename || ' -> ' || policyname, ', ' order by tablename), 'none') as result
-  from pg_policies where schemaname = 'public';
-
-select 'evidence_columns' as check_name,
-       string_agg(column_name::text, ', ' order by column_name) as result
-  from information_schema.columns
- where table_name = 'usage_reports'
-   and column_name in ('signature_b64','cert_chain_pem','canonical_bytes','evidence_hash',
-                       'package_name','device_active_seconds','event_count','event_set_digest',
-                       'verified','reject_reason');
-
-select 'partial_indexes' as check_name,
-       string_agg(indexname::text, ', ' order by indexname) as result
-  from pg_indexes where schemaname = 'public'
-   and indexname in ('usage_reports_one_verified_per_side','usage_reports_evidence_hash_unique');
+select check_name, result from (
+  select 1 as ord, 'tables_present' as check_name,
+    coalesce((select string_agg(table_name, ', ' order by table_name)
+       from information_schema.tables
+      where table_schema = 'public'
+        and table_name in ('challenges','usage_reports','settlement_results','install_keys','report_nonces')),
+      'MISSING — the paste was truncated') as result
+  union all
+  select 2, 'rls_enabled', coalesce((
+      select string_agg(relname || '=' || (case when relrowsecurity then 'on' else 'OFF' end), ', ' order by relname)
+       from pg_class
+      where relnamespace = 'public'::regnamespace
+        and relkind = 'r'
+        and relname in ('challenges','usage_reports','settlement_results','install_keys','report_nonces')),
+      'MISSING — the paste was truncated')
+  union all
+  -- Expect exactly one policy: settlement_results SELECT. Anything else here
+  -- is a policy someone added by hand and needs a look at.
+  select 3, 'policies', coalesce((
+      select string_agg(tablename || ' -> ' || policyname || ' (' || lower(cmd) || ')', ', ' order by tablename, policyname)
+       from pg_policies where schemaname = 'public'), 'none')
+  union all
+  select 4, 'evidence_columns', coalesce((
+      select string_agg(column_name, ', ' order by column_name)
+       from information_schema.columns
+      where table_name = 'usage_reports'
+        and column_name in ('signature_b64','cert_chain_pem','canonical_bytes','evidence_hash',
+                            'package_name','device_active_seconds','event_count','event_set_digest',
+                            'verified','reject_reason')),
+      'MISSING — the paste was truncated')
+  union all
+  -- The GRANT layer, which is separate from RLS. anon will show INSERT/UPDATE/
+  -- DELETE on every table; that is Supabase's default and is NOT a hole, because
+  -- RLS with no policy filters every row away. Do not start revoking in a panic.
+  select 5, 'anon_grants', coalesce((
+      select string_agg(table_name || ':' || privilege_type, ', ' order by table_name, privilege_type)
+       from information_schema.role_table_grants
+      where grantee = 'anon' and table_schema = 'public'), 'none')
+  union all
+  -- The app's only direct table read (SettlementClient.kt). Needs BOTH the grant
+  -- and the policy; either one missing and settlement polling returns nothing.
+  select 6, 'app_read_path_ok',
+    case when exists (select 1 from information_schema.role_table_grants
+                       where grantee = 'anon' and table_schema = 'public'
+                         and table_name = 'settlement_results' and privilege_type = 'SELECT')
+          and exists (select 1 from pg_policies
+                       where schemaname = 'public' and tablename = 'settlement_results'
+                         and cmd = 'SELECT')
+         then 'YES — anon can SELECT settlement_results under RLS'
+         else 'NO — the app will silently never see a settlement' end
+  union all
+  -- service_role must be true: that is why the oracle function works on tables
+  -- that have no policies at all.
+  select 7, 'roles_bypassrls', coalesce((
+      select string_agg(rolname || '=' || (case when rolbypassrls then 'bypass' else 'restricted' end), ', ' order by rolname)
+       from pg_roles where rolname in ('anon','authenticated','service_role')), 'none')
+  union all
+  -- Records whether the two Project Settings toggles are armed. 'none' means
+  -- neither automatic RLS nor automatic exposure is switched on.
+  select 8, 'event_triggers', coalesce((
+      select string_agg(evtname, ', ' order by evtname) from pg_event_trigger), 'none')
+  union all
+  -- The replay / second-chance guard, and the same-bytes-is-one-report guard.
+  select 9, 'partial_indexes', coalesce((
+      select string_agg(indexname, ', ' order by indexname)
+       from pg_indexes
+      where schemaname = 'public'
+        and indexname in ('usage_reports_one_verified_per_side','usage_reports_evidence_hash_unique')),
+      'MISSING — the paste was truncated')
+) checks order by ord;

@@ -82,7 +82,10 @@ test("verifyEcdsaSignature accepts the signature it made and rejects mutated byt
     ["sign", "verify"],
   );
   const spkiB64 = Buffer.from(await crypto.subtle.exportKey("spki", publicKey)).toString("base64");
-  const bytes = new TextEncoder().encode("nopeek evidence payload");
+  // Explicit ArrayBuffer-backed view: TextEncoder.encode() is typed as returning
+  // Uint8Array<ArrayBufferLike>, and WebCrypto's BufferSource requires a plain
+  // ArrayBuffer one — SharedArrayBuffer would not be accepted at runtime here.
+  const bytes = new Uint8Array(new TextEncoder().encode("nopeek evidence payload"));
   const signature = new Uint8Array(await crypto.subtle.sign(
     { name: "ECDSA", hash: "SHA-256" },
     privateKey,

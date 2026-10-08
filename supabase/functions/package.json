@@ -1,0 +1,14 @@
+{
+  "name": "nopeek-oracle-functions",
+  "private": true,
+  "type": "module",
+  "description": "Dev tooling only. These files run under Deno in production; this package.json exists so `npx tsc` can typecheck the runtime-neutral modules and so Node treats the .ts test files as ESM instead of warning MODULE_TYPELESS_PACKAGE_JSON.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

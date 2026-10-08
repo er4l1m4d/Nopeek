@@ -1,13 +1,28 @@
 {
+  // Typechecks the runtime-neutral oracle modules — x509.ts, evidence.ts, checks.ts
+  // and their tests. Those files must compile and run under BOTH Node (the test
+  // runner) and Deno (production), so they may use only globals both provide:
+  // crypto.subtle, atob/btoa, TextEncoder, Response. Strict is on because this code
+  // decides money.
+  //
+  // `oracle/index.ts` is excluded below, and that is a stated gap rather than a clean
+  // pass: it is Deno-native — it imports through an `npm:` specifier and uses the
+  // global `Deno` object, neither of which a Node-typed tsc project can model. Its
+  // typecheck is `deno check` at deploy time. Two implicit-`any` parameters that this
+  // gate found in it are tracked for the task that rewrites that file.
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM"],
+    "types": ["node"],
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "strict": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": false,
     "skipLibCheck": true
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "oracle/index.ts"]
 }
