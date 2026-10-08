@@ -54,6 +54,7 @@ export type RejectReason =
   | "BOOT_UNLOCKED"
   | "BOOT_UNVERIFIED"
   | "PACKAGE_MISMATCH"
+  | "CERT_DIGEST_MISMATCH"
   | "TARGET_MISMATCH"
   | "WINDOW_MISMATCH"
   | "USAGE_EXCEEDS_ACTIVE"
@@ -80,6 +81,14 @@ export type NonceStatus = "ok" | "mismatch" | "consumed" | "expired";
 export interface VerifyDeps {
   /** The package the app was built as; the attested identity must equal it. */
   expectedPackageName: string;
+  /**
+   * Base64 SHA-256 of the signing certificate the app was built with, as the
+   * attestation reports it. Package name alone is attacker-chosen — a re-signed APK keeps
+   * it — so this is the half of spec 4.3 check 8 that distinguishes our build from a
+   * look-alike. Required, with no default: a missing value must fail the deploy, not
+   * silently accept any certificate.
+   */
+  expectedSigningCertDigestB64: string;
   /** Bound to verifyChainToPinnedRoot in production. No root argument by design. */
   verifyChain(chainPem: string): Promise<boolean>;
   isChainRevoked(chainPem: string): Promise<boolean>;
@@ -241,6 +250,12 @@ export async function verifyReport(input: ReportInput, deps: VerifyDeps): Promis
   if (facts.packageName !== deps.expectedPackageName || fields.packageName !== deps.expectedPackageName) {
     return reject("PACKAGE_MISMATCH");
   }
+  // The same check also compares the signing-cert digest, because the package name is
+  // not something only we can claim. Order matters: an attacker with a re-signed APK of
+  // ours would otherwise reach the enrolled-key lookup with a valid-looking chain.
+  if (facts.signingCertDigestB64 !== deps.expectedSigningCertDigestB64) {
+    return reject("CERT_DIGEST_MISMATCH");
+  }
   passed.push(CHECK_NAMES[10]);
 
   // 12. The report must be *about the duel it is settling*. Everything above proves
@@ -290,7 +305,7 @@ function reject(reason: RejectReason, detail?: string): VerifyResult {
  * the "no caller-supplied anchor" property auditable: this is the only function that
  * touches x509 directly, and it is the only place verifyChain may come from.
  */
-export function productionDeps(expectedPackageName: string, hooks: {
+export function productionDeps(expectedPackageName: string, expectedSigningCertDigestB64: string, hooks: {
   lookupEnrolledKey: VerifyDeps["lookupEnrolledKey"];
   consumeNonce: VerifyDeps["consumeNonce"];
   /**
@@ -302,6 +317,7 @@ export function productionDeps(expectedPackageName: string, hooks: {
 }): VerifyDeps {
   return {
     expectedPackageName,
+    expectedSigningCertDigestB64,
     verifyChain: (chainPem) => verifyChainToPinnedRoot(chainPem),
     isChainRevoked: async (chainPem) => {
       const entries = await hooks.revokedEntries();

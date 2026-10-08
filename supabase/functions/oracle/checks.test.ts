@@ -51,13 +51,16 @@ function makeKey() {
   };
 }
 
+/** The attested signing-cert digest of a coherent report's APK; tests mutate away from it. */
+const CERT_DIGEST_B64 = "AA".repeat(22) + "AA==";
+
 function goodAttestation() {
   return {
     securityLevel: "TrustedEnvironment",
     deviceLocked: true,
     verifiedBootState: "Verified",
     packageName: PACKAGE,
-    signingCertDigestB64: "AA".repeat(22) + "AA==",
+    signingCertDigestB64: CERT_DIGEST_B64,
     challengeB64: PROBE_CHALLENGE_B64,
     leafSpkiB64: "", // filled per test with the key that actually signed
     issuerDn: "serialNumber=f92009e853b6b045",
@@ -73,6 +76,7 @@ function happyDeps(overrides: Partial<VerifyDeps> = {}) {
   const bytes = encodeEvidence(baseFields());
   const deps: VerifyDeps = {
     expectedPackageName: PACKAGE,
+    expectedSigningCertDigestB64: CERT_DIGEST_B64,
     readAttestation: async () => ({ ...goodAttestation(), leafSpkiB64: key.spkiB64 }),
     verifyChain: async () => true,
     isChainRevoked: async () => false,
@@ -119,6 +123,7 @@ test("an unrooted chain is rejected before any other dependency is consulted", a
   const { bytes } = happyDeps();
   const deps: VerifyDeps = {
     expectedPackageName: PACKAGE,
+    expectedSigningCertDigestB64: CERT_DIGEST_B64,
     verifyChain: async () => false,
     readAttestation: tripwire("readAttestation") as VerifyDeps["readAttestation"],
     isChainRevoked: tripwire("isChainRevoked") as VerifyDeps["isChainRevoked"],
@@ -234,6 +239,21 @@ test("rejects an attestation from a different package than the app under test", 
   assert.equal(await reason(await verifyReport(reportInput(bytes), deps)), "PACKAGE_MISMATCH");
 });
 
+test("rejects a re-signed APK that keeps the right package name", async () => {
+  // Spec 4.3 check 8 is "package + signing-cert digest", and the digest is the half that
+  // distinguishes *our build* from anyone else's declared as com.nopeek.app. Package
+  // name alone is attacker-chosen; the digest is what the attestation actually binds.
+  const { deps, bytes } = happyDeps({
+    readAttestation: async () => ({
+      ...goodAttestation(),
+      signingCertDigestB64: "Bb".repeat(22) + "Bb==",
+      leafSpkiB64: "",
+    }),
+    lookupEnrolledKey: async () => ({ spkiB64: "" }),
+  });
+  assert.equal(await reason(await verifyReport(reportInput(bytes), deps)), "CERT_DIGEST_MISMATCH");
+});
+
 test("rejects usedSeconds larger than the device's own active time", async () => {
   // Review Focus 8: an internally contradictory report - the same stream that yielded
   // 42s of activity cannot also show the device was only awake for 10s.
@@ -275,6 +295,12 @@ test("the real Redmi chain clears every gate that does not need the phone's priv
   const bytes = encodeEvidence(baseFields());
   const deps: VerifyDeps = {
     expectedPackageName: PACKAGE,
+    // The debug APK's signer certificate digest, confirmed two independent ways: parsed
+    // out of attestationApplicationId in the captured chain by x509.ts, and sha256 of the
+    // cert exported from ~/.android/debug.keystore by keytool. They agree, which is also
+    // the first direct proof that x509 reads that field rather than a neighbouring one.
+    // Task 19 replaces this with the release keystore's digest.
+    expectedSigningCertDigestB64: "V03kcUk9V3oqTVu6IuiHFoFgf/eLmaehbyoc0zyDqIY=",
     readAttestation: async () => {
       const info = await readAttestationExtension(deviceChainPem);
       return {
