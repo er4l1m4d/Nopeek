@@ -96,20 +96,16 @@ async function reason(result: VerifyResult): Promise<string> {
 test("a coherent attested report is accepted and every check name is recorded", async () => {
   const { deps, bytes } = happyDeps();
   const result = await verifyReport({
-    canonicalBytes: bytes,
+    ...reportInput(bytes, WINDOW_END + 1_000),
     signatureB64: "bogus-but-verified-by-fake",
-    chainPem: deviceChainPem,
-    submittedAtMs: WINDOW_END + 1_000,
-    windowEndMs: WINDOW_END,
-    graceSeconds: GRACE_SECONDS,
   }, deps);
 
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, `expected acceptance, got ${JSON.stringify(result)}`);
   if (!result.ok) return;
   assert.equal(result.evidenceHash, await evidenceHash(bytes));
   assert.deepEqual(result.checks, [
     "chain", "revocation", "attestation", "hardware", "payload", "nonce-bound",
-    "enrolled", "signature", "nonce", "boot", "package", "consistency", "freshness",
+    "enrolled", "signature", "nonce", "boot", "package", "terms", "consistency", "freshness",
   ]);
 });
 
@@ -131,8 +127,8 @@ test("an unrooted chain is rejected before any other dependency is consulted", a
     consumeNonce: tripwire("consumeNonce") as VerifyDeps["consumeNonce"],
   };
   const result = await verifyReport({
-    canonicalBytes: bytes, signatureB64: "x", chainPem: deviceChainPem,
-    submittedAtMs: WINDOW_END, windowEndMs: WINDOW_END, graceSeconds: GRACE_SECONDS,
+    ...reportInput(bytes),
+    signatureB64: "x",
   }, deps);
   assert.equal(await reason(result), "CHAIN_NOT_ROOTED");
   assert.deepEqual(touched, [], "a later check must not run once the chain anchor fails");
@@ -299,14 +295,95 @@ test("the real Redmi chain clears every gate that does not need the phone's priv
     consumeNonce: async () => "ok",
   };
   const result = await verifyReport({
-    canonicalBytes: bytes,
+    ...reportInput(bytes),
     signatureB64: "cannot-be-signed-without-the-device",
-    chainPem: deviceChainPem,
-    submittedAtMs: WINDOW_END,
-    windowEndMs: WINDOW_END,
-    graceSeconds: GRACE_SECONDS,
   }, deps);
+  // Checks 1,3,4,5,6 run over real x509 output here; enrollment is satisfied by
+  // construction in this test and is covered independently by KEY_NOT_ENROLLED above.
   assert.equal(await reason(result), "BAD_SIGNATURE");
+});
+
+// ---------------------------------------------------------------------------
+// Dependencies that fail outright: total function, fail closed, never a 500
+// ---------------------------------------------------------------------------
+
+test("a dependency that throws produces a rejection, never an escaped exception", async () => {
+  const { deps, bytes } = happyDeps();
+  const throwing: Array<[string, Partial<VerifyDeps>, string]> = [
+    ["readAttestation", { readAttestation: async () => { throw new Error("db down"); } }, "ATTESTATION_UNREADABLE"],
+    ["isChainRevoked", { isChainRevoked: async () => { throw new Error("feed timeout"); } }, "CHAIN_REVOKED"],
+    ["lookupEnrolledKey", { lookupEnrolledKey: async () => { throw new Error("pool exhausted"); } }, "KEY_NOT_ENROLLED"],
+    ["consumeNonce", { consumeNonce: async () => { throw new Error("connection reset"); } }, "NONCE_MISMATCH"],
+    ["verifySignature", { verifySignature: async () => { throw new Error("bad key"); } }, "BAD_SIGNATURE"],
+    ["verifyChain", { verifyChain: async () => { throw new Error("parse blew up"); } }, "CHAIN_NOT_ROOTED"],
+  ];
+  for (const [name, override, expected] of throwing) {
+    const result = await verifyReport(reportInput(bytes), { ...deps, ...override });
+    assert.equal(await reason(result), expected, `${name} must fail closed as ${expected}`);
+    assert.equal(result.ok, false, `${name} must not throw and must not accept`);
+  }
+});
+
+test("rejections do not echo parser internals to an unauthenticated caller", async () => {
+  const { deps, bytes } = happyDeps();
+  const garbage = new TextEncoder().encode("evidence field must be printable ASCII: /etc/passwd");
+  const result = await verifyReport(reportInput(garbage), deps);
+  assert.equal(await reason(result), "PAYLOAD_UNPARSEABLE");
+  if (result.ok) return;
+  assert.ok(!("detail" in result) || !String(result.detail).includes("/etc/passwd"),
+    "attacker input must not be reflected back");
+});
+
+// ---------------------------------------------------------------------------
+// The report must describe the duel it is being filed against
+// ---------------------------------------------------------------------------
+
+test("rejects a genuine report about a different target app than the challenge", async () => {
+  const { deps, bytes } = happyDeps();
+  const wrongTarget = encodeEvidence(baseFields({ targetPackage: "com.tiktok.android" }));
+  assert.equal(await reason(await verifyReport(reportInput(wrongTarget), deps)), "TARGET_MISMATCH");
+});
+
+test("rejects a report whose window does not match the challenge window", async () => {
+  const { deps } = happyDeps();
+  const shiftedStart = encodeEvidence(baseFields({ windowStartMs: WINDOW_START - 60_000 }));
+  assert.equal(await reason(await verifyReport(reportInput(shiftedStart), deps)), "WINDOW_MISMATCH");
+
+  const shiftedEnd = encodeEvidence(baseFields({ windowEndMs: WINDOW_END + 60_000 }));
+  assert.equal(await reason(await verifyReport(reportInput(shiftedEnd), deps)), "WINDOW_MISMATCH");
+});
+
+test("rejects a payload whose own package claim is not the app under test", async () => {
+  // The attestation half is covered elsewhere; this is the payload half, which a
+  // verifier that only trusted the certificate would happily wave through.
+  const { deps } = happyDeps();
+  const lyingPayload = encodeEvidence(baseFields({ packageName: "com.evil.clone" }));
+  assert.equal(await reason(await verifyReport(reportInput(lyingPayload), deps)), "PACKAGE_MISMATCH");
+});
+
+test("rejects reported usage backed by an empty event set", async () => {
+  const { deps } = happyDeps();
+  const noEvents = encodeEvidence(baseFields({ usedSeconds: 42, eventCount: 0 }));
+  assert.equal(await reason(await verifyReport(reportInput(noEvents), deps)), "DIGEST_MISMATCH");
+});
+
+// ---------------------------------------------------------------------------
+// The verifier must not be reachable by a payload it cannot parse
+// ---------------------------------------------------------------------------
+
+test("every exotic payload input returns a reason rather than throwing", async () => {
+  const { deps } = happyDeps();
+  const cases: Array<[string, Uint8Array]> = [
+    ["empty", new Uint8Array(0)],
+    ["truncated length prefix", new Uint8Array([1, 0, 0])],
+    ["huge declared field length", new Uint8Array([1, 0x7f, 0xff, 0xff, 0xff, 0x41])],
+    ["trailing garbage after payload", new Uint8Array([...encodeEvidence(baseFields()), 9, 9, 9])],
+    ["unsupported version", new Uint8Array([2, 0, 0, 0, 0])],
+  ];
+  for (const [name, bytes] of cases) {
+    const result = await verifyReport(reportInput(bytes), deps);
+    assert.equal(result.ok, false, `${name} must not be accepted`);
+  }
 });
 
 function reportInput(canonicalBytes: Uint8Array, submittedAtMs = WINDOW_END) {
@@ -317,5 +394,7 @@ function reportInput(canonicalBytes: Uint8Array, submittedAtMs = WINDOW_END) {
     submittedAtMs,
     windowEndMs: WINDOW_END,
     graceSeconds: GRACE_SECONDS,
+    expectedTargetPackage: "com.instagram.android",
+    expectedWindowStartMs: WINDOW_START,
   };
 }

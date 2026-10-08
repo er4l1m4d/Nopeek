@@ -29,6 +29,7 @@ import {
   readAttestationExtension,
   verifyChainToPinnedRoot,
   verifyEcdsaSignature,
+  type RevokedEntry,
 } from "./x509.ts";
 
 /**
@@ -53,6 +54,8 @@ export type RejectReason =
   | "BOOT_UNLOCKED"
   | "BOOT_UNVERIFIED"
   | "PACKAGE_MISMATCH"
+  | "TARGET_MISMATCH"
+  | "WINDOW_MISMATCH"
   | "USAGE_EXCEEDS_ACTIVE"
   | "DIGEST_MISMATCH"
   | "REPORT_LATE";
@@ -94,6 +97,15 @@ export interface ReportInput {
   submittedAtMs: number;
   windowEndMs: number;
   graceSeconds: number;
+  /**
+   * The terms of the challenge this report is being filed against, loaded from the
+   * challenge row by the caller. Without these the verifier could confirm *who* and
+   * *when* but not *what*: a genuine report for a TikTok duel would settle an
+   * Instagram challenge, and the bytes whose hash goes on-chain would disagree with
+   * the escrow it is settling.
+   */
+  expectedTargetPackage: string;
+  expectedWindowStartMs: number;
 }
 
 /**
@@ -103,7 +115,7 @@ export interface ReportInput {
 const CHECK_NAMES = [
   "chain", "revocation", "attestation", "hardware", "payload",
   "nonce-bound", "enrolled", "signature", "nonce", "boot",
-  "package", "consistency", "freshness",
+  "package", "terms", "consistency", "freshness",
 ] as const;
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
@@ -125,7 +137,9 @@ export async function verifyReport(input: ReportInput, deps: VerifyDeps): Promis
   passed.push(CHECK_NAMES[0]);
 
   // 2. A validly-signed chain is worthless if Google published its batch key as
-  // leaked. Unavailable revocation data is treated as revoked, never as clean.
+  // leaked. The feed is external input: a hook that cannot answer is treated as
+  // revoked, never as clean. An empty *successful* fetch is genuinely empty - the
+  // two cases must not be conflated, or an outage silently disables this check.
   let revoked = true;
   try {
     revoked = await deps.isChainRevoked(chainPem);
@@ -140,8 +154,10 @@ export async function verifyReport(input: ReportInput, deps: VerifyDeps): Promis
   let facts: AttestationFacts;
   try {
     facts = await deps.readAttestation(chainPem);
-  } catch (error) {
-    return reject("ATTESTATION_UNREADABLE", message(error));
+  } catch {
+    // No error text is echoed: this route is unauthenticated, and parser internals
+    // handed back for free are a structural oracle for the caller.
+    return reject("ATTESTATION_UNREADABLE");
   }
   passed.push(CHECK_NAMES[2]);
 
@@ -157,10 +173,9 @@ export async function verifyReport(input: ReportInput, deps: VerifyDeps): Promis
   let fields: EvidenceFields;
   try {
     fields = decodeEvidence(canonicalBytes);
-  } catch (error) {
-    return reject("PAYLOAD_UNPARSEABLE", message(error));
+  } catch {
+    return reject("PAYLOAD_UNPARSEABLE");
   }
-  if (fields.version !== 1) return reject("PAYLOAD_UNPARSEABLE", `version ${fields.version}`);
   passed.push(CHECK_NAMES[4]);
 
   // 6. The attested challenge must be the nonce carried inside the signed payload.
@@ -174,7 +189,15 @@ export async function verifyReport(input: ReportInput, deps: VerifyDeps): Promis
   // 7. The key that signed this report must be the one enrolled for this wallet, and
   // must be the leaf the chain attests. Three-way, or an enrolled key from another
   // device validates anything its owner signs.
-  const enrolled = await deps.lookupEnrolledKey(fields.walletPubkey);
+  let enrolled: { spkiB64: string } | null;
+  try {
+    enrolled = await deps.lookupEnrolledKey(fields.walletPubkey);
+  } catch {
+    // A store we cannot ask is not a store that answered "no such key": but the
+    // only safe direction is rejection, and rejection is what this returns rather
+    // than throwing, so the caller records a verdict instead of a 500.
+    return reject("KEY_NOT_ENROLLED");
+  }
   if (!enrolled || enrolled.spkiB64 !== facts.leafSpkiB64) {
     return reject("KEY_NOT_ENROLLED");
   }
@@ -190,10 +213,17 @@ export async function verifyReport(input: ReportInput, deps: VerifyDeps): Promis
   if (!signed) return reject("BAD_SIGNATURE");
   passed.push(CHECK_NAMES[7]);
 
-  // 9. Single-use, and bound to this (challenge, wallet) pair.
-  const nonceStatus = await deps.consumeNonce(
-    fields.nonceB64, fields.challengePubkey, fields.walletPubkey,
-  );
+  // 9. Single-use, and bound to this (challenge, wallet) pair. This mutates state,
+  // and deliberately runs before the remaining checks: a nonce spent by a report that
+  // then fails on boot state cannot be re-tried with a patched payload.
+  let nonceStatus: NonceStatus;
+  try {
+    nonceStatus = await deps.consumeNonce(
+      fields.nonceB64, fields.challengePubkey, fields.walletPubkey,
+    );
+  } catch {
+    return reject("NONCE_MISMATCH");
+  }
   if (nonceStatus === "consumed") return reject("NONCE_CONSUMED");
   if (nonceStatus === "expired") return reject("NONCE_EXPIRED");
   if (nonceStatus !== "ok") return reject("NONCE_MISMATCH");
@@ -209,11 +239,24 @@ export async function verifyReport(input: ReportInput, deps: VerifyDeps): Promis
   // Corroboration rather than proof - it is software-enforced in the extension - but
   // a mismatch is disqualifying regardless of which tier the claim sits in.
   if (facts.packageName !== deps.expectedPackageName || fields.packageName !== deps.expectedPackageName) {
-    return reject("PACKAGE_MISMATCH", facts.packageName);
+    return reject("PACKAGE_MISMATCH");
   }
   passed.push(CHECK_NAMES[10]);
 
-  // 12. Internal consistency. Attestation proves provenance, not truthfulness, so
+  // 12. The report must be *about the duel it is settling*. Everything above proves
+  // who signed what and when; none of it proves the signed claims match this
+  // challenge. Without this, a genuine Instagram report could be filed against a
+  // TikTok duel, and the hash written on-chain would describe different terms than
+  // the escrow it releases.
+  if (fields.targetPackage !== input.expectedTargetPackage) {
+    return reject("TARGET_MISMATCH");
+  }
+  if (fields.windowStartMs !== input.expectedWindowStartMs || fields.windowEndMs !== input.windowEndMs) {
+    return reject("WINDOW_MISMATCH");
+  }
+  passed.push(CHECK_NAMES[11]);
+
+  // 13. Internal consistency. Attestation proves provenance, not truthfulness, so
   // the only lie that is cheap to catch is a self-contradicting one: usage cannot
   // exceed the device's own total active time, and the event-set digest must at least
   // be a sha-256 or it corresponds to no event set at all.
@@ -222,13 +265,13 @@ export async function verifyReport(input: ReportInput, deps: VerifyDeps): Promis
   if (fields.usedSeconds > 0 && fields.eventCount === 0) {
     return reject("DIGEST_MISMATCH", "usage reported with an empty event set");
   }
-  passed.push(CHECK_NAMES[11]);
+  passed.push(CHECK_NAMES[12]);
 
-  // 13. Freshness. Absent or late evidence is already a loss in the settlement rule;
+  // 14. Freshness. Absent or late evidence is already a loss in the settlement rule;
   // here it is refused so a late report cannot be quietly filed as a pass.
   const deadline = input.windowEndMs + input.graceSeconds * 1000;
   if (input.submittedAtMs > deadline) return reject("REPORT_LATE");
-  passed.push(CHECK_NAMES[12]);
+  passed.push(CHECK_NAMES[13]);
 
   return {
     ok: true,
@@ -242,10 +285,6 @@ function reject(reason: RejectReason, detail?: string): VerifyResult {
   return { ok: false, reason, ...(detail ? { detail } : {}) };
 }
 
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * Production dependency bundle. Keeping the wiring in one named place is what makes
  * the "no caller-supplied anchor" property auditable: this is the only function that
@@ -254,14 +293,19 @@ function message(error: unknown): string {
 export function productionDeps(expectedPackageName: string, hooks: {
   lookupEnrolledKey: VerifyDeps["lookupEnrolledKey"];
   consumeNonce: VerifyDeps["consumeNonce"];
-  /** Cached copy of Google's revocation feed; empty list is refused, never trusted. */
-  revokedEntries: () => Promise<{ issuer: string; serial: string }[]>;
+  /**
+   * Google's revocation feed. Must resolve to `null` when the feed could not be
+   * fetched; an empty array means "fetched successfully, nothing revoked". These two
+   * are not interchangeable: conflating them turns an outage into a silent pass.
+   */
+  revokedEntries: () => Promise<RevokedEntry[] | null>;
 }): VerifyDeps {
   return {
     expectedPackageName,
     verifyChain: (chainPem) => verifyChainToPinnedRoot(chainPem),
     isChainRevoked: async (chainPem) => {
       const entries = await hooks.revokedEntries();
+      if (entries === null) throw new Error("revocation feed unavailable");
       return isSerialRevoked(chainPem, entries);
     },
     readAttestation: async (chainPem) => {
