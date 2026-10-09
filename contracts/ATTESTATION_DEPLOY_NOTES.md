@@ -45,11 +45,31 @@ minting a second one and orphaning the first.
 Recorded here when resolved: pubkey, keypair export location (never its
 contents), balance, and the date the airdrop landed.
 
-- Oracle pubkey: `6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj` (pre-existing, 0 SOL as of the Volo plan — fund before Task 4)
+- Oracle pubkey: `6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj` — **funded and imported into
+  `beta.solpg.io` on 2026-10-09.** Balance verified at **10 SOL** by a `getBalance` RPC call
+  (`https://api.devnet.solana.com`, lamports `10000000000`), not by Playground's own display.
+  The keypair is `~/.config/solana/id.json`, outside the repo; its public half was decoded to
+  this exact address, so the funded wallet and the wallet we can sign with are the same one.
+  **Playground keeps wallets in browser localStorage — clearing browser data deletes the
+  wallet, and `id.json` is the only backup.**
 - Program id: _tbd_ (see `contracts/DEPLOYED_PROGRAM_ID.txt`)
 - Treasury pubkey: _tbd_ (Task 10)
-- Devnet balance: _tbd_ — needs at least 2 SOL before Task 4 can build and deploy
+- Devnet balance: **10 SOL**, confirmed on-chain 2026-10-09. Program rent is refundable with
+  `solana program close <id>`, so the same balance survives repeated deploy cycles.
 - Keypair exported to Supabase as: _tbd_ (Task 14)
+
+## Two things measured instead of remembered (2026-10-09)
+
+Both were about to be "fixed" on the strength of recall, and recall was wrong both times.
+
+- **`program/USDC_MINT.txt` is correct.** `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
+  returns a real `getTokenSupply` on devnet: 6 decimals, live supply. The address I
+  remembered as canonical (`...PgZJ...`, differing at base58 index 35) **does not exist**.
+  Task 4 Step 3 funds Phantom accounts with the recorded mint; it needed no correction.
+- **`Cargo.toml` needs no `features` line.** `anchor-spl = "0.31.1"` with no explicit
+  features was read as "will not compile", but this version ships **11 of 21 features on by
+  default, `token` and `associated_token` among them** (docs.rs feature list). Adding a
+  features line would have been redundant churn on a file that was already right.
 
 ## S1 gate — does the Redmi produce a hardware attestation chain
 

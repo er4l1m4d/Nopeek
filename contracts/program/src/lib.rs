@@ -6,9 +6,15 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 // (Playground's "New Project" writes its own declare_id! — paste this source around it).
 declare_id!("11111111111111111111111111111111");
 
-/// Oracle signer authority. Replace with the oracle wallet pubkey
-/// (devnet-wallet-info.txt) before deploying.
-pub const ORACLE_AUTHORITY: Pubkey = pubkey!("11111111111111111111111111111111");
+/// Oracle signer authority: the funded devnet deploy wallet, recorded in
+/// `contracts/ATTESTATION_DEPLOY_NOTES.md`. Keypair lives at `~/.config/solana/id.json`
+/// (outside the repo, gitignored) and held 10 devnet SOL on 2026-10-09, confirmed by a
+/// `getBalance` RPC call rather than by a UI. Validity is not assumed either: the RPC
+/// accepted the address, so it is a well-formed 32-byte pubkey.
+///
+/// This same keypair is the settlement signer, so Task 14 must export it to the Supabase
+/// Edge Function as a secret. Never commit it and never put it in the client.
+pub const ORACLE_AUTHORITY: Pubkey = pubkey!("6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj");
 
 pub const CHALLENGE_SEED: &[u8] = b"challenge";
 
