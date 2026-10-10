@@ -1,6 +1,18 @@
-# Placeholder — filled by plan Task 4 when the program is deployed to devnet
-# through the Solana Playground browser IDE. Until then the program has never
-# run anywhere: contracts/program/src/lib.rs still carries the 1111... placeholder
-# declare_id! and ORACLE_AUTHORITY.
-PROGRAM_ID=PENDING-TASK-4
-NETWORK=devnet
+DEPLOYED PROGRAM ID — devnet
+============================
+
+DJftv46AvjrbkbUCHR74ntWMXb5r7eHxHo3SXZkox2NM
+
+Cluster          : devnet (https://api.devnet.solana.com)
+Deployed         : 2026-10-10, via Solana Playground project `volo_challenge`
+Deploy tx        : xpRz3urpm1ppkP2MPxz51nD1gRsgwGgv395FpKAc6hLV4AYHhTHTy2puiyNu6LNvSs2aBykZbWN9rhfRAiWaSMi
+Slot             : 509390754 (err: null)
+Verified         : getAccountInfo -> owner BPFLoaderUpgradeab1e11111111111111111111111,
+                   executable=true, space=36, lamports=833120
+ProgramData      : 77RtiTVTiWuSPpH7rptFKeJvMGwtirjrnqgiLsUiwk1a (space 318,685)
+Upgrade authority: 6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj  <- the deploy/oracle wallet
+Rent locked      : 1.62214316 SOL, recoverable with `solana program close <id>`
+
+Do NOT paste this into the app yet. Task 4 Step 4 wires it into SolanaConfig together
+with the real Supabase project ref, and Task 10 redeploys the program with the v2 layout
+(nonce, evidence hashes, treasury, reputation), which will change this id.
