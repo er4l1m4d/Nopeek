@@ -136,16 +136,16 @@ test("isSerialRevoked flags a batch attestation key Google published as leaked",
 
 test("isSerialRevoked requires the issuer to match, not the serial alone", async () => {
   const links = await describeChain(deviceChainPem);
-  const leafSerial = links[0].serialHex;
-  // This device's leaf serial happens to be "01", one of the most common serial
-  // numbers in existence. Matching on serial alone means any unrelated CA entry in
-  // Google's feed would mark a genuine, locked, verified-boot device as revoked -
-  // and a revoked device is UNVERIFIED, which under the fail-closed rule forfeits
-  // an honest user's stake.
+  // When a caller DOES supply an issuer, it has to agree. Serial uniqueness is only
+  // guaranteed per issuer, so a serial matched against the wrong CA would mark a genuine,
+  // locked, verified-boot device revoked - and a revoked device is UNVERIFIED, which under
+  // the fail-closed rule forfeits an honest user's stake. Google's own feed supplies no
+  // issuer at all, which is why this field is optional; the device-side protection for that
+  // case is the leaf exclusion, tested separately below.
   assert.equal(
-    isSerialRevoked(deviceChainPem, [{ issuer: "CN=Unrelated CA", serial: leafSerial }]),
+    isSerialRevoked(deviceChainPem, [{ issuer: "CN=Unrelated CA", serial: links[1].serialHex }]),
     false,
-    "a different issuer must not make this chain revoked",
+    "a real serial under a different issuer must not make this chain revoked",
   );
   // The near-miss that matters: a real serial paired with a different certificate's issuer.
   assert.equal(
@@ -208,11 +208,59 @@ test("parseRevokedFeed reads Google's envelope and fails closed on anything else
   assert.equal(parseRevokedFeed({}), null);
   assert.equal(parseRevokedFeed(null), null);
   assert.deepEqual(parseRevokedFeed({ entries: {} }), []);
-  assert.deepEqual(parseRevokedFeed({ entries: { "123": { status: "PENDING" } } }), []);
+  // A digits-only key is ambiguous, so BOTH readings are honoured - see the base test below.
+  assert.deepEqual((parseRevokedFeed({ entries: { "123": { status: "PENDING" } } }) ?? []).map((e) => e.serial), ["123"]);
 
   // Loud on garbage inside a recognised envelope, so a format change cannot pass quietly.
   assert.throws(() => parseRevokedFeed({ entries: { "123": {} } }), /status/);
   assert.throws(() => parseRevokedFeed({ entries: { "0z9": { status: "REVOKED" } } }), /serial/);
+});
+
+test("every entry in the feed disqualifies a key, whatever status Google attached to it", () => {
+  // Presence in this feed is the signal: Google has stopped trusting that attestation key.
+  // Its vocabulary is not one-valued - SUSPENDED means temporary removal, and a key taken
+  // out of service is not a key to settle money on. Filtering to status === "REVOKED" drops
+  // those silently, which is a FALSE ACCEPT: a report signed on a flagged key would go on to
+  // settle. The asymmetry is what gave it away - a missing status threw loudly while an
+  // unrecognised one passed quietly.
+  const batchCert = "137778401798951626961013231794950430006"; // certs[1], as Google writes decimals
+  const parsed = parseRevokedFeed({
+    entries: { [batchCert]: { status: "SUSPENDED", reason: "KEY_COMPROMISE" } },
+  });
+  assert.equal(parsed?.length, 1, "a suspended key is still a key we must not trust");
+  assert.equal(isSerialRevoked(deviceChainPem, parsed ?? []), true);
+
+  // Whitespace in a published status must not become a silent pass either.
+  const padded = parseRevokedFeed({ entries: { [batchCert]: { status: " REVOKED " } } });
+  assert.equal(isSerialRevoked(deviceChainPem, padded ?? []), true, "' REVOKED ' is REVOKED");
+});
+
+test("the pure-JS adapter asks noble with the options that make verification correct", async () => {
+  // noble 2.4.0 ignores UNKNOWN option keys without complaint, so a typo in `lowS` or a
+  // renamed `format` would leave production silently using noble's defaults - and every
+  // current fixture would still verify, because Google's captured signatures happen to be
+  // low-S. Asserting the call itself is the only way to see that. prehash:false and
+  // format:"compact" are also pinned here rather than trusted.
+  const calls: Array<Record<string, unknown>> = [];
+  const spy = {
+    verify: (signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array, opts?: Record<string, unknown>) => {
+      calls.push({
+        sigLen: signature.length, msgLen: message.length, pubLen: publicKey.length, ...(opts ?? {}),
+      });
+      return true;
+    },
+  };
+  // Only P-256 is supplied, so the chain stops at the next link: exactly one call expected.
+  const ok = await verifyChainSignatures(deviceChainPem, makeNobleEcdsaVerifier({ "P-256": spy }));
+  assert.equal(calls.length, 1, "the P-256 link reached the curve instance");
+  assert.equal(ok, false, "a link with no supplied implementation must fail closed, not fall back to the host");
+
+  assert.equal(calls[0].prehash, false, "digest comes from the certificate's own hash OID, not the curve's default");
+  assert.equal(calls[0].lowS, false, "noble's default rejects high-S, which CA signatures may legitimately carry");
+  assert.equal(calls[0].format, "compact");
+  assert.equal(calls[0].pubLen, 65, "uncompressed P-256 point: 0x04 || X || Y");
+  assert.equal(calls[0].sigLen, 64, "fixed-width r||s, converted from DER by x509");
+  assert.equal(calls[0].msgLen, 32, "a SHA-256 digest was handed over, not the raw TBS bytes");
 });
 
 test("isSerialRevoked rejects an unparseable serial rather than silently ignoring it", async () => {

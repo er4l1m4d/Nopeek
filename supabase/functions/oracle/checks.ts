@@ -319,9 +319,9 @@ export function productionDeps(expectedPackageName: string, expectedSigningCertD
   /**
    * ECDSA implementation for the chain links. Defaults to the host's WebCrypto, which is
    * correct everywhere except Supabase's edge runtime: Deno 2.1.4 throws
-   * `Not implemented` on P-384, and Google signs the attestation intermediate with a
-   * P-384 key, so the default rejects every genuine device chain. Production passes a
-   * pure-JS verifier. It cannot be supplied per-request; it is a property of the runtime.
+   * `Not implemented` on P-384, and Google's attestation intermediate holds a P-384 key,
+   * so the default rejects every genuine device chain. Production passes a pure-JS
+   * verifier. It cannot be supplied per-request; it is a property of the runtime.
    */
   ecdsaVerify?: EcdsaVerifier;
 }): VerifyDeps {

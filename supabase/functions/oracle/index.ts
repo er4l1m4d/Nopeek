@@ -31,7 +31,10 @@ const REVOKED_SERIALS_URL = "https://android.googleapis.com/attestation/status";
  * leaf link verified, the P-384 link did not, so the live oracle rejected every genuine
  * device chain at CHAIN_NOT_ROOTED. All ECDSA links go through here — not just P-384 — so
  * there is one implementation and no host-dependent behaviour left to be surprised by.
- * The RSA root self-signature still uses the host, which Deno does implement.
+ * The third link (the intermediate's signature, verified under the pinned root's RSA key)
+ * still uses the host's RSASSA-PKCS1-v1_5, which this runtime does implement: the live
+ * endpoint reached NONCE_MISMATCH on a real chain, which requires that link to have
+ * verified. The root's own self-signature is never checked — it is trusted by identity.
  */
 const ECDSA_VERIFY = makeNobleEcdsaVerifier({ "P-256": p256, "P-384": p384, "P-521": p521 });
 

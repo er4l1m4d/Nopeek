@@ -387,9 +387,9 @@ const ECDSA_HASH: Record<string, HashName> = {
  * The seam exists for a measured reason, not as general flexibility. Supabase's edge
  * runtime (Deno 2.1.4) throws `DOMException: Not implemented` from crypto.subtle.verify
  * for P-384 while Node 26 accepts the same bytes, so the deployed oracle rejected a
- * genuine Redmi chain at the intermediate←root link. The curve is chosen by Google's CA
- * and is not ours to downgrade, so production injects a pure-JS verifier and the default
- * stays WebCrypto.
+ * genuine Redmi chain at the batch←intermediate link, which is verified under the
+ * intermediate's P-384 key. That key is Google's and is not ours to downgrade, so
+ * production injects a pure-JS verifier and the default stays WebCrypto.
  *
  * `hash` travels with the link rather than being implied by the curve, because the hash is
  * dictated by the certificate's own signatureAlgorithm OID: a P-384 key can legitimately
@@ -628,7 +628,9 @@ export async function verifyChainToRoot(
  * settlement and a terrible thing to debug, and useless on the Evidence screen where a
  * user needs to know *which* link broke. This exposes the same walk per certificate.
  */
-export async function describeChain(chainPem: string): Promise<ChainLink[]> {
+export async function describeChain(
+  chainPem: string, ecdsa: EcdsaVerifier = verifyEcdsaWithWebCrypto,
+): Promise<ChainLink[]> {
   const certs = parseChain(chainPem);
   const out: ChainLink[] = [];
   for (const [index, cert] of certs.entries()) {
@@ -640,7 +642,7 @@ export async function describeChain(chainPem: string): Promise<ChainLink[]> {
     const next = certs[index + 1] ?? null;
     const linkIsNextCertificate = next !== null && issuer !== null && next.subjectDn === issuer.subjectDn;
     const signatureValid = issuer
-      ? await verifyWithSpki(issuer.spkiDer, cert.signatureAlgorithmOid, cert.tbs, cert.signatureDer)
+      ? await verifyWithSpki(issuer.spkiDer, cert.signatureAlgorithmOid, cert.tbs, cert.signatureDer, ecdsa)
       : false;
     out.push({
       subjectDn: cert.subjectDn,
@@ -709,10 +711,17 @@ export function parseRevokedFeed(body: unknown): RevokedEntry[] | null {
     if (typeof status !== "string") {
       throw new Error(`x509: revocation entry "${key}" has no status field`);
     }
-    // Validated even for statuses this loop skips: a key this module cannot read means the
+    // Validated even though it is not filtered on: a key this module cannot read means the
     // feed changed under us, and that has to surface while the rest still looks parseable.
     feedSerialValues(key);
-    if (status.toUpperCase() === "REVOKED") out.push({ serial: key });
+    // Every entry disqualifies its key. Presence in this feed is the signal — Google has
+    // stopped trusting that attestation key — and the status only explains why (REVOKED, or
+    // SUSPENDED for a temporary removal). Filtering on status would silently drop the others,
+    // which is a FALSE ACCEPT: a report signed on a key Google flagged would settle money.
+    // This is also why a missing status throws while an unusual one is kept: the asymmetry of
+    // failing loudly for one shape of surprise and quietly for the other is how the filter
+    // looked safe for longer than it was.
+    out.push({ serial: key });
   }
   return out;
 }

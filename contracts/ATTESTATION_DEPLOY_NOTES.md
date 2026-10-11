@@ -100,7 +100,7 @@ Full detail and reproduce procedure: `supabase/functions/oracle/fixtures/FINDING
 | Chain depth | 4 (leaf + 2 TEE intermediates + self-signed root) |
 | Leaf subject | `CN=Android Keystore Key` |
 | Root serial | `f92009e853b6b045` (self-signed) — **matched byte-for-byte to Google's published root** |
-| Revoked-serial list | `https://android.googleapis.com/attestation/status` — available, **not yet checked**. A leaked batch attestation key would keep producing valid-looking chains forever |
+| Revoked-serial list | `https://android.googleapis.com/attestation/status` — **now fetched and enforced by the oracle** (see the feed-shape section below: top-level `entries`, mixed decimal/hex serial keys, no issuer field). Our own chain's four serials appear in it under neither reading |
 | StrongBox | **absent** — `TEE-only: Failed to generated key pair.` Say *TEE-backed* only if/when the security level is decoded; never "dedicated secure element" |
 | `keyMintSecurityLevel` | **not decoded** — Task 3, from `device-attest-ext.der` |
 | Boot state / `deviceLocked` | **not decoded** — Task 3 |
@@ -245,9 +245,9 @@ The last row is the one that matters: checks 1-5 - chain rooted to the pinned Go
 
 ### Bug 1: Deno's WebCrypto cannot verify P-384
 
-`crypto.subtle.verify` for P-384 throws `DOMException: Not implemented` on Supabase edge runtime 1.77.0 (Deno 2.1.4). Node 26 verifies the same bytes. Google signs the attestation intermediate with a P-384 key, so the deployed oracle rejected every genuine chain at `CHAIN_NOT_ROOTED` while all 12 x509 tests passed locally.
+`crypto.subtle.verify` for P-384 throws `DOMException: Not implemented` on Supabase edge runtime 1.77.0 (Deno 2.1.4). Node 26 verifies the same bytes. Google's attestation intermediate holds a P-384 key and signs the batch certificate below it, so the deployed oracle rejected every genuine chain at `CHAIN_NOT_ROOTED` while all 12 x509 tests passed locally.
 
-Found by bisecting per link through a temporary `/diag` route (since removed) rather than guessing: link 0 (P-256) verified, link 1 (P-384) threw, link 2 is the root's RSA self-signature. Fix: `x509.ts` takes an injectable `EcdsaVerifier` (default WebCrypto, so behaviour is unchanged everywhere else) and `index.ts` injects `@noble/curves` 2.4.0. All ECDSA links go through the injected path - not only P-384 - so there is one implementation and no host-dependent behaviour left to surprise us.
+Found by bisecting per link through a temporary `/diag` route (since removed) rather than guessing. The presented chain is four certificates - leaf (serial `01`), batch key (P-256), attestation intermediate (P-384), pinned root (RSA-4096) - so the three links the loop verifies are leaf←batch under the batch key (ECDSA P-256), batch←intermediate under the intermediate's key (ECDSA **P-384**), and intermediate←root under the root's key (RSA-SHA256). Link 1 was the one that threw. The root's own self-signature is never checked, by design: it is trusted by byte-identical identity, and a self-signature proves nothing about who issued it. Fix: `x509.ts` takes an injectable `EcdsaVerifier` (default WebCrypto, so behaviour is unchanged everywhere else) and `index.ts` injects `@noble/curves` 2.4.0. All ECDSA links go through the injected path - not only P-384 - so there is one implementation and no host-dependent behaviour left to surprise us. The RSA link stays on the host and demonstrably works: `NONCE_MISMATCH` is only reachable if every earlier check, that one included, returned true.
 
 Two traps in that fix, both avoided by reading the installed package rather than recalling it:
 - `@noble/curves` 2.4.0 has **no `ecdsa.js` or `p384` subpath**; the curves are exported from `nist.js`. The v1-style specifier would have failed at deploy.
@@ -267,4 +267,6 @@ Each of those was a problem:
 
 The fix keeps the *protection* the issuer rule was for and drops the impossible half: the device leaf (serial `01`, one of the most common serials in existence) is excluded from comparison because the feed lists CA and batch keys, while a supplied issuer is still honoured when a caller has one. Serials are compared as numbers under whichever readings the key admits. Parsing lives in `x509.ts` as `parseRevokedFeed` so it is tested against the captured real slice, and it returns `null` for an unrecognised envelope versus `[]` for a recognised-but-empty one - the distinction that turns an outage into a refusal instead of a pass.
 
-Verified: none of this chain's four serials appear in the live feed under either reading, so the device is genuinely not revoked.
+Verified two ways, because the fixture is only a four-entry sample of a 1759-entry feed and cannot prove absence on its own: the live feed was scanned for all four serials under both base readings (none present), and the deployed oracle - which fetches the real feed - passes the revocation check for this chain on every probe, failing later at `PAYLOAD_UNPARSEABLE` and `NONCE_MISMATCH` instead.
+
+The 979/780 base split and the 1759 total were counted by an ad-hoc script, not by the test suite; the fixture records them in `_capturedCounts` so the numbers are at least attributable to a capture rather than to memory.

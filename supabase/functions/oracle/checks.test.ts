@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createSign, generateKeyPairSync } from "node:crypto";
 import { encodeEvidence, evidenceHash, type EvidenceFields } from "./evidence.ts";
-import { isSerialRevoked, readAttestationExtension, verifyChainToPinnedRoot } from "./x509.ts";
+import { describeChain, isSerialRevoked, readAttestationExtension, verifyChainToPinnedRoot, type RevokedEntry } from "./x509.ts";
 import { productionDeps, verifyReport, type VerifyDeps, type VerifyResult } from "./checks.ts";
 
 const fixtures = new URL("./fixtures/", import.meta.url);
@@ -433,6 +433,30 @@ test("productionDeps threads its ECDSA verifier into the chain check", async () 
     ["P-256", "P-384"],
     "every ECDSA link must reach the injected verifier; an empty list means the host was used",
   );
+});
+
+test("productionDeps turns an unreadable revocation feed into a rejection, not a pass", async () => {
+  // The line this tests is one word long (`entries === null -> throw`), and rewriting it as
+  // `entries ?? []` keeps every other test in this file green while a Google outage, or a
+  // feed whose shape we no longer recognise, reads as "nothing is revoked" for every report.
+  // That is the exact fail-open this hook's docstring says it exists to prevent, and it is
+  // the reason revokedEntries distinguishes null from [] in the first place.
+  const bundle = (revokedEntries: () => Promise<RevokedEntry[] | null>) => productionDeps(
+    PACKAGE, CERT_DIGEST_B64,
+    { lookupEnrolledKey: async () => null, consumeNonce: async () => "ok", revokedEntries },
+  );
+
+  await assert.rejects(
+    () => bundle(async () => null).isChainRevoked(deviceChainPem),
+    /revocation feed unavailable/,
+  );
+
+  // And the composition is proven in the other direction too: real feed JSON, parsed by the
+  // real parser, reaching the real hook. Both halves were tested; only this line proves they
+  // are wired to each other.
+  const links = await describeChain(deviceChainPem);
+  assert.equal(await bundle(async () => [{ serial: links[1].serialHex }]).isChainRevoked(deviceChainPem), true);
+  assert.equal(await bundle(async () => []).isChainRevoked(deviceChainPem), false);
 });
 
 function reportInput(canonicalBytes: Uint8Array, submittedAtMs = WINDOW_END) {
