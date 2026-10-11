@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import {
   describeChain,
   isSerialRevoked,
+  makeNobleEcdsaVerifier,
+  parseRevokedFeed,
   PINNED_ATTESTATION_ROOT_PEM,
   readAttestationExtension,
   serialNumbers,
@@ -160,6 +162,59 @@ test("isSerialRevoked requires the issuer to match, not the serial alone", async
   );
 });
 
+test("a revoked serial is recognised in whichever base Google's feed writes it in", async () => {
+  const links = await describeChain(deviceChainPem);
+  const hex = links[1].serialHex;
+  const decimal = BigInt(`0x${hex}`).toString(10);
+  // Measured on the live feed and pinned in fixtures/revoked-feed-shape.json: 979 keys are
+  // 17-20 digits with no letters, 780 are 30-32 characters containing a-f. The feed mixes
+  // bases. Reading it as one base only leaves the other group permanently un-compared, and
+  // that fails OPEN - a published leaked batch key would keep verifying forever.
+  for (const form of [hex, decimal, `0x${hex}`, `  ${decimal} `]) {
+    assert.equal(
+      isSerialRevoked(deviceChainPem, [{ serial: form }]), true,
+      `form "${form}" must be recognised`,
+    );
+  }
+  // Neither reading may become a wildcard: an unrelated number must not match under either.
+  assert.equal(isSerialRevoked(deviceChainPem, [{ serial: "9999999999999999999" }]), false);
+});
+
+test("an issuer-less feed entry revokes by serial, and the leaf is still excluded", async () => {
+  const links = await describeChain(deviceChainPem);
+  // Google's entries carry no issuer field at all (measured). Requiring one - which is what
+  // the issuer-AND-serial rule did when the feed turned out not to provide it - makes every
+  // comparison fail and silently disables revocation for all 1759 published keys. The
+  // protection the issuer was there for comes from excluding the leaf instead.
+  assert.equal(isSerialRevoked(deviceChainPem, [{ serial: links[1].serialHex }]), true);
+  // The leaf's serial is "01", one of the most common serials in existence: a CA-level entry
+  // must never be compared against it, or an honest device loses its stake on a coincidence.
+  assert.equal(isSerialRevoked(deviceChainPem, [{ serial: links[0].serialHex }]), false);
+});
+
+test("parseRevokedFeed reads Google's envelope and fails closed on anything else", () => {
+  const feed = JSON.parse(readFileSync(new URL("revoked-feed-shape.json", dir), "utf8"));
+  const parsed = parseRevokedFeed(feed);
+  assert.equal(parsed?.length, 4, "the captured slice held four REVOKED entries");
+  assert.ok(parsed?.every((entry) => entry.issuer === undefined), "nothing invented for a field the feed lacks");
+  assert.equal(
+    isSerialRevoked(deviceChainPem, parsed ?? []), false,
+    "the live slice must not revoke our own chain - it does not contain its serials",
+  );
+
+  // A shape we do not recognise is not the same as an empty feed: [] means Google says
+  // nothing is revoked today, null means we cannot tell, and only the second fails closed.
+  assert.equal(parseRevokedFeed({ serials: {} }), null, "the previously guessed key was never Google's shape");
+  assert.equal(parseRevokedFeed({}), null);
+  assert.equal(parseRevokedFeed(null), null);
+  assert.deepEqual(parseRevokedFeed({ entries: {} }), []);
+  assert.deepEqual(parseRevokedFeed({ entries: { "123": { status: "PENDING" } } }), []);
+
+  // Loud on garbage inside a recognised envelope, so a format change cannot pass quietly.
+  assert.throws(() => parseRevokedFeed({ entries: { "123": {} } }), /status/);
+  assert.throws(() => parseRevokedFeed({ entries: { "0z9": { status: "REVOKED" } } }), /serial/);
+});
+
 test("isSerialRevoked rejects an unparseable serial rather than silently ignoring it", async () => {
   const links = await describeChain(deviceChainPem);
   const issuer = links[1].issuerDn;
@@ -237,6 +292,60 @@ function singleCertPem(pem: string): string {
   assert.ok(match, "fixture had no certificate");
   return `-----BEGIN CERTIFICATE-----\n${match![1]}\n-----END CERTIFICATE-----\n`;
 }
+
+/**
+ * The seam that exists because Supabase's edge runtime (Deno 2.1.4) throws
+ * `DOMException: Not implemented` for crypto.subtle.verify on P-384. Measured per-link on
+ * the deployed function: leaf←intermediate (P-256) verifies there, intermediate←root
+ * (P-384) does not. So ECDSA verification has to be injectable, letting production supply
+ * a pure-JS implementation while the default stays WebCrypto.
+ *
+ * The captured chain contributes exactly two ECDSA links - the third is the root's
+ * RSA-SHA256 self-signature, which is not routed through this seam. Asserting the ordered
+ * list, rather than "was called", is what pins the seam to the real fixture: a chain whose
+ * P-384 link silently kept going to WebCrypto would show up as a missing entry.
+ */
+test("chain signature verification can route ECDSA through an injected verifier", async () => {
+  const seen: string[] = [];
+  const ok = await verifyChainSignatures(deviceChainPem, async ({ namedCurve }) => {
+    seen.push(namedCurve);
+    return true;
+  });
+  assert.deepEqual(seen, ["P-256", "P-384"]);
+  assert.equal(ok, true, "every link verified: two injected ECDSA links plus the RSA root");
+});
+
+test("an injected verifier that rejects the P-384 link fails the whole chain", async () => {
+  // The seam must be load-bearing, not decorative. Denying only the link the failing
+  // runtime cannot check is the precise condition production has to react to.
+  const ok = await verifyChainSignatures(
+    deviceChainPem,
+    async ({ namedCurve }) => namedCurve !== "P-384",
+  );
+  assert.equal(ok, false);
+});
+
+test("the production pure-JS verifier accepts the real chain and rejects the tampered one", async () => {
+  // This is the verifier index.ts binds in Deno, where crypto.subtle.verify throws
+  // `Not implemented` for P-384. Constructed here from the npm devDependency so the point
+  // extraction, the digest, and the option choices are proven under Node against the SAME
+  // fixture WebCrypto verifies: two independent implementations of the same link have to
+  // agree, or one of them is wrong about a real Google signature.
+  //
+  // Only the import line differs per runtime — makeNobleEcdsaVerifier holds the glue, so
+  // the tested code and the deployed code cannot quietly diverge.
+  const { p256, p384, p521 } = await import("@noble/curves/nist.js");
+  const noble = makeNobleEcdsaVerifier({ "P-256": p256, "P-384": p384, "P-521": p521 });
+
+  assert.equal(
+    await verifyChainSignatures(deviceChainPem, noble), true,
+    "pure-JS verification must reproduce the WebCrypto result on the captured chain",
+  );
+  assert.equal(await verifyChainToPinnedRoot(deviceChainPem, noble), true);
+  // Not a rubber stamp: a leaf public key altered by one byte breaks the signature the
+  // intermediate made over it, and this path has to notice.
+  assert.equal(await verifyChainSignatures(tamperWithLeafPublicKey(deviceChainPem), noble), false);
+});
 
 /**
  * Flips one byte inside the leaf's P-256 public key. Observed DER (probe-cert.mjs):

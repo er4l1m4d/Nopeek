@@ -223,3 +223,48 @@ Probed by replacing tests/anchor.test.ts with a logging-only script (sends no tr
 - Every test file must define describe(), or the runner refuses it and says to use the run command instead.
 - Terminal shows about 20 rows; long console output scrolls away, so keep log lines short.
 - Confirmed live: pg.program.programId = DJftv46AvjrbkbUCHR74ntWMXb5r7eHxHo3SXZkox2NM, methods = createChallenge, joinChallenge, settleChallenge, refundUnjoined, web3.Keypair and web3.PublicKey.findProgramAddress both present.
+
+## Oracle deployed - and what that does NOT yet mean (2026-10-11)
+Deployed with: npx supabase functions deploy oracle --project-ref ybcavetnzivwsfnwzvtd --no-verify-jwt. Live: GET /functions/v1/oracle/health returns 200 {status:alive}. Login works via the OS keyring, not ~/.supabase/config.yml, so a missing config.yml does NOT mean not-logged-in - check with projects list.
+The CLI uploaded only index.ts and determine_result.ts because it follows the import graph, and index.ts imports nothing else. CONSEQUENCE: checks.ts, x509.ts and evidence.ts are not in the deployed artifact. The live oracle settles on the device's self-reported usedSeconds with NO attestation verification - the legacy behaviour. Task 14 is the switch that makes the fourteen checks real; until it is done and redeployed, nothing in this section is load-bearing in production.
+Also true and worth stating: --no-verify-jwt is correct for the final design (the attestation chain is the authentication), but today it exposes an unauthenticated endpoint that has no attestation behind it. Devnet and fake USDC only. Do not point anything real at it before Task 14.
+Docker is not running on this machine; the CLI used its hosted upload path, so there is no local container verification of the bundle.
+
+## SUPERSEDED the section above: the verifier is live, and two runtime bugs were found on the way (2026-10-11, later the same day)
+
+`index.ts` now imports `checks.ts`, so the deploy uploads five files - `index.ts, x509.ts, checks.ts, evidence.ts, determine_result.ts` - and the live endpoint enforces attestation. Measured against the deployed function, not inferred:
+
+| probe | response |
+| --- | --- |
+| legacy body, no evidence | `400 EVIDENCE_MISSING` (the fail-open hole is shut) |
+| forged chain | `400 CHAIN_NOT_ROOTED` |
+| genuine Redmi chain + unsigned payload | `400 PAYLOAD_UNPARSEABLE` |
+| genuine Redmi chain + real canonical payload | `400 NONCE_MISMATCH - "attested challenge is not the payload nonce"` |
+
+The last row is the one that matters: checks 1-5 - chain rooted to the pinned Google root, revocation, attestation readable, hardware-backed, payload decoded - all pass **in Deno, on real device data**. What remains before a report can settle is enrollment (Task 7) and a signature only the device's keystore can make (Task 13).
+
+### Bug 1: Deno's WebCrypto cannot verify P-384
+
+`crypto.subtle.verify` for P-384 throws `DOMException: Not implemented` on Supabase edge runtime 1.77.0 (Deno 2.1.4). Node 26 verifies the same bytes. Google signs the attestation intermediate with a P-384 key, so the deployed oracle rejected every genuine chain at `CHAIN_NOT_ROOTED` while all 12 x509 tests passed locally.
+
+Found by bisecting per link through a temporary `/diag` route (since removed) rather than guessing: link 0 (P-256) verified, link 1 (P-384) threw, link 2 is the root's RSA self-signature. Fix: `x509.ts` takes an injectable `EcdsaVerifier` (default WebCrypto, so behaviour is unchanged everywhere else) and `index.ts` injects `@noble/curves` 2.4.0. All ECDSA links go through the injected path - not only P-384 - so there is one implementation and no host-dependent behaviour left to surprise us.
+
+Two traps in that fix, both avoided by reading the installed package rather than recalling it:
+- `@noble/curves` 2.4.0 has **no `ecdsa.js` or `p384` subpath**; the curves are exported from `nist.js`. The v1-style specifier would have failed at deploy.
+- `ECDSAVerifyOpts` has **no `hash` option**, and `prehash` defaults to true, meaning noble hashes with the *curve's* hash. The certificate dictates the hash via its own signatureAlgorithm OID, so the digest is computed here and passed with `prehash: false`. `lowS: false` is set because noble's default rejects high-S signatures, which a CA certificate may legitimately carry.
+
+### Bug 2: Google's revocation feed is not the shape the code guessed
+
+The code read `body.serials`. The live feed (`android.googleapis.com/attestation/status`, captured in `supabase/functions/oracle/fixtures/revoked-feed-shape.json`) is:
+- top-level key **`entries`**, not `serials`;
+- keys are serial numbers in a **mix of bases**: 979 of 1759 are 17-20 decimal digits, 780 are 30-32 hex characters containing `a-f`;
+- values are `{ status, reason }` with **no issuer field at all**.
+
+Each of those was a problem:
+1. The wrong key name made `revokedEntries()` return `null`, which failed closed as `CHAIN_REVOKED` for every report, genuine or forged. Fail-closed is the right direction, but it meant nothing could ever be accepted.
+2. The old matcher required issuer AND serial. Since the feed publishes no issuer, that comparison could never succeed - **revocation would have been silently disabled for all 1759 leaked keys**. This is the fail-open that the strict-looking rule was hiding, and it is the more dangerous of the two bugs because it would have looked correct: the requirement was added in review precisely to stop false revocations, and satisfying it against this feed was impossible.
+3. Reading the feed in one base only would leave the other group permanently un-compared, also fail-open.
+
+The fix keeps the *protection* the issuer rule was for and drops the impossible half: the device leaf (serial `01`, one of the most common serials in existence) is excluded from comparison because the feed lists CA and batch keys, while a supplied issuer is still honoured when a caller has one. Serials are compared as numbers under whichever readings the key admits. Parsing lives in `x509.ts` as `parseRevokedFeed` so it is tested against the captured real slice, and it returns `null` for an unrecognised envelope versus `[]` for a recognised-but-empty one - the distinction that turns an outage into a refusal instead of a pass.
+
+Verified: none of this chain's four serials appear in the live feed under either reading, so the device is genuinely not revoked.

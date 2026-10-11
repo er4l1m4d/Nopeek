@@ -29,6 +29,8 @@ import {
   readAttestationExtension,
   verifyChainToPinnedRoot,
   verifyEcdsaSignature,
+  verifyEcdsaWithWebCrypto,
+  type EcdsaVerifier,
   type RevokedEntry,
 } from "./x509.ts";
 
@@ -314,11 +316,20 @@ export function productionDeps(expectedPackageName: string, expectedSigningCertD
    * are not interchangeable: conflating them turns an outage into a silent pass.
    */
   revokedEntries: () => Promise<RevokedEntry[] | null>;
+  /**
+   * ECDSA implementation for the chain links. Defaults to the host's WebCrypto, which is
+   * correct everywhere except Supabase's edge runtime: Deno 2.1.4 throws
+   * `Not implemented` on P-384, and Google signs the attestation intermediate with a
+   * P-384 key, so the default rejects every genuine device chain. Production passes a
+   * pure-JS verifier. It cannot be supplied per-request; it is a property of the runtime.
+   */
+  ecdsaVerify?: EcdsaVerifier;
 }): VerifyDeps {
+  const ecdsa = hooks.ecdsaVerify ?? verifyEcdsaWithWebCrypto;
   return {
     expectedPackageName,
     expectedSigningCertDigestB64,
-    verifyChain: (chainPem) => verifyChainToPinnedRoot(chainPem),
+    verifyChain: (chainPem) => verifyChainToPinnedRoot(chainPem, ecdsa),
     isChainRevoked: async (chainPem) => {
       const entries = await hooks.revokedEntries();
       if (entries === null) throw new Error("revocation feed unavailable");

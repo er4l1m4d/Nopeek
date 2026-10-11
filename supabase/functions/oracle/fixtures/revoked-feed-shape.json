@@ -1,0 +1,32 @@
+{
+  "_note": "Slice of https://android.googleapis.com/attestation/status captured 2026-10-11, to pin the real envelope: top-level key is `entries`; keys are certificate serial numbers written in a MIX of decimal (17-20 digits, no letters) and hexadecimal (30-32 chars, with a-f); values are {status, reason} and carry NO issuer field. None of these serials belong to fixtures/device-chain.pem, verified by the script that wrote this file.",
+  "_capturedCounts": {
+    "totalEntries": 1759,
+    "decimalKeysSampled": [
+      "6681152659205225093",
+      "8350192447815228107"
+    ],
+    "hexKeysSampled": [
+      "c35747a084470c3135aeefe2b8d40cd6",
+      "ee3ac673107ddf0831027a84c532bee4"
+    ]
+  },
+  "entries": {
+    "6681152659205225093": {
+      "status": "REVOKED",
+      "reason": "KEY_COMPROMISE"
+    },
+    "8350192447815228107": {
+      "status": "REVOKED",
+      "reason": "KEY_COMPROMISE"
+    },
+    "c35747a084470c3135aeefe2b8d40cd6": {
+      "status": "REVOKED",
+      "reason": "KEY_COMPROMISE"
+    },
+    "ee3ac673107ddf0831027a84c532bee4": {
+      "status": "REVOKED",
+      "reason": "KEY_COMPROMISE"
+    }
+  }
+}

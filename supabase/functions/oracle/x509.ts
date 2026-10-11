@@ -42,8 +42,19 @@ export interface AttestationInfo {
 }
 
 export interface RevokedEntry {
-  issuer: string;
+  /**
+   * Serial as the feed writes it — decimal or hexadecimal, see feedSerialValues.
+   */
   serial: string;
+  /**
+   * Optional because Google's published feed has no issuer field at all: measured
+   * 2026-10-11, its entries are { status, reason } keyed by serial. A matcher that
+   * *required* an issuer would then fail every comparison and report "not revoked" for
+   * all 1759 published keys — a fail-open dressed up as strictness. What protects an
+   * honest device is the leaf exclusion in isSerialRevoked, plus honouring an issuer
+   * whenever a caller actually has one.
+   */
+  issuer?: string;
 }
 
 /**
@@ -352,20 +363,66 @@ function derEcdsaSigToRaw(der: Uint8Array, width: number): Uint8Array {
  * attestation key is P-384 while a device key is P-256, so a hardcoded P-256 import
  * makes exactly one middle link fail - which is what this code initially did.
  */
-const EC_CURVES: Record<string, { name: string; coordinateBytes: number }> = {
+type NamedCurve = "P-256" | "P-384" | "P-521";
+type HashName = "SHA-256" | "SHA-384" | "SHA-512";
+
+const EC_CURVES: Record<string, { name: NamedCurve; coordinateBytes: number }> = {
   "1.2.840.10045.3.1.7": { name: "P-256", coordinateBytes: 32 },
   "1.3.132.0.34": { name: "P-384", coordinateBytes: 48 },
   "1.3.132.0.35": { name: "P-521", coordinateBytes: 66 },
 };
 
 /** ecdsa-with-SHA{256,384,512} -> the WebCrypto hash name. */
-const ECDSA_HASH: Record<string, string> = {
+const ECDSA_HASH: Record<string, HashName> = {
   "1.2.840.10045.4.3.2": "SHA-256",
   "1.2.840.10045.4.3.3": "SHA-384",
   "1.2.840.10045.4.3.4": "SHA-512",
 };
 
-function ecCurveOf(spkiDer: Uint8Array): { name: string; coordinateBytes: number } | null {
+/**
+ * One ECDSA link, handed over fully parsed: curve, hash, issuer key, signature and the
+ * signed bytes. The implementer only has to do the maths, because that is the part a
+ * runtime may not have.
+ *
+ * The seam exists for a measured reason, not as general flexibility. Supabase's edge
+ * runtime (Deno 2.1.4) throws `DOMException: Not implemented` from crypto.subtle.verify
+ * for P-384 while Node 26 accepts the same bytes, so the deployed oracle rejected a
+ * genuine Redmi chain at the intermediate←root link. The curve is chosen by Google's CA
+ * and is not ours to downgrade, so production injects a pure-JS verifier and the default
+ * stays WebCrypto.
+ *
+ * `hash` travels with the link rather than being implied by the curve, because the hash is
+ * dictated by the certificate's own signatureAlgorithm OID: a P-384 key can legitimately
+ * carry ecdsa-with-SHA-256, and an implementation that assumed SHA-384 from the curve would
+ * reject a valid certificate.
+ */
+export interface EcdsaLink {
+  namedCurve: NamedCurve;
+  hash: HashName;
+  /** DER SubjectPublicKeyInfo of the issuer, for runtimes that import keys. */
+  spkiDer: Uint8Array;
+  /** r||s, fixed-width for the curve (WebCrypto's P-1363 form), converted by x509. */
+  rawSignature: Uint8Array;
+  /** The exact bytes the issuer signed: TBSCertificate. */
+  message: Uint8Array;
+}
+
+export type EcdsaVerifier = (link: EcdsaLink) => Promise<boolean>;
+
+/** The host's own ECDSA verify. Default everywhere except the Deno edge runtime. */
+export const verifyEcdsaWithWebCrypto: EcdsaVerifier = async ({
+  namedCurve, hash, spkiDer, rawSignature, message,
+}) => {
+  const key = await crypto.subtle.importKey(
+    "spki", tight(spkiDer) as BufferSource, { name: "ECDSA", namedCurve }, false, ["verify"],
+  );
+  return await crypto.subtle.verify(
+    { name: "ECDSA", hash }, key,
+    rawSignature as BufferSource, tight(message) as BufferSource,
+  );
+};
+
+function ecCurveOf(spkiDer: Uint8Array): { name: NamedCurve; coordinateBytes: number } | null {
   const spki = readTlv(spkiDer, 0);
   const [algId] = childrenOf(spkiDer, spki);
   const params = childrenOf(spkiDer, algId).at(1);
@@ -373,23 +430,99 @@ function ecCurveOf(spkiDer: Uint8Array): { name: string; coordinateBytes: number
   return EC_CURVES[readOid(bytesOf(spkiDer, params))] ?? null;
 }
 
+/**
+ * The uncompressed SEC1 point (0x04||X||Y) out of a SubjectPublicKeyInfo, validated against
+ * the curve the SPKI itself declares. Throws on anything that does not match, because a
+ * silently mis-sliced public key verifies nothing and looks like a forgery.
+ */
+function publicPointFromSpki(spkiDer: Uint8Array): Uint8Array {
+  const spki = readTlv(spkiDer, 0);
+  const bitString = childrenOf(spkiDer, spki)[1];
+  const curve = ecCurveOf(spkiDer);
+  if (!bitString || !curve) throw new Error("malformed SubjectPublicKeyInfo");
+  if (bitString.tagNumber !== 3) {
+    throw new Error(`SPKI public key is not a BIT STRING (tag 3), got tag ${bitString.tagNumber}`);
+  }
+  const content = bytesOf(spkiDer, bitString);
+  const point = content.subarray(1); // drop the unused-bits count
+  const expected = 1 + curve.coordinateBytes * 2;
+  if (content[0] !== 0 || point.length !== expected || point[0] !== 0x04) {
+    throw new Error(
+      `expected an uncompressed ${curve.name} point of ${expected} bytes, ` +
+        `got ${point.length} starting 0x${(point[0] ?? -1).toString(16)}`,
+    );
+  }
+  return Uint8Array.from(point);
+}
+
+/** The part of a @noble/curves instance this module uses, stated so x509.ts stays dependency-free. */
+export interface NobleCurve {
+  verify(
+    signature: Uint8Array,
+    messageDigest: Uint8Array,
+    publicKeyPoint: Uint8Array,
+    opts?: { prehash?: boolean; lowS?: boolean; format?: "compact" | "recovered" | "der" },
+  ): boolean;
+}
+
+/**
+ * Builds the ECDSA verifier production binds in Deno from curve objects the caller passes
+ * in. The caller does the importing, because that is the only runtime-specific part:
+ * `@noble/curves/nist.js` resolves under Node and `npm:@noble/curves@…/nist.js` under Deno,
+ * and neither resolves in the other. Everything that could get wrong — point extraction,
+ * which hash, which signature encoding — lives here, so the Node test and the deployed
+ * function exercise the same code paths.
+ */
+export function makeNobleEcdsaVerifier(
+  curves: Partial<Record<NamedCurve, NobleCurve>>,
+): EcdsaVerifier {
+  return async ({ namedCurve, hash, spkiDer, rawSignature, message }) => {
+    const curve = curves[namedCurve];
+    if (!curve) {
+      // Throw rather than quietly fall back to WebCrypto. Silent fallback is precisely how
+      // this bug hid: the host that cannot check P-384 would be used for P-384 anyway, and
+      // the caller could not tell a refusal from a missing implementation. verifyWithSpki
+      // catches this into a rejection that also logs why.
+      throw new Error(`no pure-JS verifier supplied for ${namedCurve}`);
+    }
+    // The digest is computed here from the certificate's own signatureAlgorithm OID, and
+    // noble is told not to hash (prehash: false) — its default would apply the *curve's*
+    // hash, while a P-384 key legally carries ecdsa-with-SHA-256.
+    const digest = new Uint8Array(
+      await crypto.subtle.digest(hash, tight(message) as BufferSource),
+    );
+    return curve.verify(rawSignature, digest, publicPointFromSpki(spkiDer), {
+      prehash: false,
+      // noble defaults lowS to true, rejecting s > n/2. Chain signatures have no
+      // malleability exposure (nothing treats these bytes as an identifier), and honouring
+      // the default risks refusing a genuine Google certificate that every browser accepts.
+      lowS: false,
+      // x509 already converted DER -> fixed-width r||s before handing the link over.
+      format: "compact",
+    });
+  };
+}
+
 async function verifyWithSpki(
   spkiDer: Uint8Array,
   algorithmOid: string,
   message: Uint8Array,
   signature: Uint8Array,
+  ecdsa: EcdsaVerifier = verifyEcdsaWithWebCrypto,
 ): Promise<boolean> {
   try {
     if (algorithmOid in ECDSA_HASH) {
       const curve = ecCurveOf(spkiDer);
       if (!curve) return false; // unknown curve: refuse rather than guess
-      const key = await crypto.subtle.importKey("spki", tight(spkiDer) as BufferSource,
-        { name: "ECDSA", namedCurve: curve.name }, false, ["verify"]);
-      return await crypto.subtle.verify(
-        { name: "ECDSA", hash: ECDSA_HASH[algorithmOid] }, key,
-        derEcdsaSigToRaw(signature, curve.coordinateBytes) as BufferSource,
-        tight(message) as BufferSource,
-      );
+      // DER->raw conversion and the curve/hash read stay here, where the DER parsing
+      // lives. The injected verifier never gets to reinterpret the certificate.
+      return await ecdsa({
+        namedCurve: curve.name,
+        hash: ECDSA_HASH[algorithmOid],
+        spkiDer,
+        rawSignature: derEcdsaSigToRaw(signature, curve.coordinateBytes),
+        message,
+      });
     }
     if (algorithmOid === OID_RSA_SHA256) {
       const key = await crypto.subtle.importKey("spki", tight(spkiDer) as BufferSource,
@@ -442,7 +575,10 @@ export async function verifyEcdsaSignature(
  * without checking where the chain ends. Linking is confirmed by DN agreement, so a
  * reordered or substituted chain fails rather than being optimistically assumed.
  */
-export async function verifyChainSignatures(chainPem: string): Promise<boolean> {
+export async function verifyChainSignatures(
+  chainPem: string,
+  ecdsa: EcdsaVerifier = verifyEcdsaWithWebCrypto,
+): Promise<boolean> {
   let certs: Certificate[];
   try {
     certs = parseChain(chainPem);
@@ -454,6 +590,7 @@ export async function verifyChainSignatures(chainPem: string): Promise<boolean> 
     if (certs[i].issuerDn !== certs[i + 1].subjectDn) return false;
     const ok = await verifyWithSpki(
       certs[i + 1].spkiDer, certs[i].signatureAlgorithmOid, certs[i].tbs, certs[i].signatureDer,
+      ecdsa,
     );
     if (!ok) return false;
   }
@@ -465,8 +602,10 @@ export async function verifyChainSignatures(chainPem: string): Promise<boolean> 
  * call: verifyChainToRoot's rootPem argument is a primitive that is easy to wire to
  * the wrong bytes, and wiring it wrong is silent and total.
  */
-export async function verifyChainToPinnedRoot(chainPem: string): Promise<boolean> {
-  return verifyChainToRoot(chainPem, PINNED_ATTESTATION_ROOT_PEM);
+export async function verifyChainToPinnedRoot(
+  chainPem: string, ecdsa: EcdsaVerifier = verifyEcdsaWithWebCrypto,
+): Promise<boolean> {
+  return verifyChainToRoot(chainPem, PINNED_ATTESTATION_ROOT_PEM, ecdsa);
 }
 
 /**
@@ -474,8 +613,10 @@ export async function verifyChainToPinnedRoot(chainPem: string): Promise<boolean
  * `rootPem`. Identity is the only thing trusted without a signature check; a root's
  * self-signature proves nothing about who issued it.
  */
-export async function verifyChainToRoot(chainPem: string, rootPem: string): Promise<boolean> {
-  if (!(await verifyChainSignatures(chainPem))) return false;
+export async function verifyChainToRoot(
+  chainPem: string, rootPem: string, ecdsa: EcdsaVerifier = verifyEcdsaWithWebCrypto,
+): Promise<boolean> {
+  if (!(await verifyChainSignatures(chainPem, ecdsa))) return false;
   const roots = pemToDerBlocks(rootPem);
   const last = parseChain(chainPem).at(-1);
   if (!last) return false;
@@ -519,34 +660,87 @@ export function serialNumbers(chainPem: string): string[] {
 }
 
 /**
- * Google's revocation entries are { issuer, serial } pairs. Serial uniqueness is only
- * guaranteed *per issuer*, and this project's own device leaf carries serial "01" - so
- * matching on serial alone means one unrelated entry in the published feed would mark a
- * genuine locked, verified-boot device revoked, which under the fail-closed rule takes
- * an honest user's stake. Both fields must agree.
+ * The numeric reading(s) of a serial as a feed writes it.
+ *
+ * The live feed mixes bases: of its 1759 keys, 979 are 17-20 digits with no letters
+ * (decimal) and 780 are 30-32 characters containing a-f (hexadecimal). A key with letters
+ * can only be hex; a digits-only key is ambiguous, so BOTH values are returned. Picking one
+ * base and applying it everywhere leaves the other group permanently un-compared, which
+ * fails open — a published leaked batch key would keep verifying forever.
+ *
+ * The cost of the extra reading is a false positive only if two numbers of ~10^38 magnitude
+ * coincide, and a false positive here refuses a report rather than paying one out.
+ *
+ * Throws on anything that is not a non-negative integer in either base, so a format change
+ * is loud rather than an ignored entry.
+ */
+function feedSerialValues(value: string): bigint[] {
+  const trimmed = value.trim().toLowerCase();
+  const explicitHex = trimmed.startsWith("0x");
+  const body = explicitHex ? trimmed.slice(2) : trimmed;
+  if (body.length === 0 || !/^[0-9a-f]+$/.test(body)) {
+    throw new Error(`x509: revoked serial is not a decimal or hexadecimal integer: "${value}"`);
+  }
+  if (explicitHex || /[a-f]/.test(body)) return [BigInt(`0x${body}`)];
+  return [BigInt(body), BigInt(`0x${body}`)];
+}
+
+/**
+ * Parses Google's attestation-status feed (android.googleapis.com/attestation/status).
+ *
+ * Returns `null` when the envelope is not recognised, `[]` when it is recognised and holds
+ * no revocations. The distinction is the whole point: `[]` legitimately means "nothing is
+ * revoked today" while `null` means "we cannot tell", and the caller must fail closed on
+ * null. This code read `body.serials` for a day against a feed whose real key is
+ * `entries` — the guess was wrong, and only the fail-closed contract made that visible
+ * instead of silently disabling revocation.
+ *
+ * Lives here, next to the parser it feeds, so the unit tests can run against a real
+ * captured slice (fixtures/revoked-feed-shape.json) rather than against the edge function.
+ */
+export function parseRevokedFeed(body: unknown): RevokedEntry[] | null {
+  if (typeof body !== "object" || body === null) return null;
+  const entries = (body as { entries?: unknown }).entries;
+  if (typeof entries !== "object" || entries === null || Array.isArray(entries)) return null;
+
+  const out: RevokedEntry[] = [];
+  for (const [key, rawValue] of Object.entries(entries as Record<string, unknown>)) {
+    const status = (rawValue as { status?: unknown } | null)?.status;
+    if (typeof status !== "string") {
+      throw new Error(`x509: revocation entry "${key}" has no status field`);
+    }
+    // Validated even for statuses this loop skips: a key this module cannot read means the
+    // feed changed under us, and that has to surface while the rest still looks parseable.
+    feedSerialValues(key);
+    if (status.toUpperCase() === "REVOKED") out.push({ serial: key });
+  }
+  return out;
+}
+
+/**
+ * Serial uniqueness is only guaranteed per issuer, and this project's own device leaf
+ * carries serial "01" — so the leaf is not compared at all. Its serial is assigned per
+ * device, while the feed lists CA and batch keys; matching a CA-level entry against "01"
+ * would mark a genuine, locked, verified-boot device revoked, and under the fail-closed
+ * rule that forfeits an honest user's stake. Google's own keys run 17-32 characters, so no
+ * real entry collides with a device serial.
  */
 export function isSerialRevoked(chainPem: string, revoked: RevokedEntry[]): boolean {
   if (revoked.length === 0) return false;
-  const normaliseSerial = (value: string) => {
-    const trimmed = value.trim().toLowerCase().replace(/^0x/, "");
-    if (!/^[0-9a-f]+$/.test(trimmed)) {
-      // Google's feed is external input. A format change must be loud: silently
-      // treating an unparseable serial as "not revoked" is how a leaked attestation
-      // key keeps verifying forever.
-      throw new Error(`x509: revoked serial is not hex: "${value}"`);
-    }
-    let hex = trimmed.length % 2 === 1 ? `0${trimmed}` : trimmed;
-    while (hex.length > 2 && hex.startsWith("00")) hex = hex.slice(2);
-    return hex;
-  };
   const normaliseIssuer = (value: string) => value.trim().toLowerCase().replace(/\s+/g, "");
   const certs = parseChain(chainPem);
-  // Index 0 is the leaf: its serial is assigned per batch key, not published in a
-  // CA-level revocation feed, so only the issuing certificates are checked.
-  return certs.slice(1).some((cert) => revoked.some((entry) =>
-    normaliseIssuer(entry.issuer) === normaliseIssuer(cert.issuerDn)
-    && normaliseSerial(entry.serial) === normaliseSerial(cert.serialHex)
-  ));
+  // Index 0 is the leaf: see the note above.
+  return certs.slice(1).some((cert) => {
+    // A DER INTEGER serial is unambiguous — the parser rendered it hex.
+    const serial = BigInt(`0x${cert.serialHex}`);
+    return revoked.some((entry) => {
+      const issuerGiven = typeof entry.issuer === "string" && entry.issuer.trim() !== "";
+      if (issuerGiven && normaliseIssuer(entry.issuer as string) !== normaliseIssuer(cert.issuerDn)) {
+        return false;
+      }
+      return feedSerialValues(entry.serial).includes(serial);
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------

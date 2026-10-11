@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createSign, generateKeyPairSync } from "node:crypto";
 import { encodeEvidence, evidenceHash, type EvidenceFields } from "./evidence.ts";
 import { isSerialRevoked, readAttestationExtension, verifyChainToPinnedRoot } from "./x509.ts";
-import { verifyReport, type VerifyDeps, type VerifyResult } from "./checks.ts";
+import { productionDeps, verifyReport, type VerifyDeps, type VerifyResult } from "./checks.ts";
 
 const fixtures = new URL("./fixtures/", import.meta.url);
 const deviceChainPem = readFileSync(new URL("device-chain.pem", fixtures), "utf8");
@@ -410,6 +410,29 @@ test("every exotic payload input returns a reason rather than throwing", async (
     const result = await verifyReport(reportInput(bytes), deps);
     assert.equal(result.ok, false, `${name} must not be accepted`);
   }
+});
+
+test("productionDeps threads its ECDSA verifier into the chain check", async () => {
+  // The one place the anchor is bound, so also the one place a runtime-specific verifier
+  // can be lost. If this bundle quietly kept calling the host's WebCrypto, the deployed
+  // oracle would reject every genuine chain and this test is what says so.
+  const asked: string[] = [];
+  const deps = productionDeps(PACKAGE, CERT_DIGEST_B64, {
+    lookupEnrolledKey: async () => null,
+    consumeNonce: async () => "ok",
+    revokedEntries: async () => [],
+    ecdsaVerify: async ({ namedCurve }) => {
+      asked.push(namedCurve);
+      return true;
+    },
+  });
+
+  assert.equal(await deps.verifyChain(deviceChainPem), true);
+  assert.deepEqual(
+    asked,
+    ["P-256", "P-384"],
+    "every ECDSA link must reach the injected verifier; an empty list means the host was used",
+  );
 });
 
 function reportInput(canonicalBytes: Uint8Array, submittedAtMs = WINDOW_END) {

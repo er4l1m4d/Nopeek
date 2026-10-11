@@ -5,6 +5,11 @@ import {
   type Verdict,
 } from "./determine_result.ts";
 import { productionDeps, verifyReport, type NonceStatus } from "./checks.ts";
+import { makeNobleEcdsaVerifier, parseRevokedFeed } from "./x509.ts";
+// Pinned to the version @noble/curves is installed at in package.json (2.4.0), which is
+// the version x509.test.ts verified against the real Google chain under Node. A floating
+// major here would let production run maths the tested code never checked.
+import { p256, p384, p521 } from "npm:@noble/curves@2.4.0/nist.js";
 
 /**
  * The attested identity the report must carry. Both values were measured, not recalled:
@@ -18,6 +23,19 @@ const EXPECTED_APK_SIGNER_DIGEST_B64 = "V03kcUk9V3oqTVu6IuiHFoFgf/eLmaehbyoc0zyD
 const REVOKED_SERIALS_URL = "https://android.googleapis.com/attestation/status";
 
 /**
+ * ECDSA for the chain links, from pure JS rather than the host.
+ *
+ * Deno 2.1.4 — the runtime Supabase Edge Functions run — throws `DOMException: Not
+ * implemented` from crypto.subtle.verify for P-384, and Google signs the attestation
+ * intermediate with a P-384 key. Measured per-link on the deployed function: the P-256
+ * leaf link verified, the P-384 link did not, so the live oracle rejected every genuine
+ * device chain at CHAIN_NOT_ROOTED. All ECDSA links go through here — not just P-384 — so
+ * there is one implementation and no host-dependent behaviour left to be surprised by.
+ * The RSA root self-signature still uses the host, which Deno does implement.
+ */
+const ECDSA_VERIFY = makeNobleEcdsaVerifier({ "P-256": p256, "P-384": p384, "P-521": p521 });
+
+/**
  * Verifier dependencies, built here and nowhere else, so that "the chain anchor cannot be
  * supplied by the caller" stays auditable in one place.
  *
@@ -27,6 +45,7 @@ const REVOKED_SERIALS_URL = "https://android.googleapis.com/attestation/status";
  */
 function verifierDeps() {
   return productionDeps(EXPECTED_PACKAGE_NAME, EXPECTED_APK_SIGNER_DIGEST_B64, {
+    ecdsaVerify: ECDSA_VERIFY,
     lookupEnrolledKey: async (walletPubkey: string) => {
       const { data, error } = await db
         .from("install_keys")
@@ -65,18 +84,21 @@ function verifierDeps() {
       return (count ?? 0) > 0 ? "ok" : "consumed";
     },
 
+    // Google's real feed keys its list `entries`, writes serials in a mix of decimal and
+    // hex, and gives each entry { status, reason } with no issuer. Reading `serials` — the
+    // shape this code guessed — returned null on every call, and the fail-closed contract
+    // correctly turned that into CHAIN_REVOKED for every genuine report. Parsing lives in
+    // x509.ts so it can be tested against a captured slice of the real file.
     revokedEntries: async () => {
       try {
         const res = await fetch(REVOKED_SERIALS_URL, { signal: AbortSignal.timeout(8000) });
         if (!res.ok) return null;
-        const body = (await res.json()) as { serials?: Record<string, unknown> };
-        if (!body || typeof body.serials !== "object" || body.serials === null) return null;
-        return Object.entries(body.serials).map(([hex, entry]) => ({
-          issuer: (entry as { issuer?: string })?.issuer ?? "",
-          serial: hex,
-        }));
-      } catch {
-        // null, not []: an unreachable feed must not read as "nothing is revoked".
+        return parseRevokedFeed(await res.json());
+      } catch (e) {
+        // null, not []: an unreachable or unparseable feed must not read as "nothing is
+        // revoked". Logged, because an outage and a format change otherwise look identical
+        // from the outside — both are just a rejected report.
+        console.log(`REVOCATION_FEED_UNAVAILABLE ${e instanceof Error ? e.message : String(e)}`);
         return null;
       }
     },
