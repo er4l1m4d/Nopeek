@@ -5,6 +5,11 @@ import {
   type Verdict,
 } from "./determine_result.ts";
 import { productionDeps, verifyReport, type NonceStatus } from "./checks.ts";
+import {
+  readAttestationExtension,
+  verifyChainSignatures,
+  verifyChainToPinnedRoot,
+} from "./x509.ts";
 
 /**
  * The attested identity the report must carry. Both values were measured, not recalled:
@@ -416,6 +421,47 @@ async function handleSettle(req: Request): Promise<Response> {
   });
 }
 
+/**
+ * TEMPORARY DIAGNOSTIC - DELETE AFTER USE.
+ *
+ * The deployed endpoint reports CHAIN_NOT_ROOTED for a chain that verifies cleanly under
+ * Node, and checks.ts collapses "returned false" and "threw" into the same reason. This
+ * route separates them using the real Supabase Deno version rather than a local guess.
+ * It exposes only booleans, cert counts and error text - no keys, no secrets.
+ */
+async function handleDiag(req: Request): Promise<Response> {
+  const raw = (await req.json()) as { chainPem?: unknown };
+  const chainPem = typeof raw.chainPem === "string" ? raw.chainPem : "";
+  const out: Record<string, unknown> = {
+    denoVersion: typeof Deno !== "undefined" ? Deno.version.deno : null,
+    v8: typeof Deno !== "undefined" ? Deno.version.v8 : null,
+    hasSubtle: typeof crypto !== "undefined" && !!crypto.subtle,
+    hasAtob: typeof atob === "function" && typeof btoa === "function",
+    chainLen: chainPem.length,
+    certCount: (chainPem.match(/BEGIN CERTIFICATE/g) ?? []).length,
+  };
+  try {
+    out.signatures = await verifyChainSignatures(chainPem);
+  } catch (e) {
+    out.signatures_error = e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);
+  }
+  try {
+    out.rooted = await verifyChainToPinnedRoot(chainPem);
+  } catch (e) {
+    out.rooted_error = e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);
+  }
+  try {
+    const i = await readAttestationExtension(chainPem);
+    out.attestation = {
+      securityLevel: i.securityLevel, deviceLocked: i.deviceLocked,
+      boot: i.verifiedBootState, pkg: i.applicationPackageName,
+    };
+  } catch (e) {
+    out.attestation_error = e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);
+  }
+  return json(out);
+}
+
 function route(pathname: string): string {
   const p = pathname.replace(/^\/oracle/, "").replace(/\/+$/, "");
   return p === "" ? "/health" : p;
@@ -430,6 +476,9 @@ Deno.serve(async (req) => {
   try {
     if (req.method === "GET" && path === "/health") {
       return json({ status: "alive", time: new Date().toISOString() });
+    }
+    if (req.method === "POST" && path === "/diag") {
+      return await handleDiag(req);
     }
     if (req.method === "POST" && path === "/submit-report") {
       return await handleSubmitReport(req);
