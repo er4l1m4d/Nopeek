@@ -270,3 +270,16 @@ The fix keeps the *protection* the issuer rule was for and drops the impossible 
 Verified two ways, because the fixture is only a four-entry sample of a 1759-entry feed and cannot prove absence on its own: the live feed was scanned for all four serials under both base readings (none present), and the deployed oracle - which fetches the real feed - passes the revocation check for this chain on every probe, failing later at `PAYLOAD_UNPARSEABLE` and `NONCE_MISMATCH` instead.
 
 The 979/780 base split and the 1759 total were counted by an ad-hoc script, not by the test suite; the fixture records them in `_capturedCounts` so the numbers are at least attributable to a capture rather than to memory.
+
+## Two unauthenticated writes the verifier trusts - decided, sequenced, NOT forgotten (2026-10-11)
+
+Both /enroll and /register-challenge are public writes into tables the fourteen checks read as authoritative. Consequences, stated plainly:
+- /enroll: anyone holding the victim's (public) wallet address can enroll THEIR OWN genuine attested chain under it. The victim's honest report then fails check 7 (enrolled != leaf), fail-closed turns that into UNVERIFIED, and the victim loses the pot. Zero cost to the attacker, no key stolen. This is a fund-loss path, not griefing - I first called it a write-up item and that was wrong.
+- /register-challenge: its row dictates target_app / limit_seconds / window_seconds, i.e. the terms every report is measured against. Pre-registering a duel's PDA address with the wrong limit is the same class of attack.
+- /nonce and /settle are NOT in that class: flooding nonces costs only storage, and reading verdicts early still runs into the on-chain isSettled / oracle-authority / lock-window guards.
+
+Fix: each write carries an ed25519 signature from the wallet it is about, over 'nopeek-enroll/v1' || walletPubkey || spkiB64 || certDigestB64. The oracle verifies with ed25519 from @noble/curves 2.4.0 - already installed and pinned, measured to export ed25519.verify/sign/getPublicKey from ./ed25519.js, so no new dependency. A leaked enrollment signature is harmless (it can only re-enroll the same key under the same wallet), so enrollment needs no nonce or expiry. x-oracle-secret then gets DELETED rather than enforced: setting it would mean shipping the secret in the APK, and the APK and keystore go into a public repo.
+
+Why not built in that session: ~12h of capacity against a 25h+ task list, and the binding constraint is one duel that actually settles. It is also sequenced rather than merely postponed - a Solana transaction signer IS an ed25519 wallet signer, so this becomes ~20 lines the moment Task 11's signer exists, instead of a separate crypto path today. Trigger to revisit: the first time any code in this repo can sign with a wallet key.
+
+Must be measured, not recalled, before Task 11 is designed: whether the Redmi's platform exposes Ed25519 through JCA/Conscrypt at this app's minSdk. If it does not, the tx signer needs a pure-Kotlin ed25519 dependency, which cuts against this project's no-unaudited-crypto convention and is a decision to make out loud.
