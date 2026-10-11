@@ -5,7 +5,13 @@ import {
   type Verdict,
 } from "./determine_result.ts";
 import { productionDeps, verifyReport, type NonceStatus } from "./checks.ts";
-import { makeNobleEcdsaVerifier, parseRevokedFeed } from "./x509.ts";
+import { authorizeRequest } from "./auth.ts";
+import { enrollKey, issueNonce } from "./store.ts";
+import {
+  makeNobleEcdsaVerifier,
+  parseRevokedFeed,
+  verifyChainToPinnedRoot,
+} from "./x509.ts";
 // Pinned to the version @noble/curves is installed at in package.json (2.4.0), which is
 // the version x509.test.ts verified against the real Google chain under Node. A floating
 // major here would let production run maths the tested code never checked.
@@ -129,10 +135,55 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function authorize(req: Request): Response | null {
-  if (!ORACLE_API_SECRET) return null;
-  if (req.headers.get("x-oracle-secret") === ORACLE_API_SECRET) return null;
-  return json({ error: "unauthorized" }, 401);
+/**
+ * POST /enroll — public by design (spec 7 trust inversion): the device cannot hold a
+ * shared secret without shipping it in the APK, so the attestation signature is the
+ * authentication. Authorisation for this route is decided in auth.ts against the same
+ * `path` the router dispatches on.
+ *
+ * The chain gate is what makes an unauthenticated write safe: without it anyone could bind
+ * garbage to a victim's wallet pubkey and make their genuine report fail KEY_NOT_ENROLLED.
+ * store.ts documents the gap this leaves (no proof the caller owns the wallet).
+ */
+async function handleEnroll(req: Request): Promise<Response> {
+  const raw = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!raw) return json({ error: "body must be JSON" }, 400);
+  const required = ["walletPubkey", "spkiB64", "chainPem", "certDigestB64"] as const;
+  const missing = required.filter((name) => typeof raw[name] !== "string" || raw[name] === "");
+  if (missing.length) return json({ error: "enroll: missing fields", missing }, 400);
+
+  try {
+    await enrollKey(db, {
+      walletPubkey: raw.walletPubkey as string,
+      spkiB64: raw.spkiB64 as string,
+      chainPem: raw.chainPem as string,
+      certDigestB64: raw.certDigestB64 as string,
+    }, (chainPem) => verifyChainToPinnedRoot(chainPem, ECDSA_VERIFY));
+    return json({ ok: true });
+  } catch (e) {
+    // 400, never a 500: this route is public, and a thrown error would be retryable noise
+    // that tells the device nothing about what it got wrong.
+    return json({ error: e instanceof Error ? e.message : String(e) }, 400);
+  }
+}
+
+/** POST /nonce — public for the same reason. Issues the single-use window nonce. */
+async function handleNonce(req: Request): Promise<Response> {
+  const raw = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!raw) return json({ error: "body must be JSON" }, 400);
+  const required = ["challengePubkey", "walletPubkey", "expiresAt"] as const;
+  const missing = required.filter((name) => typeof raw[name] !== "string" || raw[name] === "");
+  if (missing.length) return json({ error: "nonce: missing fields", missing }, 400);
+
+  try {
+    return json(await issueNonce(db, {
+      challengePubkey: raw.challengePubkey as string,
+      walletPubkey: raw.walletPubkey as string,
+      expiresAt: raw.expiresAt as string,
+    }));
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 400);
+  }
 }
 
 interface SubmitReportBody {
@@ -448,11 +499,19 @@ function route(pathname: string): string {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
-  const denied = authorize(req);
-  if (denied) return denied;
-
   const path = route(new URL(req.url).pathname);
+  // Decided by auth.ts on this same `path`, so an exempt prefix can never dispatch a
+  // protected handler: both the check and the router below read one identical string.
+  const denied = authorizeRequest(path, req.headers.get("x-oracle-secret"), ORACLE_API_SECRET);
+  if (denied) return json({ error: denied.error }, denied.status);
+
   try {
+    if (req.method === "POST" && path === "/enroll") {
+      return await handleEnroll(req);
+    }
+    if (req.method === "POST" && path === "/nonce") {
+      return await handleNonce(req);
+    }
     if (req.method === "GET" && path === "/health") {
       return json({ status: "alive", time: new Date().toISOString() });
     }
