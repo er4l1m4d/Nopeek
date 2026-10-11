@@ -403,7 +403,12 @@ async function verifyWithSpki(
     // currently exercised only by the unknown-curve case: no EdDSA root fixture exists
     // in this repo, so do not claim coverage of it.
     return false;
-  } catch {
+  } catch (e) {
+    // Fail closed exactly as before - but say why. Returning false here without a trace
+    // made a Deno-vs-Node signature failure indistinguishable from a genuine forgery for
+    // the better part of a day. The reason is still never surfaced to a caller; it only
+    // reaches the function logs.
+    console.log(`VERIFY_INNER_ERROR ${e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e)}`);
     return false;
   }
 }
