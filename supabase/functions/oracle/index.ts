@@ -4,6 +4,84 @@ import {
   settleOutcome,
   type Verdict,
 } from "./determine_result.ts";
+import { productionDeps, verifyReport, type NonceStatus } from "./checks.ts";
+
+/**
+ * The attested identity the report must carry. Both values were measured, not recalled:
+ * the package name is the applicationId in app/build.gradle.kts, and the digest is
+ * sha256 of the debug keystore's signing certificate — computed by keytool and confirmed
+ * equal to the value x509.ts parses out of attestationApplicationId in the captured Redmi
+ * chain. Task 19 replaces the digest with the release keystore's.
+ */
+const EXPECTED_PACKAGE_NAME = "com.nopeek.app";
+const EXPECTED_APK_SIGNER_DIGEST_B64 = "V03kcUk9V3oqTVu6IuiHFoFgf/eLmaehbyoc0zyDqIY=";
+const REVOKED_SERIALS_URL = "https://android.googleapis.com/attestation/status";
+
+/**
+ * Verifier dependencies, built here and nowhere else, so that "the chain anchor cannot be
+ * supplied by the caller" stays auditable in one place.
+ *
+ * revokedEntries distinguishes null (feed unreachable -> verifyReport fails closed) from
+ * [] (feed fetched, nothing revoked). Collapsing those turns a Google outage into a
+ * silent pass, which is the exact bug this hook was written to avoid.
+ */
+function verifierDeps() {
+  return productionDeps(EXPECTED_PACKAGE_NAME, EXPECTED_APK_SIGNER_DIGEST_B64, {
+    lookupEnrolledKey: async (walletPubkey: string) => {
+      const { data, error } = await db
+        .from("install_keys")
+        .select("keystore_spki_b64")
+        .eq("wallet_pubkey", walletPubkey)
+        .is("revoked_at", null)
+        .maybeSingle();
+      if (error) throw new Error(`install_keys lookup failed: ${error.message}`);
+      return data ? { spkiB64: data.keystore_spki_b64 as string } : null;
+    },
+
+    consumeNonce: async (
+      nonceB64: string,
+      challengePubkey: string,
+      walletPubkey: string,
+    ): Promise<NonceStatus> => {
+      const { data, error } = await db
+        .from("report_nonces")
+        .select("id, expires_at, consumed_at")
+        .eq("challenge_pubkey", challengePubkey)
+        .eq("wallet_pubkey", walletPubkey)
+        .eq("nonce_b64", nonceB64)
+        .maybeSingle();
+      if (error) throw new Error(`report_nonces lookup failed: ${error.message}`);
+      if (!data) return "mismatch";
+      if (data.consumed_at) return "consumed";
+      if (new Date(data.expires_at as string).getTime() <= Date.now()) return "expired";
+      // Conditional update: two concurrent submissions of the same nonce both read
+      // consumed_at = null above, and only one of these writes a row.
+      const { error: cErr, count } = await db
+        .from("report_nonces")
+        .update({ consumed_at: new Date().toISOString() }, { count: "EXACT" })
+        .eq("id", data.id)
+        .is("consumed_at", null);
+      if (cErr) throw new Error(`report_nonces consume failed: ${cErr.message}`);
+      return (count ?? 0) > 0 ? "ok" : "consumed";
+    },
+
+    revokedEntries: async () => {
+      try {
+        const res = await fetch(REVOKED_SERIALS_URL, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) return null;
+        const body = (await res.json()) as { serials?: Record<string, unknown> };
+        if (!body || typeof body.serials !== "object" || body.serials === null) return null;
+        return Object.entries(body.serials).map(([hex, entry]) => ({
+          issuer: (entry as { issuer?: string })?.issuer ?? "",
+          serial: hex,
+        }));
+      } catch {
+        // null, not []: an unreachable feed must not read as "nothing is revoked".
+        return null;
+      }
+    },
+  });
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -95,22 +173,105 @@ async function handleSubmitReport(req: Request): Promise<Response> {
   }
   const parsed = validateReport(raw);
   if (!parsed.ok) return json({ error: parsed.error }, 400);
-  const b = parsed.body;
+  // validateReport returns a NEW object holding only the five fields it knows about, so
+  // reading the evidence off `parsed.body` always yields undefined - which made every
+  // submission, genuine or forged, come back EVIDENCE_MISSING. The evidence has to be
+  // taken from the raw body; it is validated by the verifier, not by this shape check.
+  const rawObj = raw as Record<string, unknown>;
+  const b = {
+    ...parsed.body,
+    canonicalBytesB64: rawObj.canonicalBytesB64,
+    signatureB64: rawObj.signatureB64,
+    chainPem: rawObj.chainPem,
+  };
+
+  // A self-reported number is not evidence. Before this line existed, any caller could
+  // POST a usedSeconds value and have it believed; the report is now settled only if a
+  // hardware attestation backs the exact bytes it was computed from.
+  const missing = (["canonicalBytesB64", "signatureB64", "chainPem"] as const)
+    .filter((k) => typeof b[k] !== "string" || (b[k] as string).length === 0);
+  if (missing.length > 0) {
+    return json({
+      error: "report rejected: attestation evidence required",
+      missingFields: missing,
+      reason: "EVIDENCE_MISSING",
+    }, 400);
+  }
+
+  // The claims being checked have to come from the challenge we are settling, not from
+  // whoever is submitting. A caller that could supply its own target package or window
+  // could simply describe a duel it actually won.
+  const { data: ch, error: chErr } = await db
+    .from("challenges")
+    .select("target_app, window_seconds, end_time")
+    .eq("challenge_pubkey", b.challengePubkey)
+    .maybeSingle();
+  if (chErr) return json({ error: `challenge lookup failed: ${chErr.message}` }, 500);
+  if (!ch || !ch.end_time) {
+    return json({
+      error: "unknown challenge - no window to verify against",
+      reason: "CHALLENGE_UNKNOWN",
+    }, 400);
+  }
+
+  const windowEndMs = Date.parse(ch.end_time as string);
+  const windowStartMs = windowEndMs - Number(ch.window_seconds) * 1000;
+
+  let canonicalBytes: Uint8Array;
+  try {
+    const bin = atob(b.canonicalBytesB64 as string);
+    canonicalBytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) canonicalBytes[i] = bin.charCodeAt(i);
+  } catch {
+    return json({ error: "canonicalBytesB64 is not valid base64", reason: "PAYLOAD_UNPARSEABLE" }, 400);
+  }
+
+  const result = await verifyReport(
+    {
+      canonicalBytes,
+      signatureB64: b.signatureB64 as string,
+      chainPem: b.chainPem as string,
+      submittedAtMs: Date.now(),
+      windowEndMs,
+      graceSeconds: 300,
+      expectedTargetPackage: ch.target_app as string,
+      expectedWindowStartMs: windowStartMs,
+    },
+    verifierDeps(),
+  );
+
+  if (!result.ok) {
+    // Nothing is stored for a rejected report, so a forgery attempt cannot occupy the
+    // one-report-per-challenge slot or influence settlement. The reason is returned to
+    // the caller and logged; persisting it for the Evidence screen is Task 14's follow-up.
+    console.log(`REJECT ${b.challengePubkey} ${result.reason} ${result.detail ?? ""}`.trim());
+    return json({ error: "report rejected", reason: result.reason, detail: result.detail }, 400);
+  }
 
   const { data, error } = await db
     .from("usage_reports")
     .insert({
-      challenge_pubkey: b.challengePubkey,
-      wallet_pubkey: b.walletPubkey,
-      used_seconds: b.usedSeconds,
-      tamper_signals: b.tamperSignals ?? [],
-      window_start: b.windowStart ?? null,
-      window_end: b.windowEnd ?? null,
+      challenge_pubkey: result.fields.challengePubkey,
+      // Everything below comes from `result.fields`, i.e. the values decoded from the
+      // exact bytes the device signed and the hardware key attested. Storing the request
+      // body here would let a report be verified against one number and settled on
+      // another: the attestation would prove bytes the ledger never recorded.
+      wallet_pubkey: result.fields.walletPubkey,
+      used_seconds: result.fields.usedSeconds,
+      tamper_signals: result.fields.tamperSignals,
+      window_start: new Date(result.fields.windowStartMs).toISOString(),
+      window_end: new Date(result.fields.windowEndMs).toISOString(),
     })
     .select("id")
     .single();
   if (error) return json({ error: error.message }, 500);
-  return json({ ok: true, id: data.id });
+
+  return json({
+    ok: true,
+    id: data.id,
+    evidenceHash: result.evidenceHash,
+    checksPassed: result.checks,
+  });
 }
 
 interface RegisterChallengeBody {

@@ -88,6 +88,17 @@ create policy "settlement_results public read"
 -- idempotent, so re-running is safe.
 grant select on public.settlement_results to anon;
 
+-- service_role is what the Edge Function actually connects as, and it needs explicit
+-- grants here: without them every oracle call dies with "permission denied for table
+-- challenges", which is exactly what happened on the live project on 2026-10-11. The
+-- anon grant above is deliberately the only public one - settlement results are the
+-- only thing readable without a key.
+grant select, insert, update, delete on public.challenges          to service_role;
+grant select, insert, update, delete on public.usage_reports       to service_role;
+grant select, insert, update, delete on public.settlement_results  to service_role;
+grant select, insert, update, delete on public.install_keys        to service_role;
+grant select, insert, update, delete on public.report_nonces       to service_role;
+
 -- ---------------------------------------------------------------------
 -- 2. Attestation: enrolled device keys
 --
