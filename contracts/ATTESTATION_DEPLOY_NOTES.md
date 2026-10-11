@@ -213,3 +213,13 @@ in Task 19/20.
 - **Task 1 Step 3:** `app/build`, `.gradle` and `.kotlin/sessions` **not** deleted.
   The gate was "≥2.5 GB free" and there is 13.2 GiB; clearing them only forces
   Gradle to re-resolve and re-configure. Revisit if disk drops below 3 GB.
+
+## Playground test sandbox - measured constraints (2026-10-11)
+Probed by replacing tests/anchor.test.ts with a logging-only script (sends no transactions; balance unchanged at 8.37785684 SOL). Anything written to run in Playground must obey this:
+- Globals available: pg, web3, anchor, BN, assert, Buffer, borsh, BufferLayout, sleep, plus mocha (describe/it/before/after/beforeEach/afterEach/context/specify).
+- NO token library. A dynamic import() aborts the ENTIRE file at transform time, so mint/ATA/transfer instructions must be hand-laid-out from web3 + Buffer.
+- eval and the Function constructor are unavailable. The bare identifiers for the browser object and the global object are rejected even inside comments and string literals.
+- pg.provider does not exist. Use pg.connection and pg.wallet only.
+- Every test file must define describe(), or the runner refuses it and says to use the run command instead.
+- Terminal shows about 20 rows; long console output scrolls away, so keep log lines short.
+- Confirmed live: pg.program.programId = DJftv46AvjrbkbUCHR74ntWMXb5r7eHxHo3SXZkox2NM, methods = createChallenge, joinChallenge, settleChallenge, refundUnjoined, web3.Keypair and web3.PublicKey.findProgramAddress both present.
