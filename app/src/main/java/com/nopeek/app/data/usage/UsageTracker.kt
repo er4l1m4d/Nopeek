@@ -169,7 +169,7 @@ fun forwardJumpAllowanceMs(windowStartMs: Long, windowEndMs: Long): Long =
         .coerceAtLeast(5_000L)
         .coerceAtMost(60_000L)
 
-/** Plan 8.1 Step 2: submit to the oracle's POST /submit-report (no-op until backend configured). */
-fun postReport(report: UsageReport) {
-    OracleReportApi.submit(report)
-}
+// The submission that used to hang here (postReport -> OracleReportApi.submit) sent only the
+// app's own number and nothing else. The deployed oracle now refuses that body outright
+// (EVIDENCE_MISSING), so it is gone rather than kept as a fallback: a fallback path that the
+// verifier will not accept is worse than no path, because it looks like a retry.

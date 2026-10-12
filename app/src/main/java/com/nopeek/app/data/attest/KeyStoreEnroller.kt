@@ -6,6 +6,8 @@ import android.security.keystore.KeyProperties
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.security.PrivateKey
+import java.security.Signature
 import java.security.cert.Certificate
 import java.security.spec.ECGenParameterSpec
 import java.util.Base64
@@ -114,6 +116,35 @@ class KeyStoreEnroller(@Suppress("UNUSED_PARAMETER") context: Context) {
             )
         }
         return toEnrolledKey(chain)
+    }
+
+    /**
+     * Signs [bytes] with the minted key, without ever holding the private half.
+     *
+     * The algorithm name is spelled "SHA256withECDSA", not composed from
+     * `KeyProperties.DIGEST_SHA256 + "withECDSA"`: that constant spells the digest "SHA-256"
+     * because it names the digest for `setDigests()`, and the JCA Signature registry uses a
+     * different spelling. Composing the two throws NoSuchAlgorithmException — measured on this
+     * device, where the composed form failed and this literal worked.
+     *
+     * The bytes returned are a DER `SEQUENCE{INTEGER r, INTEGER s}`, which is what
+     * AndroidKeyStore emits (measured in Task 7 as `len=72 firstByte=0x30`). Callers convert
+     * them with [derEcdsaToRawP1363] before sending: the oracle pins raw fixed-width r||s and
+     * refuses DER.
+     */
+    fun sign(alias: String, bytes: ByteArray): ByteArray {
+        val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
+        val privateKey = keyStore.getKey(alias, null) as? PrivateKey
+            ?: throw IllegalStateException(
+                "AndroidKeyStore has no private key at $alias — nothing was minted for this " +
+                    "window, so there is no hardware key to sign with.",
+            )
+        return Signature.getInstance("SHA256withECDSA")
+            .apply {
+                initSign(privateKey)
+                update(bytes)
+            }
+            .sign()
     }
 
     private fun toEnrolledKey(chain: Array<out Certificate>): EnrolledKey {

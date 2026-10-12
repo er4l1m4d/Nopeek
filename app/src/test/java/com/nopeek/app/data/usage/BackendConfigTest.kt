@@ -7,9 +7,11 @@ import org.junit.Test
 
 /**
  * The backend config stopped being a placeholder on 2026-10-11, and that is a behaviour
- * change rather than a string edit: `OracleReportApi.submit`, `SettlementClient.fetchSettlementResult`,
+ * change rather than a string edit: `SettlementClient.fetchSettlementResult`,
  * `triggerSettlement` and `registerChallenge` all return early while [NopeekBackend.isConfigured]
- * is false. Once it is true they attempt real network calls.
+ * is false. Once it is true they attempt real network calls. The signed report path is the same
+ * story through `OracleEvidenceTransport`, which refuses to open a connection when unconfigured
+ * so the reporter surfaces TransportFailed — a retryable state, never a silent false.
  *
  * Pinned here so a future edit that reintroduces a placeholder fails loudly instead of
  * quietly turning every submission into a no-op that returns `false` — which is precisely

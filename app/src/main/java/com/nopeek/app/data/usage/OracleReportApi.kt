@@ -2,10 +2,6 @@ package com.nopeek.app.data.usage
 
 import com.nopeek.app.data.TamperSignals
 import com.nopeek.app.data.UsageReport
-import org.json.JSONObject
-import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -63,28 +59,8 @@ fun tamperSignalNames(signals: TamperSignals): List<String> = buildList {
 /** Plan 8.1 Step 3: any present tamper signal -> local STATUS_PENDING_VERIFICATION. */
 fun flagForVerification(signals: TamperSignals): Boolean = signals.isCompromised()
 
-object OracleReportApi {
-
-    /**
-     * POST /submit-report. Fire-and-forget: returns false when unconfigured or the
-     * network failed — the 15-minute periodic worker retries next cycle.
-     */
-    fun submit(report: UsageReport): Boolean {
-        if (!NopeekBackend.isConfigured()) return false
-        val body = JSONObject(reportPayload(report) as Map<*, *>)
-        val connection = (URL(NopeekBackend.oracleUrl("submit-report")).openConnection() as HttpURLConnection)
-        return try {
-            connection.requestMethod = "POST"
-            connection.doOutput = true
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 15_000
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            connection.responseCode in 200..299
-        } catch (e: IOException) {
-            false
-        } finally {
-            connection.disconnect()
-        }
-    }
-}
+// The legacy unsigned POST lived here. It is deleted rather than left beside the signed path:
+// the deployed oracle answers that body with EVIDENCE_MISSING, so a caller using it would
+// believe a report had been filed when nothing was verified. Reports are signed and submitted
+// through com.nopeek.app.data.attest.EvidenceReporter, which reuses reportPayload() from this
+// file for the plain fields and adds the attested evidence to the same body.

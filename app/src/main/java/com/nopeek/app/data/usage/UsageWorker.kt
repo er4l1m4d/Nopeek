@@ -2,16 +2,12 @@ package com.nopeek.app.data.usage
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.work.Constraints
 import androidx.work.Data
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequest
-import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.nopeek.app.data.UsageReport
 import com.nopeek.app.data.VerificationStatus
+import com.nopeek.app.data.attest.ReportOutcome
 import com.nopeek.app.data.verify.CommitmentVerifier
 import com.nopeek.app.data.verify.LocalRuleCommitmentVerifier
 import java.util.concurrent.TimeUnit
@@ -72,8 +68,9 @@ internal class UsageWorker(
         // One read of the event stream, three figures from it. Used-seconds alone is a
         // number the app made up; paired with the device-wide active span it becomes a
         // claim the oracle can disprove. The digest commits the exact window's event set
-        // these came from. It reaches the oracle in Task 13's signed payload — today
-        // `reportPayload` still sends only the legacy fields, so nothing yet checks it.
+        // these came from, and the same report object is what gets canonicalised, signed
+        // and submitted below — measuring once and signing once is what keeps the verdict
+        // the app shows and the evidence the chain records describing one window.
         val eventSet = collector.collect(parsed.windowStart, parsed.windowEnd)
         val usedSeconds = collector.usedSecondsFor(eventSet, parsed.targetPackage)
         val clock = readClockPair(parsed.windowStart, parsed.windowEnd)
@@ -118,8 +115,20 @@ internal class UsageWorker(
             }
         }
 
-        postReport(report)
-        return Result.success()
+        // Task 13: the signed, attested submission replaces the legacy body that carried only
+        // the app's own number. The oracle now refuses a submission with no evidence at all
+        // (EVIDENCE_MISSING), so this call is the difference between a report that settles and
+        // a report that is filed and ignored.
+        val outcome = ReportScheduler.submitReport(
+            applicationContext, report, parsed.targetPackage, parsed.graceSeconds,
+        )
+        return when (outcome) {
+            // A refusal is a verdict: the oracle answered, and re-running cannot un-answer it.
+            // Only an unreachable oracle is retried — reporting a transport failure as success
+            // would strand the window with no report and no retry.
+            is ReportOutcome.TransportFailed -> Result.retry()
+            else -> Result.success()
+        }
     }
 
     /**
@@ -172,34 +181,10 @@ internal class UsageWorker(
         private const val PREF_LAST_WALL_CLOCK = "last_wall_clock"
         private const val PREF_LAST_ELAPSED_REALTIME = "last_elapsed_realtime"
         private const val CLOCK_JUMP_THRESHOLD_MS = 5 * 60 * 1000L
-
-        /**
-         * Plan 3.2 Step 4: periodic 15-minute sync while the network is connected.
-         * Per ledger Row 2, challenge params travel as WorkManager input data until Room lands (4.2).
-         */
-        fun scheduleUsageSync(context: Context, params: UsageSyncParams) {
-            val request = PeriodicWorkRequest.Builder(
-                UsageWorker::class.java,
-                15, TimeUnit.MINUTES
-            )
-                .setInputData(UsageSyncParamsReader.toData(params))
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                )
-                .build()
-
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                "nopeek_usage_sync_${params.challengePubkey}",
-                ExistingPeriodicWorkPolicy.UPDATE,
-                request
-            )
-        }
-
-        fun cancelUsageSync(context: Context, challengePubkey: String) {
-            WorkManager.getInstance(context)
-                .cancelUniqueWork("nopeek_usage_sync_$challengePubkey")
-        }
+        // Scheduling used to live here as a 15-minute periodic job behind a connectivity
+        // constraint, with no caller anywhere in the app. Both halves were wrong and ReportScheduler
+        // owns it now: a window's report is due at one instant and valid until windowEnd + grace,
+        // so a recurring job fires at the wrong times, and a deferred job can make an honest user
+        // late for reasons they cannot see. See ReportScheduler's class comment.
     }
 }
