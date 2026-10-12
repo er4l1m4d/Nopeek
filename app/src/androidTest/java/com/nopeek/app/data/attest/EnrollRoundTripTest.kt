@@ -1,124 +1,179 @@
 package com.nopeek.app.data.attest
 
 import android.content.Context
-import android.security.keystore.KeyProperties
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.ByteArrayInputStream
 import java.security.KeyStore
-import java.security.PrivateKey
 import java.security.MessageDigest
+import java.security.PrivateKey
 import java.security.Signature
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import java.util.Base64
 
 /**
- * Task 7 Steps 4-6: the production enrollment path on real hardware.
+ * Task 7 Steps 4-6 + the Task 13 protocol fix, measured on real hardware.
  *
- * Task 2 proved this Redmi *can* produce a hardware attestation chain, but it did that
- * inside a test with its own throwaway alias. KeyStoreEnroller is the class the app
- * actually uses, so these tests are about the three properties the oracle depends on:
- * the key is created once and reused, the values handed to /enroll satisfy the
- * install_keys CHECK constraints, and the private half can sign the exact bytes a report
- * will carry.
+ * The contract asserted here changed on purpose. This suite used to prove the opposite —
+ * `enrollsOnceAndReusesTheSameAlias` pinned one persistent enrolled key — and that pinned a
+ * protocol that cannot work: the oracle's check 6 requires the attestation's
+ * `attestationChallenge` to equal the per-window nonce, but that field is frozen into the
+ * certificate by `setAttestationChallenge()` at key *creation*. A reused key carries the
+ * enrollment challenge forever, so every honest report after the first would have been
+ * rejected NONCE_MISMATCH -> UNVERIFIED, forfeiting an honest user's stake.
  *
- * Instrumentation only: a JVM test runs against the stubbed android.jar and would be
- * testing an empty keystore.
+ * So a key is now minted per window, with that window's nonce as its challenge. That makes
+ * the strongest version of the pitch true — a Google-signed attestation minted for this
+ * exact window — and leaves all fourteen oracle checks exactly as they were reviewed.
+ *
+ * What this file therefore measures is the assumption Task 13 would otherwise be built on
+ * and unable to question: that this Redmi can mint an ATTESTED key more than once, and that
+ * each chain carries its own challenge rather than a cached one. Task 2 minted a key once;
+ * one success says nothing about the second. If repeated minting silently returned the first
+ * chain, every window after the first would fail check 6 in production while the device
+ * looked healthy — which is the same shape as the four format assumptions this project has
+ * already had to retire by measurement instead of recall.
+ *
+ * Instrumentation only: a JVM test runs against the stubbed android.jar and an empty keystore.
  */
 @RunWith(AndroidJUnit4::class)
 class EnrollRoundTripTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
 
-    /** Any 32-byte value works as a bootstrap challenge; the oracle re-checks it later. */
-    private val bootstrapChallenge = "nopeek-enroll-round-trip".toByteArray()
+    /**
+     * Two distinct 32-byte ASCII challenges. ASCII because the exact-length assertion below
+     * encodes the needle as US_ASCII DER bytes, the same technique Task 2 used to tell
+     * `com.nopeek.app` from `com.nopeek.app.test`.
+     */
+    private val challengeA = "nopeek-window-A-00000000000000000".toByteArray(Charsets.US_ASCII)
+    private val challengeB = "nopeek-window-B-00000000000000000".toByteArray(Charsets.US_ASCII)
 
+    private val b64 = Base64.getEncoder()
+
+    private fun mint(challenge: ByteArray) =
+        KeyStoreEnroller(context).mintForChallenge(b64.encodeToString(challenge))
+
+    /**
+     * The measurement Task 13 depends on. Three things have to be true at once for per-window
+     * attestation to be a real design rather than an assumption: the second mint produces a
+     * different key, it produces a different chain, and each chain carries its OWN challenge.
+     */
     @Test
-    fun enrollsOnceAndReusesTheSameAlias() {
-        val enroller = KeyStoreEnroller(context)
+    fun everyWindowMintsItsOwnAttestedKeyCarryingThatWindowsChallenge() {
+        assertEquals("challenge must stay under 128 bytes for short-form DER length", 32, challengeA.size)
 
-        val first = enroller.enrollOrLoad(Base64.getEncoder().encodeToString(bootstrapChallenge))
-        val second = enroller.enrollOrLoad(Base64.getEncoder().encodeToString(bootstrapChallenge))
+        val first = mint(challengeA)
+        val second = mint(challengeB)
 
-        // Reuse, not regeneration. Every re-enrol would replace the enrolled key in the
-        // oracle's install_keys row, and a device that minted a new attested key per app
-        // start would leave earlier signed reports unverifiable against the LATEST key -
-        // the honest user's own history would start failing check 7.
-        assertEquals("alias must be stable across calls", first.alias, second.alias)
-        assertEquals("SPKI must be the same key, not a fresh one", first.spkiB64, second.spkiB64)
-        assertEquals("chain must be the same chain", first.chainPem, second.chainPem)
+        assertNotEquals(
+            "a second mint returned the same public key — this device caches attestation " +
+                "keys, so per-window challenges cannot work and check 6 will fail for every " +
+                "report after the first",
+            first.spkiB64, second.spkiB64,
+        )
+        assertNotEquals("two mints returned byte-identical chains", first.chainPem, second.chainPem)
 
-        val ks = KeyStore.getInstance(KeyStoreEnroller.KEYSTORE).apply { load(null) }
+        // The challenge has to be inside the HARDWARE-SIGNED extension of the key that signed
+        // the report — asserted as an exact-length DER OCTET STRING, not a substring, so a
+        // chain carrying a longer value that merely starts with these bytes cannot pass.
+        assertExactOctetString(attestationExtOf(first), challengeA, "first window's challenge")
+        assertExactOctetString(attestationExtOf(second), challengeB, "second window's challenge")
+
+        // And the older challenge must NOT be present in the newer chain: proof the challenge
+        // is per-mint rather than something the keystore reused from the first key.
         assertTrue(
-            "no key entry at ${first.alias} in AndroidKeyStore - enrollment did not persist",
-            ks.isKeyEntry(first.alias),
+            "the second chain still carries the FIRST window's challenge — the attestation was " +
+                "reused, so this window's nonce is not the one the hardware attested",
+            indexOf(attestationExtOf(second), challengeA) < 0,
         )
 
-        // The exact bounds install_keys enforces (20261007_nopeek_full_schema.sql). If any
-        // of these is wrong the oracle's INSERT is rejected by Postgres, which surfaces as
-        // an opaque 400 far from the real cause - so it is checked here, at the source.
+        // Each chain must still be a real attestation, both times. A shorter chain on the
+        // second mint would mean the device runs out of attestation material.
+        for ((label, key) in listOf("first" to first, "second" to second)) {
+            val count = Regex("BEGIN CERTIFICATE").findAll(key.chainPem).count()
+            assertTrue("$label chain has only $count certificate(s) - not hardware-attested", count >= 3)
+        }
+
+        InstrumentationRegistry.getInstrumentation().run {
+            android.util.Log.i(
+                "NOPEEK_REMINT",
+                "ok secondChainCerts=" + Regex("BEGIN CERTIFICATE").findAll(second.chainPem).count() +
+                    " alias=" + second.alias,
+            )
+        }
+    }
+
+    /**
+     * The four values `/enroll` takes must satisfy the live table's CHECK constraints.
+     * Checked at the source because a violation surfaces as an opaque Postgres 400 through
+     * two layers of HTTP, far from the value that caused it.
+     */
+    @Test
+    fun mintedKeySatisfiesTheInstallKeysConstraints() {
+        val key = mint(challengeA)
+
         assertTrue(
-            "spkiB64 length ${first.spkiB64.length} outside the DB CHECK (40..256)",
-            first.spkiB64.length in 40..256,
+            "spkiB64 length ${key.spkiB64.length} outside the DB CHECK (40..256)",
+            key.spkiB64.length in 40..256,
         )
         assertEquals(
             "certDigestB64 must be base64 of a SHA-256 (44 chars) or the DB rejects it",
-            44, first.certDigestB64.length,
+            44, key.certDigestB64.length,
         )
-        assertTrue(first.chainPem.contains("BEGIN CERTIFICATE"))
+        assertTrue(key.chainPem.contains("BEGIN CERTIFICATE"))
 
-        // A chain shorter than Task 2's MIN_CHAIN means a self-signed leaf: no Google-certified
-        // attestation key behind it, which is the whole basis of the compliance claim.
-        val chainCount = Regex("BEGIN CERTIFICATE").findAll(first.chainPem).count()
-        assertTrue(
-            "chain has only $chainCount certificate(s) - not a hardware-attested chain",
-            chainCount >= 3,
-        )
-
-        // The digest must actually be the leaf's, not just a 44-char string. Recomputed
-        // independently from the PEM the class returned.
+        // The digest must actually be the leaf's, not merely a 44-char string: the oracle
+        // compares it against the leaf of the chain sent with the report.
         val leafDer = Base64.getMimeDecoder().decode(
-            first.chainPem.substringAfter("-----BEGIN CERTIFICATE-----")
+            key.chainPem.substringAfter("-----BEGIN CERTIFICATE-----")
                 .substringBefore("-----END CERTIFICATE-----").trim(),
         )
         val recomputed = Base64.getEncoder().encodeToString(
             MessageDigest.getInstance("SHA-256").digest(leafDer),
         )
-        assertEquals("certDigestB64 is not sha256 of the leaf DER", recomputed, first.certDigestB64)
+        assertEquals("certDigestB64 is not sha256 of the leaf DER", recomputed, key.certDigestB64)
+
+        val ks = KeyStore.getInstance(KeyStoreEnroller.KEYSTORE).apply { load(null) }
+        assertTrue("no key entry at ${key.alias} - mint did not persist", ks.isKeyEntry(key.alias))
+        assertEquals(
+            "the key that will sign must be the key the chain attests",
+            key.spkiB64,
+            b64.encodeToString(ks.getCertificate(key.alias)!!.publicKey.encoded),
+        )
     }
 
     /**
-     * The enrolled key must sign the bytes a report will carry. Task 13 is the class that
-     * assembles and submits them, and its biggest unknown is the SIGNATURE SHAPE: the
-     * oracle's verifyEcdsaSignature() documents "raw P-1363 r||s, exactly what the device
-     * produces with SHA256withECDSA". If Java actually emits DER, that comment is wrong and
-     * every real report fails BAD_SIGNATURE while all tests stay green.
+     * The minted key must sign the bytes a report will carry, and say what SHAPE it signs in.
      *
-     * This does not assert a guess. It signs, verifies against the enrolled public key, and
-     * logs the observed shape to logcat under NOPEEK_SIGN_SHAPE, where the gate script
-     * reads it. The number that comes back decides whether the oracle needs a DER->raw
-     * conversion on the report path.
+     * Measured, not assumed: the oracle's verifyEcdsaSignature documents "raw P-1363, exactly
+     * what the device produces with SHA256withECDSA". On this device that claim was FALSE —
+     * AndroidKeyStore emits DER (`len=72 firstByte=0x30`), which is why Task 13 converts
+     * DER->raw device-side and the oracle stays strict. The log line below is the standing
+     * guard: if a future device or provider changes the encoding, the oracle's single pinned
+     * format silently starts rejecting genuine signatures.
      */
     @Test
-    fun enrolledKeySignsCanonicalBytesAndReportsTheSignatureShape() {
-        val enroller = KeyStoreEnroller(context)
-        val enrolled = enroller.enrollOrLoad(Base64.getEncoder().encodeToString(bootstrapChallenge))
+    fun mintedKeySignsCanonicalBytesAndReportsTheSignatureShape() {
+        val key = mint(challengeA)
 
         val ks = KeyStore.getInstance(KeyStoreEnroller.KEYSTORE).apply { load(null) }
-        val entry = ks.getKey(enrolled.alias, null)
-        assertNotNull("keystore returned no private key for ${enrolled.alias}", entry)
+        val entry = ks.getKey(key.alias, null)
+        assertNotNull("keystore returned no private key for ${key.alias}", entry)
         val privateKey = entry as PrivateKey
 
         val payload = "nopeek evidence payload under test".toByteArray()
         // "SHA256withECDSA", NOT KeyProperties.DIGEST_SHA256 + "withECDSA": the latter
-        // composes to "SHA-256withECDSA", which the provider rejects. DIGEST_SHA256 is the
-        // keystore's digest-selector name used in KeyGenParameterSpec.setDigests(); the JCA
-        // Signature algorithm has its own spelling. Measured on this device, which threw
-        // NoSuchAlgorithmException for the dashed form.
+        // composes to "SHA-256withECDSA" and throws NoSuchAlgorithmException. The dashed name
+        // belongs to setDigests(); the JCA Signature algorithm has its own spelling.
         val signature = Signature.getInstance("SHA256withECDSA")
             .apply {
                 initSign(privateKey)
@@ -128,11 +183,11 @@ class EnrollRoundTripTest {
 
         val verified = Signature.getInstance("SHA256withECDSA")
             .apply {
-                initVerify(ks.getCertificate(enrolled.alias)!!.publicKey)
+                initVerify(ks.getCertificate(key.alias)!!.publicKey)
                 update(payload)
             }
             .verify(signature)
-        assertTrue("the enrolled key's own signature did not verify against its own public key", verified)
+        assertTrue("the key's own signature did not verify against its own public key", verified)
 
         val derShaped = signature.isNotEmpty() && signature[0].toInt() == 0x30
         InstrumentationRegistry.getInstrumentation().run {
@@ -142,8 +197,6 @@ class EnrollRoundTripTest {
                     "der=$derShaped rawP1363=${signature.size == 64}",
             )
         }
-        // Deliberate: the useful assertion is that the shape is exactly one of the two, so a
-        // truncated or empty signature cannot pass silently.
         assertTrue(
             "signature is ${signature.size} bytes and does not start 0x30 - neither DER nor raw",
             derShaped || signature.size == 64,
@@ -153,12 +206,12 @@ class EnrollRoundTripTest {
     /**
      * AUTH-1 measurement: can the platform sign with a Solana wallet key at all?
      *
-     * This device is API 35, so a pass here says nothing about whether we may SHIP it -
+     * This device is API 35, so a pass here says nothing about whether we may SHIP it —
      * minSdk is 26, and a capability that only exists on newer Androids is a crash on the
-     * older ones we claim to support. The decision this feeds: an in-app ed25519 signer
-     * (needed for /enroll and /register-challenge signatures, and for Solana transactions
-     * anyway) comes from the platform or from a dependency, and this project does not add
-     * unvetted crypto without saying so out loud.
+     * older ones. The decision this feeds: an in-app ed25519 signer (needed for the /enroll
+     * and /register-challenge signatures, and for Solana transactions anyway) comes from the
+     * platform or from a dependency, and this project does not add unvetted crypto without
+     * saying so out loud.
      */
     @Test
     fun ed25519IsAvailableFromThePlatformKeystoreProviders() {
@@ -172,5 +225,55 @@ class EnrollRoundTripTest {
             .verify(signature)
         assertTrue("platform ed25519 sign/verify round trip failed", verified)
         assertEquals("an ed25519 signature is 64 bytes", 64, signature.size)
+    }
+
+    // --- helpers -------------------------------------------------------------
+
+    /** The leaf certificate's KeyDescription extension, as raw DER bytes. */
+    private fun attestationExtOf(key: EnrolledKey): ByteArray {
+        val der = Base64.getMimeDecoder().decode(
+            key.chainPem.substringAfter("-----BEGIN CERTIFICATE-----")
+                .substringBefore("-----END CERTIFICATE-----").trim(),
+        )
+        val cert = CertificateFactory.getInstance("X.509")
+            .generateCertificate(ByteArrayInputStream(der)) as X509Certificate
+        val ext = cert.getExtensionValue(ATTESTATION_OID)
+        assertNotNull(
+            "attestation extension $ATTESTATION_OID absent — this key was not attested",
+            ext,
+        )
+        return ext
+    }
+
+    /**
+     * Asserts `value` appears as a DER OCTET STRING holding exactly those bytes: tag 0x04, a
+     * short-form length equal to the value's length, then the value. A longer value that
+     * merely starts with these bytes cannot satisfy this, because its length byte differs —
+     * the same reason Task 2 could not tell com.nopeek.app from com.nopeek.app.test.
+     */
+    private fun assertExactOctetString(haystack: ByteArray, value: ByteArray, label: String) {
+        assertTrue("value too long for short-form length", value.size < 128)
+        val needle = byteArrayOf(0x04, value.size.toByte()) + value
+        assertTrue(
+            "$label not present as an exact-length DER OCTET STRING inside the attestation " +
+                "extension — the hardware did not attest this window's nonce",
+            indexOf(haystack, needle) >= 0,
+        )
+    }
+
+    private fun indexOf(hay: ByteArray, needle: ByteArray): Int {
+        if (needle.isEmpty() || needle.size > hay.size) return -1
+        outer@ for (i in 0..hay.size - needle.size) {
+            for (j in needle.indices) {
+                if (hay[i + j] != needle[j]) continue@outer
+            }
+            return i
+        }
+        return -1
+    }
+
+    private companion object {
+        /** id-ce-extension of the Android Key Attestation ASN.1 structure. */
+        const val ATTESTATION_OID = "1.3.6.1.4.1.11129.2.1.17"
     }
 }

@@ -561,8 +561,15 @@ export async function verifyEcdsaSignature(
   try {
     const key = await crypto.subtle.importKey("spki", tight(spki) as BufferSource,
       { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-    // Public API takes raw P-1363 signatures, exactly what the device produces with
-    // "SHA256withECDSA"; no DER unwrapping on this path.
+    // Raw fixed-width P-1363 r||s is the ONLY accepted encoding here. The comment that used
+    // to sit on this line claimed that is "exactly what the device produces with
+    // SHA256withECDSA" — Task 7 measured that on the Redmi and it was FALSE: AndroidKeyStore
+    // emits DER (`len=72 firstByte=0x30`). The device converts DER->raw
+    // (SignatureEncoding.kt) rather than this function widening to accept both, because one
+    // claim must have one byte form; accepting both doubles the set of signatures that
+    // satisfy "this payload was signed by this key" and breaks the single-format rule that
+    // makes the Kotlin and TypeScript canonical encoders agree byte-for-byte (spec 4.2). A
+    // DER-shaped signature is refused, and x509.test.ts pins that refusal.
     return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key,
       tight(signature) as BufferSource, tight(bytes) as BufferSource);
   } catch {

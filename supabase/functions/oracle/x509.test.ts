@@ -426,3 +426,69 @@ function tamperWithLeafPublicKey(chainPem: string): string {
     .join("\n");
   return rebuilt + "\n";
 }
+
+/**
+ * The evidence signature's encoding is pinned to one form, on BOTH sides of the wire, and
+ * this is the half that keeps the pin honest.
+ *
+ * Task 7 measured the Redmi's AndroidKeyStore emitting DER (`len=72 firstByte=0x30`), while
+ * this function requires fixed-width raw r||s. The device converts. If the oracle ever
+ * widened to accept both — which looks harmless and reads as "more tolerant" — the single
+ * canonical-format rule that makes the Kotlin and TypeScript encoders agree byte-for-byte is
+ * gone, and twice as many byte forms satisfy "this payload was signed by this key".
+ *
+ * Same key, same bytes, same signature; only the encoding differs. Asserting both halves is
+ * what makes that a pin rather than a preference: the raw form must verify and the DER form
+ * must be refused.
+ */
+test("the evidence signature is pinned to raw P-1363 and the DER form is refused", async () => {
+  const pair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"],
+  );
+  const spki = new Uint8Array(await crypto.subtle.exportKey("spki", pair.publicKey));
+  const bytes = new Uint8Array(new TextEncoder().encode("nopeek canonical evidence payload"));
+  const raw = new Uint8Array(
+    await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, pair.privateKey, bytes),
+  );
+
+  // WebCrypto hands back raw r||s, which is the shape this API demands. 64 bytes for P-256.
+  assert.equal(raw.length, 64, "a P-256 raw signature is 64 bytes");
+  const b64 = (b: Uint8Array) => Buffer.from(b).toString("base64");
+
+  assert.equal(
+    await verifyEcdsaSignature(b64(spki), bytes, b64(raw)), true,
+    "the raw form must verify, or no genuine report ever could",
+  );
+
+  const der = rawToDerEcdsa(raw);
+  assert.notEqual(der.length, 64, "the DER encoding must differ in length, or the test proves nothing");
+  assert.equal(
+    await verifyEcdsaSignature(b64(spki), bytes, b64(der)), false,
+    "a DER-shaped signature was accepted: the oracle now honors two encodings for one claim",
+  );
+});
+
+/** raw r||s -> DER SEQUENCE { INTEGER r, INTEGER s }: the encoding AndroidKeyStore emits. */
+function rawToDerEcdsa(raw: Uint8Array): Uint8Array {
+  const integer = (value: Uint8Array): Uint8Array => {
+    let start = 0;
+    while (start < value.length - 1 && value[start] === 0) start++; // DER omits leading zeros
+    const significant = value.subarray(start);
+    const pad = (significant[0] & 0x80) !== 0 ? 1 : 0; // ...and prepends one if the top bit is set
+    const out = new Uint8Array(2 + pad + significant.length);
+    out[0] = 0x02;
+    out[1] = pad + significant.length;
+    out.set(significant, 2 + pad);
+    return out;
+  };
+  const r = integer(raw.subarray(0, 32));
+  const s = integer(raw.subarray(32, 64));
+  const body = new Uint8Array(r.length + s.length);
+  body.set(r);
+  body.set(s, r.length);
+  const seq = new Uint8Array(2 + body.length);
+  seq[0] = 0x30;
+  seq[1] = body.length;
+  seq.set(body, 2);
+  return seq;
+}

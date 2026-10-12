@@ -12,7 +12,7 @@ import java.util.Base64
 
 /**
  * The four values `/enroll` takes, already in the exact shapes the `install_keys` table
- * checks them against. Produced by [KeyStoreEnroller.enrollOrLoad] and passed straight to
+ * checks them against. Produced by [KeyStoreEnroller.mintForChallenge] and passed straight to
  * the oracle — nothing here is re-derived later, because a value derived twice is a value
  * that can disagree with the bytes that were signed.
  */
@@ -27,17 +27,28 @@ data class EnrolledKey(
 )
 
 /**
- * Creates, or reuses, the one hardware key this install of Nopeek signs compliance
- * reports with (plan Task 7).
+ * Mints the hardware key that signs ONE compliance window (spec 4.1, plan Task 7/13).
  *
- * Why the key is reused rather than minted per call: the oracle binds a wallet to a single
- * enrolled SPKI (check 7 compares the presented chain's leaf against `install_keys`). A
- * device that generated a fresh attested key on each app start would silently invalidate
- * every report it had already signed — an honest user's own history starting to fail check 7
- * against the *latest* key. So an existing, genuinely attested entry is loaded and returned.
+ * One key per window, deliberately — not one key per install. This class previously created
+ * a key once and reused it forever, and that design was impossible rather than merely
+ * suboptimal: the oracle's check 6 requires the attestation's `attestationChallenge` to
+ * equal the report's per-window nonce, but that field is frozen into the certificate by
+ * `setAttestationChallenge()` at key creation and cannot be changed afterwards. A reused key
+ * therefore carries the enrollment challenge for the rest of its life, so every honest
+ * report after the first would be rejected NONCE_MISMATCH -> UNVERIFIED, which under the
+ * fail-closed rule forfeits the honest user's stake. Reuse also made the parameter above
+ * a lie: the load path accepted a challenge and silently discarded it.
  *
- * Everything here runs against the real AndroidKeyStore, which is why it is exercised by
- * instrumentation: a JVM test sees a stubbed android.jar and an always-empty keystore.
+ * Minting per window is what makes the strongest version of the pitch actually true: the
+ * oracle is shown a Google-signed attestation created for THIS window's nonce, not a
+ * certificate pinned at install time and quoted ever after. All fourteen checks stay
+ * exactly as reviewed, and the freshness of each window is enforced by hardware rather than
+ * by the app's word.
+ *
+ * The cost, stated so it is not discovered later: each report re-mints the key and re-POSTs
+ * `/enroll`, so `install_keys` holds the CURRENT key for a wallet. Already-stored reports are
+ * unaffected — they were verified at submission time and settle from their own row and
+ * evidence hash, not by re-checking today's enrolled key.
  *
  * Attestation is not optional. A key that comes back without a chain long enough to reach a
  * Google-certified attestation CA throws: a self-signed leaf attests nothing, and enrolling
@@ -50,30 +61,36 @@ class KeyStoreEnroller(@Suppress("UNUSED_PARAMETER") context: Context) {
     // may need it for preference storage.
 
     /**
-     * Returns the enrolled key, creating it on first call.
+     * Creates a fresh non-exportable attested key whose certificate embeds
+     * [challengeB64], replacing whatever this install minted last.
      *
-     * @param bootstrapChallengeB64 base64 of the bytes Google will embed in the attestation
-     *   extension as `attestationChallenge`. On first enrollment this is a fresh value from
-     *   the oracle's `/nonce`; it is what binds this key's chain to this install rather than
-     *   a chain captured from another device.
+     * @param challengeB64 base64 of the bytes Google embeds as `attestationChallenge` — the
+     *   value `/nonce` issued for this window. It is what lets the oracle tell a chain minted
+     *   for this window from one captured from an earlier one, so it is the reason the key is
+     *   new. Decoded here rather than taken as bytes so a caller cannot pass an empty or
+     *   non-base64 value and get a key attested against a challenge nothing issued.
      */
-    fun enrollOrLoad(bootstrapChallengeB64: String): EnrolledKey {
-        val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-
-        keyStore.getCertificateChain(ALIAS)?.let { existing ->
-            if (existing.size < MIN_CHAIN) {
-                throw IllegalStateException(
-                    "keystore entry $ALIAS has a ${existing.size}-certificate chain; a hardware-attested " +
-                        "chain needs at least $MIN_CHAIN. Refusing to reuse it.",
-                )
-            }
-            return toEnrolledKey(existing)
+    fun mintForChallenge(challengeB64: String): EnrolledKey {
+        val challenge = try {
+            Base64.getDecoder().decode(challengeB64)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("attestation challenge is not base64", e)
         }
+        require(challenge.isNotEmpty()) {
+            "attestation challenge decoded to zero bytes; an empty challenge would make every " +
+                "window's chain look interchangeable to the oracle"
+        }
+
+        val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
+        // Replace rather than skip. Keeping the previous window's key would recreate exactly
+        // the bug this method exists to fix: its certificate carries the OLD challenge, so
+        // the new window's report fails check 6.
+        if (keyStore.containsAlias(ALIAS)) keyStore.deleteEntry(ALIAS)
 
         val spec = KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
             .setAlgorithmParameterSpec(ECGenParameterSpec(CURVE))
             .setDigests(KeyProperties.DIGEST_SHA256)
-            .setAttestationChallenge(Base64.getDecoder().decode(bootstrapChallengeB64))
+            .setAttestationChallenge(challenge)
             // Deliberately NOT calling setUserAuthenticationRequired / setUserAuthenticationParameters,
             // even though this device is API 35 and both exist: the report is produced by a
             // background WorkManager run with no user present, and requiring authentication would
@@ -118,7 +135,11 @@ class KeyStoreEnroller(@Suppress("UNUSED_PARAMETER") context: Context) {
 
     companion object {
         const val KEYSTORE = "AndroidKeyStore"
-        /** Stable across installs: one enrolled key per install, per the reuse argument above. */
+        /**
+         * Single alias, overwritten per window. The name is versioned because a change to the
+         * key's parameters (curve, purpose, attestation) is a change to what the oracle can
+         * verify, and an old entry must not survive into a new contract.
+         */
         const val ALIAS = "NopeekAttest.v1"
         private const val CURVE = "secp256r1"
         /**

@@ -89,13 +89,17 @@ Layers stay separated so the product layer can move to React Native without touc
 
 ### 4.1 Protocol
 
-1. **Enroll.** On first grant of Usage Access, the device generates an EC P-256 key pair *inside the Android KeyStore*, non-exportable, with `setAttestationChallenge(bootstrapNonce)`. The oracle supplies `bootstrapNonce` (single-use). The full cert chain and the leaf public key are registered against the connected wallet at `/enroll`.
-2. **Bind.** Opening a commitment window, the app calls `/nonce` with `challengePubkey` + `walletPubkey`. The oracle returns a fresh random nonce, stored with `expires_at = windowEnd + grace` and `consumed = false`.
-3. **Sign.** At window end the app builds the canonical byte payload (§4.2), signs it with the KeyStore key (`SHA256withECDSA`), and POSTs payload bytes + signature + certificate chain.
+1. **Bind first.** Opening a commitment window, the app calls `/nonce` with `challengePubkey` + `walletPubkey`. The oracle returns a fresh random nonce, stored with `expires_at = windowEnd + grace` and `consumed = false`.
+2. **Mint and enroll, per window.** The device generates an EC P-256 key pair *inside the Android KeyStore*, non-exportable, with `setAttestationChallenge(thatNonce)`, then registers the full cert chain and leaf public key against the connected wallet at `/enroll`.
+3. **Sign.** At window end the app builds the canonical byte payload (§4.2), signs it with the KeyStore key (`SHA256withECDSA`), converts the signature from the DER form AndroidKeyStore emits to the fixed-width raw `r||s` the oracle pins (the one-encoding rule below), and POSTs payload bytes + signature + certificate chain.
 4. **Verify.** The oracle runs every check in §4.3 and rejects on any failure.
 5. **Publish and pin.** On success the oracle stores the row and computes `evidenceHash = sha256(canonicalBytes)`, serves the raw evidence publicly at `/evidence/<hash>`, and passes the hash into `settle_challenge`. The program stores both parties' hashes on the `Challenge` PDA.
 
+**Why the key is minted per window and not once at install.** This section originally specified enrollment "on first grant of Usage Access" *and* check 4 as `attestationChallenge == issued nonce`. Those two cannot both hold: `setAttestationChallenge()` writes the value into the certificate at key creation, where it stays for the key's whole life, while `/nonce` issues a new value every window. A persistent enrolled key therefore mismatches check 4 for every report after the first — which under the fail-closed rule forfeits an honest user's stake. Per-window minting is the fix that keeps check 4 in its strongest form, and it makes a better claim than the one it replaced: the oracle is handed a Google-signed attestation created for *this* window, not a certificate quoted from install day. The cost is one key generation and one `/enroll` POST per report, and `install_keys` therefore holds each wallet's *current* key — already-stored reports are unaffected, since they were verified at submission and settle from their own row.
+
 **Byte-exact rule.** The device signs the exact bytes it transmits; the oracle hashes the exact bytes it received. Neither side re-encodes or re-serializes. Cross-language canonicalization (Kotlin vs Deno) is not attempted — it is a known time sink with no security upside here.
+
+**One encoding per claim.** The same rule applies to the signature itself. Measured on the Redmi, AndroidKeyStore's `SHA256withECDSA` emits a DER `SEQUENCE{INTEGER r, INTEGER s}`, while the oracle verifies fixed-width raw `r||s` (P-1363), which is what WebCrypto and `@noble/curves` require for P-256. The device converts. The oracle deliberately refuses DER rather than accepting both: one claim about who signed a payload should correspond to one byte form, and widening the accepted set would silently double the inputs that satisfy check 3 while breaking the single-format discipline the Kotlin and TypeScript encoders are pinned to by a shared fixture.
 
 ### 4.2 Canonical payload
 
