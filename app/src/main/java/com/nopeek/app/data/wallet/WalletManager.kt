@@ -1,5 +1,6 @@
 package com.nopeek.app.data.wallet
 
+import android.content.Context
 import android.net.Uri
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
 import com.solana.mobilewalletadapter.clientlib.ConnectionIdentity
@@ -7,6 +8,7 @@ import com.solana.mobilewalletadapter.clientlib.MobileWalletAdapter
 import com.solana.mobilewalletadapter.clientlib.TransactionResult
 import com.nopeek.app.data.identity.MockSeekerProvider
 import com.nopeek.app.data.identity.SeekerIdentityProvider
+import com.nopeek.app.data.local.NopeekPrefs
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -14,6 +16,18 @@ import kotlinx.coroutines.CancellationException
  * Sign-in uses the wallet's own UI; this only tracks the resulting state.
  */
 internal class WalletManager {
+
+    /**
+     * Set once by [attach] from MainActivity so connect success can persist the wallet
+     * pubkey. The wallet address itself lives only in [state] — process memory — which is
+     * why the recovery path could not previously know it: after a force-stop (the exact
+     * case recovery exists for) this object is rebuilt empty.
+     */
+    private var prefs: NopeekPrefs? = null
+
+    fun attach(context: Context) {
+        if (prefs == null) prefs = NopeekPrefs(context)
+    }
 
     /**
      * Plan 10.1 Step 3: MockSeekerProvider by default (no hardware); replaceable
@@ -39,7 +53,15 @@ internal class WalletManager {
         if (state is WalletState.Connecting) return
         state = WalletState.Connecting
         state = try {
-            resolveOutcome(mapResult(adapter.connect(sender)))
+            resolveOutcome(mapResult(adapter.connect(sender))).also { next ->
+                // Persist the moment the app learns it: the eager recovery path reads this
+                // after process death, when in-memory state is gone. A disconnect clears it
+                // so a stale wallet can never report for a wallet that left the device.
+                when (next) {
+                    is WalletState.Connected -> prefs?.localWalletPubkey = next.address
+                    else -> {}
+                }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -53,6 +75,7 @@ internal class WalletManager {
             adapter.disconnect(sender)
         } finally {
             state = WalletState.Disconnected
+            prefs?.localWalletPubkey = null
         }
     }
 

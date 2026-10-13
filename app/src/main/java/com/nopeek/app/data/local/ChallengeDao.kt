@@ -18,6 +18,13 @@ interface ChallengeDao {
     @Query("SELECT * FROM challenges WHERE localStatus IN ('CREATED', 'ACTIVE') ORDER BY startTime DESC")
     suspend fun getActiveChallenges(): List<ChallengeEntity>
 
+    // The eager recovery path's query. PENDING_VERIFICATION is included ON PURPOSE here
+    // (ReportRecovery re-reports a locally-suspected window so the oracle's hardware check
+    // can clear it) while the chain poller above deliberately excludes it - that flag must
+    // not be overwritten by a chain status, but it also must not be invisible to recovery.
+    @Query("SELECT * FROM challenges WHERE localStatus IN ('CREATED', 'ACTIVE', 'PENDING_VERIFICATION') ORDER BY startTime DESC")
+    suspend fun getRecoverableChallenges(): List<ChallengeEntity>
+
     // Screen query also shows tamper-flagged and both-fail-locked rows; the polling
     // query deliberately excludes PENDING_VERIFICATION / BOTH_FAIL_LOCKED so the
     // flag or lock is not overwritten by a chain status.
