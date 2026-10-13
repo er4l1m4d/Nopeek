@@ -10,6 +10,8 @@ import { enrollKey, issueNonce } from "./store.ts";
 import {
   makeNobleEcdsaVerifier,
   parseRevokedFeed,
+  pemToDerBlocks,
+  readAttestationExtension,
   verifyChainToPinnedRoot,
 } from "./x509.ts";
 // Pinned to the version @noble/curves is installed at in package.json (2.4.0), which is
@@ -157,8 +159,30 @@ async function handleEnroll(req: Request): Promise<Response> {
   const required = ["walletPubkey", "spkiB64", "chainPem", "certDigestB64"] as const;
   const missing = required.filter((name) => typeof raw[name] !== "string" || raw[name] === "");
   if (missing.length) return json({ error: "enroll: missing fields", missing }, 400);
+  // A four-certificate Google chain is ~5KB of PEM; 64KB is generous headroom. The bound
+  // goes BEFORE any parsing: without it a public unauthenticated route will hand attacker-
+  // chosen megabytes to the DER walker (Task 7 review, minor 3).
+  if ((raw.chainPem as string).length > 64_000) {
+    return json({ error: "enroll: chainPem too large" }, 400);
+  }
 
   try {
+    // Order is load-bearing: chain gate -> identity tie -> write. The identity check MUST
+    // precede enrollKey, or a valid-format wrong digest/spki is upserted first and only
+    // refused afterwards - the polluted row would then sit under the victim's wallet.
+    if (!(await verifyChainToPinnedRoot(raw.chainPem as string, ECDSA_VERIFY))) {
+      return json({ error: "enroll: chain does not verify to the pinned attestation root" }, 400);
+    }
+    const leaf = await leafIdentityOf(raw.chainPem as string);
+    if (leaf.spkiB64 !== raw.spkiB64) {
+      return json({ error: "enroll: spkiB64 does not match the chain's leaf public key" }, 400);
+    }
+    if (leaf.digestB64 !== raw.certDigestB64) {
+      return json({ error: "enroll: certDigestB64 is not sha256 of the leaf certificate" }, 400);
+    }
+    // The chain is already proven above; enrollKey re-checks it (idempotent) because its
+    // contract is "never write without the gate", and keeping that promise in one place
+    // beats saving three signature verifications.
     await enrollKey(db, {
       walletPubkey: raw.walletPubkey as string,
       spkiB64: raw.spkiB64 as string,
@@ -171,6 +195,23 @@ async function handleEnroll(req: Request): Promise<Response> {
     // that tells the device nothing about what it got wrong.
     return json({ error: e instanceof Error ? e.message : String(e) }, 400);
   }
+}
+
+/**
+ * The leaf-identity tie the Task 7 review asked for (minor 1): /enroll proves the CHAIN is
+ * genuine, but the row stores spkiB64/certDigestB64 as the caller supplied them. If those
+ * two described a different key than the chain's leaf, check 7 would compare the report's
+ * leaf against a value the submitter picked — the enrollment row would vouch for a key the
+ * chain never attested. Both values are recomputed from the verified chain here, and a
+ * mismatch is refused before any write.
+ */
+async function leafIdentityOf(chainPem: string): Promise<{ spkiB64: string; digestB64: string }> {
+  const [leafDer] = pemToDerBlocks(chainPem);
+  if (!leafDer) throw new Error("enroll: chain has no leaf certificate");
+  const info = await readAttestationExtension(chainPem);
+  const digest = await crypto.subtle.digest("SHA-256", leafDer);
+  const digestB64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
+  return { spkiB64: info.leafSpkiB64, digestB64 };
 }
 
 /** POST /nonce — public for the same reason. Issues the single-use window nonce. */
@@ -343,6 +384,19 @@ async function handleSubmitReport(req: Request): Promise<Response> {
       tamper_signals: result.fields.tamperSignals,
       window_start: new Date(result.fields.windowStartMs).toISOString(),
       window_end: new Date(result.fields.windowEndMs).toISOString(),
+      // The evidence itself, so GET /evidence/<hash> can publish what anyone needs to
+      // re-run the fourteen checks offline — the whole "judge cannot dismiss it" claim
+      // (spec 4.4). The migration's unique index on evidence_hash backs this column;
+      // leaving it null, as the insert did before, made the route unimplementable.
+      verified: true,
+      evidence_hash: result.evidenceHash,
+      signature_b64: b.signatureB64 as string,
+      cert_chain_pem: b.chainPem as string,
+      canonical_bytes: "\\x" + [...canonicalBytes].map((b) => b.toString(16).padStart(2, "0")).join(""),
+      package_name: result.fields.packageName,
+      device_active_seconds: result.fields.deviceActiveSeconds,
+      event_count: result.fields.eventCount,
+      event_set_digest: result.fields.eventSetDigestHex,
     })
     .select("id")
     .single();
@@ -503,6 +557,66 @@ function route(pathname: string): string {
   return p === "" ? "/health" : p;
 }
 
+/**
+ * GET /evidence/<hash> — the public publisher (plan Task 14, spec 4.4).
+ *
+ * The report is already public in the sense that matters: its bytes were verified by
+ * hardware attestation and its hash is what settlement records. Publishing the evidence
+ * bundle lets anyone — a judge, the losing duelist, a auditor — re-run the fourteen checks
+ * offline and reach the same verdict, which is the difference between "the oracle says so"
+ * and "anyone can check". Read-only, keyed by the hash of the exact signed bytes, and
+ * returns nothing for a hash that was never accepted (404, not a guessable surface).
+ */
+async function handleEvidence(hash: string): Promise<Response> {
+  if (!/^[0-9a-f]{64}$/.test(hash)) {
+    return json({ error: "evidence hash must be 64 lowercase hex chars" }, 400);
+  }
+  const { data, error } = await db
+    .from("usage_reports")
+    .select(
+      "challenge_pubkey, wallet_pubkey, used_seconds, tamper_signals, window_start, window_end, " +
+        "reported_at, verified, evidence_hash, signature_b64, cert_chain_pem, canonical_bytes, " +
+        "package_name, device_active_seconds, event_count, event_set_digest",
+    )
+    .eq("evidence_hash", hash)
+    .eq("verified", true)
+    .maybeSingle();
+  if (error) return json({ error: error.message }, 500);
+  if (!data) return json({ error: "no accepted report carries this evidence hash" }, 404);
+
+  // PostgREST returns bytea as a "\x..." hex string; the bundle publishes base64, which is
+  // what every other surface (the app, the Task 6 vector) uses for the same bytes.
+  let canonicalBytesB64: string | null = null;
+  const hex = typeof data.canonical_bytes === "string" ? data.canonical_bytes : "";
+  if (hex.startsWith("\\x") || hex.startsWith("0x")) {
+    const body = hex.slice(2);
+    const bytes = new Uint8Array(body.length / 2);
+    for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(body.slice(i * 2, i * 2 + 2), 16);
+    canonicalBytesB64 = btoa(String.fromCharCode(...bytes));
+  }
+
+  return json({
+    evidenceHash: data.evidence_hash,
+    verified: data.verified,
+    reportedAt: data.reported_at,
+    challengePubkey: data.challenge_pubkey,
+    walletPubkey: data.wallet_pubkey,
+    packageName: data.package_name,
+    usedSeconds: data.used_seconds,
+    deviceActiveSeconds: data.device_active_seconds,
+    eventCount: data.event_count,
+    eventSetDigestHex: data.event_set_digest,
+    tamperSignals: data.tamper_signals ?? [],
+    windowStart: data.window_start,
+    windowEnd: data.window_end,
+    // The re-verification material: bytes + signature + chain. With these three anyone
+    // can re-run every check from chain anchoring down to signature, without trusting us.
+    canonicalBytesB64,
+    signatureB64: data.signature_b64,
+    chainPem: data.cert_chain_pem,
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   const path = route(new URL(req.url).pathname);
@@ -529,6 +643,9 @@ Deno.serve(async (req: Request) => {
     }
     if (req.method === "POST" && path === "/settle") {
       return await handleSettle(req);
+    }
+    if (req.method === "GET" && path.startsWith("/evidence/")) {
+      return await handleEvidence(path.slice("/evidence/".length));
     }
     return json({ error: `no route for ${req.method} ${path}` }, 404);
   } catch (e) {

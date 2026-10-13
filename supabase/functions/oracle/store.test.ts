@@ -20,13 +20,18 @@ import { enrollKey, issueNonce, type StoreDb } from "./store.ts";
 /** A row is a record of column names to values; the shapes are the migration's, quoted in the assertions. */
 type Row = Record<string, unknown>;
 
-function makeFakeDb(seed: { installKeys?: Row[] } = {}) {
+function makeFakeDb(seed: {
+  installKeys?: Row[];
+  /** Injected PostgREST failures, per operation, so the three error branches in store.ts are executable. */
+  failures?: { select?: string; upsert?: string; insert?: string };
+} = {}) {
   const tables: Record<"install_keys" | "report_nonces", Array<Record<string, unknown>>> = {
     install_keys: [...(seed.installKeys ?? [])],
     report_nonces: [],
   };
   const installKeys = tables.install_keys;
   const nonces = tables.report_nonces;
+  const failures = seed.failures ?? {};
 
   // A chainable builder over one table, supporting exactly the operations store.ts uses.
   // Rows are real state: `select().eq().maybeSingle()` reads them, `upsert()` honours the
@@ -39,16 +44,19 @@ function makeFakeDb(seed: { installKeys?: Row[] } = {}) {
       select(_cols: string) { this.filters = []; return this; },
       eq(col: string, value: string) { this.filters.push([col, value]); return this; },
       async maybeSingle() {
+        if (failures.select) return { data: null, error: { message: failures.select } };
         const hit = rows.find((r) => this.filters.every(([c, v]) => r[c] === v)) ?? null;
         return { data: hit, error: null };
       },
       async upsert(value: Record<string, unknown>, opts: { onConflict: string }) {
+        if (failures.upsert) return { data: null, error: { message: failures.upsert } };
         const at = rows.findIndex((r) => r[opts.onConflict] === value[opts.onConflict]);
         if (at >= 0) rows[at] = { ...rows[at], ...value };
         else rows.push({ revoked_at: null, ...value });
         return { data: [value], error: null };
       },
       async insert(value: Record<string, unknown>) {
+        if (failures.insert) return { data: null, error: { message: failures.insert } };
         rows.push({ consumed_at: null, ...value });
         return { data: [value], error: null };
       },
@@ -185,4 +193,39 @@ test("enrollKey refuses a chain that does not verify to the pinned root", async 
     /does not verify/,
   );
   assert.equal(installKeys.length, 0, "an unverified chain must not be recorded");
+});
+
+test("enrollKey maps a PostgREST read failure to a named error, not a crash", async () => {
+  // The Task 7 review's untested branch: a DB failure on the lookup previously had no
+  // test, so a refactor could turn it into an unhandled rejection on a public route.
+  const { db, installKeys } = makeFakeDb({ failures: { select: "permission denied for table install_keys" } });
+  await assert.rejects(
+    () => enrollKey(db, {
+      walletPubkey: WALLET_A, spkiB64: SPKI, chainPem: CHAIN, certDigestB64: DIGEST,
+    }, chainVerifies),
+    /install_keys lookup failed/,
+  );
+  assert.equal(installKeys.length, 0, "a failed lookup must not fall through to a write");
+});
+
+test("enrollKey maps an upsert failure to a named error and stores nothing", async () => {
+  const { db, installKeys } = makeFakeDb({ failures: { upsert: "new row violates row-level security policy" } });
+  await assert.rejects(
+    () => enrollKey(db, {
+      walletPubkey: WALLET_A, spkiB64: SPKI, chainPem: CHAIN, certDigestB64: DIGEST,
+    }, chainVerifies),
+    /install_keys upsert failed/,
+  );
+  assert.equal(installKeys.length, 0);
+});
+
+test("issueNonce maps an insert failure to a named error and issues nothing", async () => {
+  // The mirror branch on the nonce path: if report_nonces refuses the insert, the caller
+  // must learn issuance failed (and retry) rather than receive an unusable nonce.
+  const { db, nonces } = makeFakeDb({ failures: { insert: "violates foreign key constraint" } });
+  await assert.rejects(
+    () => issueNonce(db, { challengePubkey: CHALLENGE, walletPubkey: WALLET_A, expiresAt: futureExpiry() }),
+    /report_nonces insert failed/,
+  );
+  assert.equal(nonces.length, 0);
 });
