@@ -24,6 +24,12 @@ interface ChallengeDao {
     @Query("SELECT * FROM challenges WHERE localStatus IN ('CREATED', 'ACTIVE', 'PENDING_VERIFICATION', 'BOTH_FAIL_LOCKED') ORDER BY startTime DESC")
     fun observeActive(): Flow<List<ChallengeEntity>>
 
+    // A duel is addressable by its on-chain pubkey once signed, and by its row id before
+    // that (the demo seed is created before any wallet signs, so its challengePubkey is
+    // null and NavGraph navigates with the id). One query serves both spellings.
+    @Query("SELECT * FROM challenges WHERE challengePubkey = :pubkey OR id = :pubkey LIMIT 1")
+    fun observeByPubkey(pubkey: String): Flow<ChallengeEntity?>
+
     @Query("SELECT * FROM challenges ORDER BY startTime DESC")
     suspend fun getAll(): List<ChallengeEntity>
 }
