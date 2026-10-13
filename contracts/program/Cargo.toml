@@ -17,5 +17,8 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
-anchor-lang = "0.31.1"
+# init-if-needed: Playground's build image has this feature enabled (v1's escrow ATA uses
+# init_if_needed and built+deployed there). The feature is declared HERE only so a local
+# `cargo check` sees the same language; Playground never receives Cargo.toml.
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
 anchor-spl = "0.31.1"
