@@ -243,34 +243,70 @@ class OracleEvidenceTransport : EvidenceTransport {
             // domain code (EVIDENCE_MISSING, CHAIN_NOT_ROOTED, NONCE_MISMATCH, ...).
             SubmitResult.Refused(response.optString("error", response.optString("reason", "REFUSED")))
         }
+    } catch (e: HttpErrorResponse) {
+        // 4xx from the oracle is a VERDICT, not a transport problem: the body names the
+        // reason and nothing about the connection failed. Surfacing it as Failed (retryable)
+        // made the worker re-mint, re-enroll and resubmit a report the oracle had already
+        // judged — burning the window's nonce for nothing.
+        SubmitResult.Refused(e.reason())
     } catch (e: IOException) {
         SubmitResult.Failed(e.message ?: "network")
     }
 
     private fun post(url: String, body: JSONObject): org.json.JSONObject {
         if (!NopeekBackend.isConfigured()) throw IOException("backend not configured")
-        val connection = (URL(url).openConnection() as HttpURLConnection)
-        try {
-            connection.requestMethod = "POST"
-            connection.doOutput = true
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 20_000
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val text = stream?.readBytes()?.toString(Charsets.UTF_8) ?: ""
-            if (code !in 200..299) {
-                throw IOException("$url responded $code: ${text.take(200)}")
+        // Redirects are followed MANUALLY, once, with the hop logged. HttpURLConnection with
+        // instanceFollowRedirects=true silently re-sends the POST body on a 307/308 — for
+        // /submit-report that means the oracle executes twice: the first run consumes the
+        // window's single nonce, the second returns NONCE_CONSUMED, and the app never saw
+        // the real verdict. The hop must be visible and the resend deliberate.
+        var currentUrl = url
+        var currentBody = body.toString()
+        repeat(2) { attempt ->
+            val connection = (URL(currentUrl).openConnection() as HttpURLConnection)
+            try {
+                connection.requestMethod = "POST"
+                connection.doOutput = true
+                connection.connectTimeout = 15_000
+                connection.readTimeout = 20_000
+                connection.instanceFollowRedirects = false
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.outputStream.use { it.write(currentBody.toByteArray(Charsets.UTF_8)) }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val text = stream?.readBytes()?.toString(Charsets.UTF_8) ?: ""
+                android.util.Log.i("NOPEEK_HTTP", "attempt=$attempt code=$code url=$currentUrl body=${text.take(300)}")
+                if (code in 300..399) {
+                    val location = connection.getHeaderField("Location")
+                        ?: throw HttpErrorResponse(code, "redirect without Location: $text")
+                    // 307/308 keep method and body; 301/302 would not, and a POST silently
+                    // becoming a GET is worse than a loud failure.
+                    if (code != 307 && code != 308) throw HttpErrorResponse(code, "unhandled redirect $code -> $location")
+                    currentUrl = URL(URL(currentUrl), location).toString()
+                    return@repeat
+                }
+                if (code !in 200..299) {
+                    throw HttpErrorResponse(code, text)
+                }
+                return org.json.JSONObject(text)
+            } finally {
+                connection.disconnect()
             }
-            return org.json.JSONObject(text)
-        } finally {
-            connection.disconnect()
         }
+        throw IOException("unreachable: repeat() must return or throw")
     }
 
     private companion object {
         /** Must match the oracle's grace window, or the expiry it stores is not the one used. */
         const val GRACE_SECONDS = 60
+    }
+}
+
+/** A non-2xx oracle response. `reason()` extracts the oracle's own reason code when present. */
+class HttpErrorResponse(val code: Int, private val body: String) : IOException("$code: ${body.take(200)}") {
+    fun reason(): String = try {
+        org.json.JSONObject(body).optString("reason", "HTTP_$code")
+    } catch (_: org.json.JSONException) {
+        "HTTP_$code"
     }
 }

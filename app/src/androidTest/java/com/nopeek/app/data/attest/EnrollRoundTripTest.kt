@@ -69,7 +69,10 @@ class EnrollRoundTripTest {
      */
     @Test
     fun everyWindowMintsItsOwnAttestedKeyCarryingThatWindowsChallenge() {
-        assertEquals("challenge must stay under 128 bytes for short-form DER length", 32, challengeA.size)
+        assertTrue(
+            "challenge must stay under 128 bytes for short-form DER length (was ${challengeA.size})",
+            challengeA.size < 128,
+        )
 
         val first = mint(challengeA)
         val second = mint(challengeB)

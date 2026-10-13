@@ -1,4 +1,12 @@
-# Nopeek — Colosseum handover (2026-10-12)
+# Nopeek — Colosseum handover (2026-10-12, updated 2026-10-13)
+
+> **UPDATE 2026-10-13:** The spine is closed. Per-window minting is proven on hardware
+> (EnrollRoundTripTest 4/4 on the Redmi) and **one accepted report end-to-end exists — twice**,
+> through the production path against the live oracle, all 14 checks passing, and the challenge
+> settled `OPPONENT_WON` / `PASS`. A critical production bug was found and fixed on the way:
+> `consumeNonce`'s `count`-based success check self-burned every nonce (see ledger + volo-errors.md).
+> §6 items 1–3 are done; item 2's proof lives in `AcceptedReportE2ETest.kt`. Deadline: submissions
+> close **2026-10-14 03:59 UTC**.
 
 Working document for whoever picks this up. Deadline: **today 23:59 PT**. HEAD at time of
 writing: `2c024ab`, branch `nopeek-colosseum`, working tree clean apart from another session's
@@ -49,8 +57,8 @@ returns `UNRECOGNIZED_VERSION`-style failures for sideloaded APKs; Key Attestati
 | 10 | Anchor program v2 (duel nonce, evidence, treasury, reputation) | **not started** | Blocking on-chain settlement. We now know the target: Playground's CLI is **0.29.0** and its build resolves an older `anchor-lang` (`init_if_missing` rejected → `init_if_needed`) |
 | 11 | Kotlin Solana client for v2 | **not started** | Needs Task 10's IDL. **Also owns the ed25519 decision** (§7) |
 | 12 | `UsageEventCollector` | **done** | Whole-device union-of-intervals active span, digest, forward-clock signal; **Step 3 measured on device**: 95 s known interval → `used=89 active=92`, histogram `1=552, 2=552` |
-| 13 | `ReportScheduler` — two chances to report | **JVM half done, device half blocked** | `EvidenceReporter` (10 tests), `ReportScheduler` (8), `ReportRecovery` (10), all mutation-proven except `ReportRecovery`. ❌ MainActivity eager hook, ❌ MIUI checklist, ❌ Review Focus 5, ❌ **per-window minting not yet run on device** |
-| 14 | `/submit-report` verifies; `/evidence/<hash>` public | **half** | ✅ verification live and enforced; stored rows come from the **attested** bytes, not the request body. ❌ **no `/evidence` route exists** (only `/enroll /nonce /health /submit-report /register-challenge /settle`) |
+| 13 | `ReportScheduler` — two chances to report | **done** | JVM half (EvidenceReporter 10, ReportScheduler 8, ReportRecovery 10 tests) + device half DONE 2026-10-13: per-window minting proven on Redmi (EnrollRoundTripTest 4/4, second chain carries its OWN challenge, NOPEEK_SIGN_SHAPE `len=71 0x30 der=true` reconfirmed). ❌ still open: MainActivity eager hook (needs local-wallet identity), MIUI checklist, Review Focus 5, ReportRecovery mutation re-run |
+| 14 | `/submit-report` verifies; `/evidence/<hash>` public | **half** | ✅ verification live and enforced; stored rows come from the **attested** bytes, not the request body. ✅ a real report was accepted + settled 2026-10-13 (all 14 checks; `consumeNonce` count bug fixed and redeployed). ❌ **no `/evidence` route exists** (only `/enroll /nonce /health /submit-report /register-challenge /settle`) |
 | 15 | Two-device end-to-end duel | **not started** | The checkpoint. Depends on 13-device-half + 10 + 11 |
 | 16 | Fail-closed duel (demo's best scene) | **not started** | |
 | 17 | Reputation PDA + `/reputation/<wallet>` | **not started** | Colosseum-scored (innovation/portability wedge) |
@@ -145,15 +153,19 @@ about an external format, never checked against the external thing.**
 
 ## 6. Do next, in order, with the files
 
-1. **Run `EnrollRoundTripTest` on the Redmi** — needs "Install via USB" re-enabled (MIUI reverts it).
-   This proves per-window attestation minting works on this hardware. **Task 13 is not safe to
-   finish without it**; the test is written and compiles (`everyWindowMintsItsOwnAttestedKeyCarryingThatWindowsChallenge`).
-   Files: `app/src/main/java/com/nopeek/app/data/attest/KeyStoreEnroller.kt`,
-   `app/src/androidTest/java/com/nopeek/app/data/attest/EnrollRoundTripTest.kt`.
-2. **One accepted report end-to-end.** `ReportScheduler.submit(...)` → live `200` + `evidenceHash`.
-   Files: `EvidenceReporter.kt`, `ReportScheduler.kt`, `OracleReportApi.kt` (config),
-   `supabase/functions/oracle/index.ts`.
-3. **Prove `ReportRecovery`'s teeth** — the mutation run was lost; redo it with git as the restore
+**DONE 2026-10-13 (spine closed, proven twice):** items 1–3 below. Item 1: per-window minting on
+Redmi, 4/4. Item 2: `AcceptedReportE2ETest` — register → measure → /nonce → mint → /enroll → sign
+→ /submit-report → Accepted (all 14 checks) → /settle → `OPPONENT_WON`/`PASS`, twice
+(evidenceHashes `c20ce6d3…`, `d00b7e8b…`). Item 3 is still owed (mutation teeth), items 4–7 below
+remain, in this order:
+
+1. ~~Run `EnrollRoundTripTest` on the Redmi~~ **DONE 2026-10-13 — 4/4 green; §9's last open
+   limitation retired.** (Needed only the screen-wake trick for MIUI: `KEYCODE_WAKEUP` +
+   `wm dismiss-keyguard` before install; `adb_install_need_confirm 0` reverts between runs.)
+2. ~~One accepted report end-to-end~~ **DONE 2026-10-13 — twice, plus settlement.** Found and
+   fixed the `consumeNonce` self-burn bug (ledger). Transport also fixed: 4xx = verdict not
+   retry, redirects followed explicitly (no silent body resend).
+3. **Prove `ReportRecovery`'s teeth** — the mutation run was lost; redo with git as the restore
    mechanism and the XML deleted between rounds. File: `app/src/main/java/com/nopeek/app/data/usage/ReportRecovery.kt`.
 4. **Wire the eager hook.** Blocked on a real gap: **nothing in `data/` knows which wallet is this
    device's.** A duel row names two parties, and recovering for the opponent spends *their*
@@ -230,4 +242,6 @@ about an external format, never checked against the external thing.**
 - Revocation depends on Google's feed being reachable; when it is not, reports are rejected
   (fail-closed), which is a real availability cost.
 - Devnet, no real funds, one device family tested (Redmi / MIUI, global ROM).
-- Per-window attestation minting is **designed and unit-tested but not yet demonstrated on hardware.**
+- ~~Per-window attestation minting is designed and unit-tested but not yet demonstrated on hardware.~~
+  **RETIRED 2026-10-13**: demonstrated on the Redmi — the second mint produced a different key and
+  chain carrying its own challenge (EnrollRoundTripTest, `NOPEEK_REMINT secondChainCerts=4`).

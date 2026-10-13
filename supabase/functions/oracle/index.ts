@@ -82,15 +82,21 @@ function verifierDeps() {
       if (!data) return "mismatch";
       if (data.consumed_at) return "consumed";
       if (new Date(data.expires_at as string).getTime() <= Date.now()) return "expired";
-      // Conditional update: two concurrent submissions of the same nonce both read
-      // consumed_at = null above, and only one of these writes a row.
-      const { error: cErr, count } = await db
+      // Conditional update, success judged by RETURNING the row rather than by a count
+      // option. Measured live 2026-10-13: with { count: "EXACT" } the edge runtime's
+      // supabase-js returned no usable count on a SUCCESSFUL consume, so the ok branch
+      // read as a lost race and every genuine report was refused NONCE_CONSUMED with its
+      // nonce burned by its own verification. `.select()` after `.update()` returns the
+      // updated row (empty on a lost race), which is shape-stable across versions.
+      const { data: updated, error: cErr } = await db
         .from("report_nonces")
-        .update({ consumed_at: new Date().toISOString() }, { count: "EXACT" })
+        .update({ consumed_at: new Date().toISOString() })
         .eq("id", data.id)
-        .is("consumed_at", null);
+        .is("consumed_at", null)
+        .select("id")
+        .maybeSingle();
       if (cErr) throw new Error(`report_nonces consume failed: ${cErr.message}`);
-      return (count ?? 0) > 0 ? "ok" : "consumed";
+      return updated ? "ok" : "consumed";
     },
 
     // Google's real feed keys its list `entries`, writes serials in a mix of decimal and

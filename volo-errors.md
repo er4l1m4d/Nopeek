@@ -195,4 +195,41 @@
 
 ---
 
-Last updated: `2026-10-01` (plan 12.2 Step 1 status pass + new-error entries)
+## 🆕 Errors — 2026-10-13 (Nopeek Colosseum crunch)
+
+### Error: `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` (intermittent)
+- **Cause**: MIUI blocks USB installs and auto-denies its confirm dialog when the **screen is off**. `adb_install_need_confirm 0` + `verifier_verify_adb_installs 0` help, but MIUI's security app reverts them between runs — they are NOT durable.
+- **Fix (measured)**: wake + dismiss keyguard before every install:
+  `adb shell input keyevent KEYCODE_WAKEUP; adb shell wm dismiss-keyguard`
+  then `adb install -r ...`. No Developer-options toggle needed this way.
+- **Also**: Gradle `connectedDebugAndroidTest` uses a split-APK install path that hits the same wall more often — prefer `adb install` of both APKs + `adb shell am instrument -w` (ledger Task 2 ruling). After ANY reinstall: `adb shell appops set com.nopeek.app GET_USAGE_STATS allow`.
+
+### Error: `Unable to find instrumentation info for: ...AndroidJUnit4`
+- **Cause**: passed the runner CLASS instead of the runner NAME.
+- **Fix**: the runner is `androidx.test.runner.AndroidJUnitRunner` (check `adb shell pm list instrumentation`). Use `com.nopeek.app.test/androidx.test.runner.AndroidJUnitRunner`.
+
+### Error: `java.net.BindException: Address already in use` (Gradle FileLockContentionHandler)
+- **Cause**: stale daemon holding the port.
+- **Fix**: `gradlew --stop`, rerun.
+
+### Error: `AssertionError: challenge must stay under 128 bytes expected:<32> but was:<33>`
+- **Cause**: test's own assertion was wrong — challenge string is 33 bytes; requirement is `<128` (short-form DER), not exactly 32.
+- **Fix**: assert `size < 128` in `EnrollRoundTripTest.kt`.
+
+### Error: `Rejected(reason=NONCE_CONSUMED)` on every genuine report (nonce burned by its own verification)
+- **Cause**: `index.ts consumeNonce` judged the conditional consume update by `(count ?? 0) > 0` from `.update(..., {count: "EXACT"})`. In Supabase's edge runtime, supabase-js returned **no usable count on success** → a SUCCESSFUL consume read as a lost race → returned `NONCE_CONSUMED` **and had already set consumed_at**. The nonce was burned by its own verification. Never seen before because check 8 (`BAD_SIGNATURE`) always fired before check 9 on real chains — the first genuinely-signed report ever is what exposed it.
+- **Fix**: judge success by the RETURNING row, not a count option:
+  `.update({consumed_at}).eq("id", data.id).is("consumed_at", null).select("id").maybeSingle()` → row present = "ok", null = "consumed". Shape-stable across supabase-js versions; keeps lost-race semantics for real concurrency.
+- **Diagnosis path that found it** (reuse this): a fresh nonce consumed before its single /submit-report + `/settle` showing nothing stored ⇒ the burn happened inside verification (consume is check 9, before checks 10-14). Redirect double-execution was ruled out by logging every hop (`NOPEEK_HTTP`).
+
+### Error: oracle 4xx surfaced as `TransportFailed` (refusals were retryable)
+- **Cause**: `OracleEvidenceTransport.post()` threw plain `IOException` on any non-2xx, so `SubmitResult.Refused` was dead code and the worker would re-mint/re-enroll/resubmit an already-judged report.
+- **Fix**: `HttpErrorResponse(code, body)` carries the oracle body; `submit()` catches it and returns `Refused(reason())`. A refusal is a verdict, not a network problem.
+
+### Risk fixed: silent POST body resend on redirect
+- **Cause**: `HttpURLConnection` with `instanceFollowRedirects=true` silently re-POSTs the body on 307/308 — for `/submit-report` that means double server-side execution (first run consumes the window's nonce).
+- **Fix**: `instanceFollowRedirects = false`; follow 307/308 explicitly, once, with the hop logged. 301/302 on a POST = loud failure.
+
+---
+
+Last updated: `2026-10-13` (Nopeek Colosseum crunch — spine closed: accepted report + settlement, consumeNonce self-burn bug found and fixed)
