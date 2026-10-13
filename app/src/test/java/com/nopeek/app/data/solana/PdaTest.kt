@@ -69,6 +69,50 @@ class PdaTest {
         }
     }
 
+    @Test
+    fun challengePdaIncludesNonceAsLittleEndianBytes() {
+        // v2: the challenge PDA is [b"challenge", creator, opponent, nonce.to_le_bytes()].
+        // Same pair + different nonce MUST give different addresses — that is the whole
+        // point: under v1 a second duel between the same pair died with
+        // AccountAlreadyInitialized because the address was already taken.
+        val p0 = ProgramInstructions.challengePda(creatorB58, opponentB58, nonce = 0, programId = programIdB58)
+        val p1 = ProgramInstructions.challengePda(creatorB58, opponentB58, nonce = 1, programId = programIdB58)
+        assertFalse("nonce must change the address (v2 re-duel)", p0.address.contentEquals(p1.address))
+
+        // The encoding is little-endian: nonce 1 is the seed byte sequence 01 00 00 00,
+        // not 00 00 00 01. Pinned against a hand-derived address with that exact seed.
+        val handDerived = Pda.findProgramAddress(
+            listOf("challenge".toByteArray(), creator, opponent, byteArrayOf(1, 0, 0, 0)),
+            programId,
+        )
+        assertArrayEquals(handDerived.address, p1.address)
+        assertEquals(handDerived.bump, p1.bump)
+    }
+
+    @Test
+    fun reputationPdaIsStablePerWalletAndIndependentOfPair() {
+        val a1 = Pda.reputationPda(walletB58, programIdB58)
+        val a2 = Pda.reputationPda(walletB58, programIdB58)
+        assertArrayEquals(a1.address, a2.address)
+
+        val other = Pda.reputationPda(otherWalletB58, programIdB58)
+        assertFalse("reputation is per wallet, not per pair", a1.address.contentEquals(other.address))
+
+        // Seed spelling: [b"reputation", wallet] — pinned against the hand-derived form so
+        // a rename on one side cannot drift from the program's REPUTATION_SEED.
+        val handDerived = Pda.findProgramAddress(
+            listOf("reputation".toByteArray(), Base58.decode(walletB58)!!),
+            programId,
+        )
+        assertArrayEquals(handDerived.address, a1.address)
+    }
+
+    private val programIdB58 = "11111111111111111111111111111111"
+    private val creatorB58 = Base58.encode(creator)
+    private val opponentB58 = Base58.encode(opponent)
+    private val walletB58 = Base58.encode(ByteArray(32) { 7 })
+    private val otherWalletB58 = Base58.encode(ByteArray(32) { 8 })
+
     private fun hex(s: String): ByteArray =
         ByteArray(s.length / 2) { i -> s.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
 }

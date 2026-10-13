@@ -20,7 +20,9 @@ data class ChallengeEntity(
     val windowSeconds: Long,
     val startTime: Long,
     val endTime: Long,
-    val localStatus: String
+    val localStatus: String,
+    /** v2: the duel nonce in the challenge PDA's seed; 0 for v1-created rows. */
+    val nonce: Int = 0,
 )
 
 fun Challenge.toEntity(): ChallengeEntity = ChallengeEntity(
@@ -34,7 +36,8 @@ fun Challenge.toEntity(): ChallengeEntity = ChallengeEntity(
     windowSeconds = windowSeconds,
     startTime = startTime,
     endTime = endTime,
-    localStatus = localStatus
+    localStatus = localStatus,
+    nonce = nonce,
 )
 
 fun ChallengeEntity.toModel(): Challenge = Challenge(
@@ -48,5 +51,5 @@ fun ChallengeEntity.toModel(): Challenge = Challenge(
     windowSeconds = windowSeconds,
     startTime = startTime,
     endTime = endTime,
-    localStatus = localStatus
+    localStatus = localStatus,
 )

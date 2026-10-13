@@ -23,6 +23,8 @@ data class CreateChallengeParams(
     val limitSeconds: Int,
     val windowSeconds: Int,
     val creatorTokenAccount: String,
+    /** v2: makes the pair re-duelable — the PDA seed carries it little-endian. */
+    val nonce: Int,
     val mint: String = SolanaConfig.USDC_MINT,
 )
 
@@ -40,7 +42,26 @@ data class SettleChallengeParams(
     val opponentToken: String,
     val creatorResult: Int,
     val opponentResult: Int,
+    /** The reputation PDAs, derived per wallet with [Pda.reputationPda]. */
+    val creatorReputation: String,
+    val opponentReputation: String,
+    /**
+     * The sha-256 of each side's attested canonical bytes — the oracle's evidenceHash.
+     * The chain refuses a PASS whose hash is zero (EvidenceZero), and the client mirrors
+     * that below so the wallet is never asked to sign a transaction the chain rejects.
+     */
+    val creatorEvidenceHash: ByteArray,
+    val opponentEvidenceHash: ByteArray,
     val escrow: String = "",
+)
+
+data class ResolveLockParams(
+    val challenge: String,
+    val oracle: String,
+    val mint: String,
+    val escrow: String,
+    val treasury: String,
+    val treasuryToken: String,
 )
 
 data class RefundUnjoinedParams(
@@ -54,12 +75,19 @@ object ProgramInstructions {
 
     fun programIdFrom(idl: NopeekIdl): String = idl.address
 
-    fun challengePda(creator: String, opponent: String, programId: String): PdaAddress =
+    /**
+     * The challenge PDA for a duel, v2: [b"challenge", creator, opponent, nonce.to_le_bytes()].
+     * The nonce makes the same pair re-duelable — under v1 the second duel died with
+     * AccountAlreadyInitialized because the address was already taken. Nonce 1 little-endian
+     * is the byte sequence 01 00 00 00.
+     */
+    fun challengePda(creator: String, opponent: String, nonce: Int, programId: String): PdaAddress =
         Pda.findProgramAddress(
             listOf(
                 "challenge".toByteArray(Charsets.UTF_8),
                 Base58.decode(creator) ?: error("bad creator pubkey"),
                 Base58.decode(opponent) ?: error("bad opponent pubkey"),
+                le32(nonce),
             ),
             Base58.decode(programId) ?: error("bad program id"),
         )
@@ -74,15 +102,15 @@ object ProgramInstructions {
             Base58.decode(SolanaConfig.ASSOCIATED_TOKEN_PROGRAM_ID)!!,
         )
 
-    fun challengeEscrowAta(creator: String, opponent: String, mint: String, programId: String): PdaAddress {
-        val pda = challengePda(creator, opponent, programId)
+    fun challengeEscrowAta(creator: String, opponent: String, mint: String, programId: String, nonce: Int): PdaAddress {
+        val pda = challengePda(creator, opponent, nonce, programId)
         return ataAddress(pda.address, Base58.decode(mint) ?: error("bad mint"))
     }
 
     fun createChallenge(idl: NopeekIdl, params: CreateChallengeParams): BuiltInstruction {
         val programId = programIdFrom(idl)
-        val pda = challengePda(params.creator, params.opponent, programId)
-        val escrow = challengeEscrowAta(params.creator, params.opponent, params.mint, programId)
+        val pda = challengePda(params.creator, params.opponent, params.nonce, programId)
+        val escrow = challengeEscrowAta(params.creator, params.opponent, params.mint, programId, params.nonce)
 
         val appBytes = params.targetApp.toByteArray(Charsets.UTF_8)
         require(appBytes.size <= 32) { "target app label too long" }
@@ -90,7 +118,8 @@ object ProgramInstructions {
             le64(params.stakeAmount) +
             le32(appBytes.size) + appBytes +
             le32(params.limitSeconds) +
-            le32(params.windowSeconds)
+            le32(params.windowSeconds) +
+            le32(params.nonce)
 
         val accounts = listOf(
             AccountKey(Base58.encode(pda.address), isSigner = true, isWritable = true, name = "challenge"),
@@ -138,18 +167,58 @@ object ProgramInstructions {
         }
         require(params.creatorResult in 1..3) { "creator result must be 1..3" }
         require(params.opponentResult in 1..3) { "opponent result must be 1..3" }
+        require(params.creatorEvidenceHash.size == 32) { "creator evidence hash must be 32 bytes" }
+        require(params.opponentEvidenceHash.size == 32) { "opponent evidence hash must be 32 bytes" }
+        // The program refuses a PASS whose evidence hash is zero (EvidenceZero). Mirrored
+        // here so the wallet is never asked to sign a transaction the chain will reject.
+        if (params.creatorResult == 1) {
+            require(!params.creatorEvidenceHash.all { it == 0.toByte() }) {
+                "a PASS verdict requires a nonzero evidence hash"
+            }
+        }
+        if (params.opponentResult == 1) {
+            require(!params.opponentEvidenceHash.all { it == 0.toByte() }) {
+                "a PASS verdict requires a nonzero evidence hash"
+            }
+        }
         val data = IdlParser.discriminator("settle_challenge") +
-            byteArrayOf(params.creatorResult.toByte(), params.opponentResult.toByte())
+            byteArrayOf(params.creatorResult.toByte(), params.opponentResult.toByte()) +
+            params.creatorEvidenceHash +
+            params.opponentEvidenceHash
         val accounts = listOf(
             AccountKey(params.challenge, false, true, name = "challenge"),
-            AccountKey(params.oracle, true, false, name = "oracle"),
+            AccountKey(params.oracle, true, true, name = "oracle"),
             AccountKey(escrow, false, true, name = "escrow"),
             AccountKey(params.creatorToken, false, true, name = "creator_token"),
             AccountKey(params.opponentToken, false, true, name = "opponent_token"),
+            AccountKey(params.creatorReputation, false, true, name = "creator_reputation"),
+            AccountKey(params.opponentReputation, false, true, name = "opponent_reputation"),
             AccountKey(SolanaConfig.TOKEN_PROGRAM_ID, false, false, name = "token_program"),
             AccountKey(SolanaConfig.ASSOCIATED_TOKEN_PROGRAM_ID, false, false, name = "associated_token_program"),
+            AccountKey(SolanaConfig.SYSTEM_PROGRAM_ID, false, false, name = "system_program"),
         )
         return BuiltInstruction(programId, accounts, data)
+    }
+
+    /**
+     * v2: sweep a both-fail-locked escrow to the treasury once the lock hour has passed.
+     * The treasury owner rides as a read-only account (Anchor's ATA init CPIs with the
+     * authority's AccountInfo, so a bare pubkey constant will not do).
+     */
+    fun resolveLock(idl: NopeekIdl, params: ResolveLockParams): BuiltInstruction {
+        val programId = programIdFrom(idl)
+        val accounts = listOf(
+            AccountKey(params.challenge, false, true, name = "challenge"),
+            AccountKey(params.oracle, true, true, name = "oracle"),
+            AccountKey(params.mint, false, false, name = "mint"),
+            AccountKey(params.escrow, false, true, name = "escrow"),
+            AccountKey(params.treasury, false, false, name = "treasury"),
+            AccountKey(params.treasuryToken, false, true, name = "treasury_token"),
+            AccountKey(SolanaConfig.TOKEN_PROGRAM_ID, false, false, name = "token_program"),
+            AccountKey(SolanaConfig.ASSOCIATED_TOKEN_PROGRAM_ID, false, false, name = "associated_token_program"),
+            AccountKey(SolanaConfig.SYSTEM_PROGRAM_ID, false, false, name = "system_program"),
+        )
+        return BuiltInstruction(programId, accounts, IdlParser.discriminator("resolve_lock"))
     }
 
     fun refundUnjoined(idl: NopeekIdl, params: RefundUnjoinedParams): BuiltInstruction {

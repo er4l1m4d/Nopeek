@@ -16,5 +16,7 @@ data class Challenge(
     val windowSeconds: Long,
     val startTime: Long,
     val endTime: Long,
-    val localStatus: String = "CREATED"
+    val localStatus: String = "CREATED",
+    /** v2: the duel nonce in the challenge PDA's seed; 0 for v1-created rows. */
+    val nonce: Int = 0,
 )

@@ -31,7 +31,7 @@ class ProgramClient(
         blockhash
     }
 
-    suspend fun getChallenge(pubkey: String): ChallengeAccount? = withContext(Dispatchers.IO) {
+    suspend fun getChallenge(pubkey: String): ChallengeV2? = withContext(Dispatchers.IO) {
         val config = JSONObject().put("encoding", "base64").put("commitment", "confirmed")
         val params = JSONArray().put(pubkey).put(config)
         val result = rpc("getAccountInfo", params)
@@ -39,7 +39,7 @@ class ProgramClient(
         if (value.isNull("data")) return@withContext null
         val data = value.getJSONArray("data").getString(0)
         val bytes = Base64.getDecoder().decode(data)
-        ChallengeAccountCodec.decode(bytes)
+        ChallengeAccountCodec.decodeV2Layout(bytes)
     }
 
     suspend fun sendTransaction(signedTx: ByteArray): String = withContext(Dispatchers.IO) {

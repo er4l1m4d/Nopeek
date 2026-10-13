@@ -500,7 +500,7 @@ async function handleSettle(req: Request): Promise<Response> {
 
   const { data: reports, error: rErr } = await db
     .from("usage_reports")
-    .select("wallet_pubkey, used_seconds, tamper_signals, reported_at")
+    .select("wallet_pubkey, used_seconds, tamper_signals, reported_at, evidence_hash")
     .eq("challenge_pubkey", pk)
     .order("reported_at", { ascending: false });
   if (rErr) return json({ error: rErr.message }, 500);
@@ -525,6 +525,13 @@ async function handleSettle(req: Request): Promise<Response> {
       creator_code: outcome.creatorCode,
       opponent_code: outcome.opponentCode,
       status_code: outcome.statusCode,
+      // The evidence each side settled from, carried to the on-chain settle transaction
+      // (program v2 refuses a PASS with a zero hash). The hex strings are the
+      // usage_reports.evidence_hash of each side's latest VERIFIED report - the exact
+      // bytes the hardware attested. A missing report yields null, which the client
+      // refuses to sign over rather than zero-filling into a fake claim.
+      creator_evidence_hash: latest(challenge.creator_pubkey)?.evidence_hash ?? null,
+      opponent_evidence_hash: latest(challenge.opponent_pubkey)?.evidence_hash ?? null,
       settled_at: new Date().toISOString(),
     },
     { onConflict: "challenge_pubkey" },
@@ -549,6 +556,8 @@ async function handleSettle(req: Request): Promise<Response> {
     creatorResult: outcome.creatorCode,
     opponentResult: outcome.opponentCode,
     settlementResult: outcome.statusCode,
+    creatorEvidenceHash: latest(challenge.creator_pubkey)?.evidence_hash ?? null,
+    opponentEvidenceHash: latest(challenge.opponent_pubkey)?.evidence_hash ?? null,
   });
 }
 

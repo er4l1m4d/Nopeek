@@ -1,5 +1,6 @@
 package com.nopeek.app.data.solana
 
+import com.nopeek.app.data.wallet.Base58
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 
@@ -31,6 +32,20 @@ object Pda {
         }
         throw IllegalStateException("could not find program address for seeds")
     }
+
+    /**
+     * The wallet's reputation PDA: [b"reputation", wallet]. Per WALLET, not per pair —
+     * a counterparty reads it to see a duelist's kept/broken record before staking,
+     * regardless of who they would duel.
+     */
+    fun reputationPda(wallet: String, programId: String): PdaAddress =
+        findProgramAddress(
+            listOf(
+                "reputation".toByteArray(Charsets.UTF_8),
+                Base58.decode(wallet) ?: error("bad wallet pubkey"),
+            ),
+            Base58.decode(programId) ?: error("bad program id"),
+        )
 
     fun tryDerive(seeds: List<ByteArray>, programId: ByteArray, bump: Int): ByteArray {
         val buffer = ByteArrayOutputStream()

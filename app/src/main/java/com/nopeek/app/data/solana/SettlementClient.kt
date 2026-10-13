@@ -26,9 +26,26 @@ data class OracleSettlement(
     val creatorResult: Int,
     val opponentResult: Int,
     val settlementResult: Int,
+    /**
+     * The evidence each side settled from, as 64 lowercase hex chars — what the on-chain
+     * settle transaction records for a PASS (the program refuses a PASS with a zero hash).
+     * Null when that side never filed a verified report.
+     */
+    val creatorEvidenceHashHex: String? = null,
+    val opponentEvidenceHashHex: String? = null,
 ) {
     val localStatus: String
         get() = if (bothFail) "BOTH_FAIL_LOCKED" else "SETTLED"
+}
+
+/** 64 lowercase hex chars -> 32 bytes; null on any malformed input, never a partial hash. */
+fun evidenceHashFromHex(hex: String?): ByteArray? {
+    if (hex == null || hex.length != 64) return null
+    return try {
+        ByteArray(32) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+    } catch (e: Exception) {
+        null
+    }
 }
 
 /** POST /settle response body (oracle index.ts). */
@@ -40,6 +57,8 @@ fun parseSettleResponse(json: JSONObject): OracleSettlement = OracleSettlement(
     creatorResult = json.optInt("creatorResult"),
     opponentResult = json.optInt("opponentResult"),
     settlementResult = json.optInt("settlementResult"),
+    creatorEvidenceHashHex = json.optString("creatorEvidenceHash", "").ifEmpty { null },
+    opponentEvidenceHashHex = json.optString("opponentEvidenceHash", "").ifEmpty { null },
 )
 
 /** PostgREST GET settlement_results?challenge_pubkey=eq.X — returns a JSON array. */
@@ -54,6 +73,8 @@ fun parseSettlementRow(rows: JSONArray): OracleSettlement? {
         creatorResult = row.optInt("creator_code"),
         opponentResult = row.optInt("opponent_code"),
         settlementResult = row.optInt("status_code"),
+        creatorEvidenceHashHex = row.optString("creator_evidence_hash", "").ifEmpty { null },
+        opponentEvidenceHashHex = row.optString("opponent_evidence_hash", "").ifEmpty { null },
     )
 }
 

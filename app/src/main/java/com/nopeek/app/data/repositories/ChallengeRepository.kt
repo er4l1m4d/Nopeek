@@ -7,12 +7,14 @@ import com.nopeek.app.data.local.ChallengeDao
 import com.nopeek.app.data.local.ChallengeEntity
 import com.nopeek.app.data.solana.ChallengeSender
 import com.nopeek.app.data.solana.IdlParser
+import com.nopeek.app.data.solana.Pda
 import com.nopeek.app.data.solana.ProgramClient
 import com.nopeek.app.data.solana.ProgramInstructions
 import com.nopeek.app.data.solana.SettleChallengeParams
 import com.nopeek.app.data.solana.SettlementClient
 import com.nopeek.app.data.solana.SolanaConfig
 import com.nopeek.app.data.solana.NopeekIdl
+import com.nopeek.app.data.solana.evidenceHashFromHex
 import com.nopeek.app.data.wallet.Base58
 import com.nopeek.app.data.wallet.walletManager
 import kotlinx.coroutines.CancellationException
@@ -125,6 +127,21 @@ class ChallengeRepository internal constructor(
         }
 
         val mint = Base58.decode(SolanaConfig.USDC_MINT) ?: return Result.failure(IllegalStateException("Bad mint"))
+        // The on-chain settle records WHICH evidence it settled from; the program refuses
+        // a PASS whose hash is zero, so a verdict of PASS without evidence must fail HERE,
+        // with a message, rather than at the chain after the user approved a doomed tx.
+        val creatorHash = evidenceHashFromHex(settlement.creatorEvidenceHashHex)
+        if (creatorHash == null && settlement.creatorResult == 1) {
+            return Result.failure(IllegalStateException(
+                "Creator passed but no verified evidence hash exists to settle from."
+            ))
+        }
+        val opponentHash = evidenceHashFromHex(settlement.opponentEvidenceHashHex)
+        if (opponentHash == null && settlement.opponentResult == 1) {
+            return Result.failure(IllegalStateException(
+                "Opponent passed but no verified evidence hash exists to settle from."
+            ))
+        }
         val params = SettleChallengeParams(
             challenge = pubkey,
             oracle = oracle,
@@ -132,6 +149,10 @@ class ChallengeRepository internal constructor(
             opponentToken = Base58.encode(ProgramInstructions.ataAddress(Base58.decode(entity.opponentWallet) ?: return Result.failure(IllegalStateException("Bad opponent")), mint).address),
             creatorResult = settlement.creatorResult,
             opponentResult = settlement.opponentResult,
+            creatorReputation = Base58.encode(Pda.reputationPda(creator, client.programId).address),
+            opponentReputation = Base58.encode(Pda.reputationPda(entity.opponentWallet, client.programId).address),
+            creatorEvidenceHash = creatorHash ?: ByteArray(32),
+            opponentEvidenceHash = opponentHash ?: ByteArray(32),
         )
         return challengeSender.settleChallenge(params, mwaSender)
             .onSuccess { dao.updateStatus(pubkey, "SETTLED") }
