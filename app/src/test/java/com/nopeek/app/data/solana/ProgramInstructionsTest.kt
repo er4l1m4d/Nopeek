@@ -66,6 +66,7 @@ class ProgramInstructionsTest {
         assertEquals(Base58.encode(pda.address), ix.accounts[0].pubkey)
         assertEquals(params.creator, ix.accounts[1].pubkey)
         assertTrue(ix.accounts[0].isWritable)
+        assertFalse(ix.accounts[0].isSigner) // PDA — signs via invoke_signed on-chain, never via the wallet
         assertTrue(ix.accounts[1].isSigner)
     }
 
@@ -232,7 +233,7 @@ class ProgramInstructionsTest {
          "instructions":[
            {"name":"create_challenge",
             "accounts":[
-              {"name":"challenge","writable":true,"signer":true},
+              {"name":"challenge","writable":true},
               {"name":"creator","writable":true,"signer":true},
               {"name":"opponent"},
               {"name":"mint"},

@@ -2,6 +2,7 @@ package com.nopeek.app.data.solana
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,6 +32,14 @@ class IdlParserTest {
     }
 
     @Test
+    fun address_matchesDeployedProgram() {
+        // The app builds every instruction's programId from idl.address. A stale
+        // placeholder (1111...) silently sent every transaction to the System Program,
+        // which rejects the custom instruction data — no duel could ever be created.
+        assertEquals("DJftv46AvjrbkbUCHR74ntWMXb5r7eHxHo3SXZkox2NM", idl.address)
+    }
+
+    @Test
     fun computedDiscriminators_matchStoredIdlValues() {
         for (instruction in idl.instructions) {
             assertArrayEquals(
@@ -54,7 +63,7 @@ class IdlParserTest {
     @Test
     fun instructions_parsedByName() {
         assertEquals(
-            listOf("create_challenge", "join_challenge", "settle_challenge", "refund_unjoined"),
+            listOf("create_challenge", "join_challenge", "settle_challenge", "resolve_lock", "refund_unjoined"),
             idl.instructions.map { it.name },
         )
         assertNotNull(idl.instruction("settle_challenge"))
@@ -65,10 +74,10 @@ class IdlParserTest {
         val create = idl.instruction("create_challenge")
         assertNotNull(create)
         assertEquals(
-            listOf("stake_amount", "target_app", "limit_seconds", "window_seconds"),
+            listOf("stake_amount", "target_app", "limit_seconds", "window_seconds", "nonce"),
             create!!.args.map { it.name },
         )
-        assertEquals(listOf("u64", "string", "u32", "u32"), create.args.map { it.type })
+        assertEquals(listOf("u64", "string", "u32", "u32", "u32"), create.args.map { it.type })
     }
 
     @Test
@@ -81,7 +90,11 @@ class IdlParserTest {
             ),
             create!!.accounts.map { it.name },
         )
-        assertTrue(create.accounts.first().isWritable && create.accounts.first().isSigner)
+        // The challenge account is a PDA: writable, but NOT a signer. It signs via
+        // invoke_signed inside the program; a signer flag in the tx would demand a
+        // wallet signature that no key can produce.
+        assertTrue(create.accounts.first().isWritable)
+        assertFalse(create.accounts.first().isSigner)
     }
 
     @Test
@@ -91,7 +104,8 @@ class IdlParserTest {
             listOf(
                 "creator", "opponent", "token_mint", "stake_amount", "target_app",
                 "limit_seconds", "window_seconds", "start_time", "end_time",
-                "status", "result", "bump",
+                "status", "result", "bump", "nonce",
+                "creator_evidence_hash", "opponent_evidence_hash", "settled_at",
             ),
             fields.map { it.name },
         )
@@ -99,5 +113,7 @@ class IdlParserTest {
         assertEquals("u64", fields.first { it.name == "stake_amount" }.type)
         assertEquals("string", fields.first { it.name == "target_app" }.type)
         assertEquals("i64", fields.first { it.name == "start_time" }.type)
+        assertEquals("u32", fields.first { it.name == "nonce" }.type)
+        assertEquals("i64", fields.first { it.name == "settled_at" }.type)
     }
 }

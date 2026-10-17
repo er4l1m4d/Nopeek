@@ -121,8 +121,13 @@ object ProgramInstructions {
             le32(params.windowSeconds) +
             le32(params.nonce)
 
+        // The challenge account is the PDA itself: writable, but NOT a transaction signer.
+        // PDAs have no keypair and sign via invoke_signed inside the program, so a signer
+        // flag here would demand a wallet signature that can never exist (the tx would die
+        // at signature verification). v1's challenge WAS a client keypair and so a signer;
+        // v2 moved it to a PDA and this flag must not carry over.
         val accounts = listOf(
-            AccountKey(Base58.encode(pda.address), isSigner = true, isWritable = true, name = "challenge"),
+            AccountKey(Base58.encode(pda.address), isSigner = false, isWritable = true, name = "challenge"),
             AccountKey(params.creator, isSigner = true, isWritable = true, name = "creator"),
             AccountKey(params.opponent, isSigner = false, isWritable = false, name = "opponent"),
             AccountKey(params.mint, isSigner = false, isWritable = false, name = "mint"),
