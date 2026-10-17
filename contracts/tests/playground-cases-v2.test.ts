@@ -16,11 +16,12 @@
 // runs on those challenges).
 //
 // Time-gated design for cases 21–23 (LOCK_SECONDS = 3600 is compiled in):
-// the lock challenges are seeded with nonce = unix-hour bucket, so the current
-// bucket's challenge exercises the TOO-EARLY branches today, and a RE-RUN more
-// than one hour later finds the previous bucket's challenge matured and
-// exercises case 23's happy path. First run reports case 23 as SKIP-postpone,
-// never as a false PASS.
+// the lock challenges are seeded with nonce = unix-hour bucket and a 60s
+// window, so end_time + LOCK_SECONDS lands ~61 minutes after create: today's
+// bucket exercises the TOO-EARLY branches, and any later run (>= ~61 min after
+// that create, any bucket) finds the matured lock by searching back through
+// bucket nonces and exercises case 23's happy path. First run reports case 23
+// as SKIP-postpone, never as a false PASS.
 
 // Identifiers below are injected by the Playground test sandbox (measured list, see
 // ATTESTATION_DEPLOY_NOTES.md "Playground test sandbox"); declared here so the
@@ -123,7 +124,10 @@ function ixCreateAta(funder: any, owner: any, mintKey: any, vault: any) {
       { pubkey: SYS, isSigner: false, isWritable: false },
       { pubkey: TP, isSigner: false, isWritable: false },
     ],
-    programId: ATA, data: Buffer.from([0]),
+    // data [1] = CreateIdempotent: case24 joins the SAME opponent on two
+    // challenges, so the second ensure-ATA must no-op on the existing account
+    // instead of failing (plain Create [0] refuses an initialized account).
+    programId: ATA, data: Buffer.from([1]),
   });
 }
 function ixMintTo(to: any, amount: any, mintKey: any, authority: any) {
@@ -395,10 +399,23 @@ describe("volo_challenge v2 - cases 17-24", function (this: any) {
   // ---- Case 21: UNVERIFIED/UNVERIFIED with zero hashes locks -----------------
   it("case21 - both unverified locks escrow", async () => {
     const pda = await challengePda(WALLET, detAlly.publicKey, HOUR_BUCKET);
+    // A rerun inside the same hour bucket finds the lock this case created before
+    // (nonce = bucket): reuse it instead of re-creating (which would collide on
+    // the PDA). The escrow belongs to the ORIGINAL run's session mint.
+    let existing: any = null;
+    try { existing = await fetchChallenge(pda.address); } catch (e) { existing = null; }
+    if (existing) {
+      assert(existing.status === S_LOCKED,
+        "bucket challenge exists in status " + existing.status + ", expected the locked reuse");
+      const eR = await bal(await ataOf(pda.address, new web3.PublicKey(existing.tokenMint)));
+      assert(eR === 10, "reused lock escrow should hold 10, has " + eR);
+      ok("case21", "bucket " + HOUR_BUCKET + " lock reused from an earlier run, escrow " + eR);
+      return;
+    }
     const aAta = await ataOf(WALLET, mint);
     const escrow = await ataOf(pda.address, mint);
     const e0 = await bal(aAta);
-    await pg.program.methods.createChallenge(STAKE, TARGET, 1800, 3600, HOUR_BUCKET)
+    await pg.program.methods.createChallenge(STAKE, TARGET, 1800, 60, HOUR_BUCKET)
       .accounts({ challenge: pda.address, opponent: detAlly.publicKey, mint,
         creatorToken: aAta, escrow: escrow }).rpc();
     const tx = new web3.Transaction();
@@ -426,23 +443,26 @@ describe("volo_challenge v2 - cases 17-24", function (this: any) {
   it("case22 - resolve_lock too early rejected", async () => {
     const pda = await challengePda(WALLET, detAlly.publicKey, HOUR_BUCKET);
     const info = await pg.connection.getAccountInfo(pda.address);
-    const settledAt = Buffer.from(info.data).readBigInt64LE(243);
-    const elapsed = Number(BigInt(Math.floor(Date.now() / 1000)) - settledAt);
-    if (elapsed >= 3600) {
-      skip("case22", "ran " + elapsed + "s after settle, hour already passed");
+    const endTime = Buffer.from(info.data).readBigInt64LE(164);
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    if (now >= endTime + 3600n) {
+      skip("case22", "lock hour already passed (" + (now - endTime) + "s past end_time)");
       return;
     }
-    const escrow = await ataOf(pda.address, mint);
+    // token accounts derive from the MINT THE CHALLENGE RECORDS: a same-bucket
+    // rerun reuses the earlier run's challenge, whose mint is not this session's.
+    const lockMint = new web3.PublicKey(Buffer.from(info.data).subarray(72, 104));
+    const escrow = await ataOf(pda.address, lockMint);
     const eBefore = await bal(escrow);
-    const treasuryAta = await ataOf(TREASURY, mint);
+    const treasuryAta = await ataOf(TREASURY, lockMint);
     await expectError("case22", "TooEarlyToResolve", () =>
       pg.program.methods.resolveLock()
-        .accounts({ challenge: pda.address, oracle: WALLET, mint: mint,
+        .accounts({ challenge: pda.address, oracle: WALLET, mint: lockMint,
           escrow: escrow, treasury: TREASURY, treasuryToken: treasuryAta,
         }).rpc());
     const eAfter = await bal(escrow);
     assert(eAfter === eBefore, "escrow moved on a rejected resolve: " + eBefore + " -> " + eAfter);
-    ok("case22b", "escrow intact after refusal (" + elapsed + "s < 3600s)");
+    ok("case22b", "escrow intact after refusal (" + (now - endTime) + "s past end_time < 3600s lock)");
   });
 
   // ---- Case 24: reputation bumps for both parties, streaks across two duels --
@@ -471,26 +491,34 @@ describe("volo_challenge v2 - cases 17-24", function (this: any) {
   });
 
   // ---- Case 23: resolve_lock AFTER the lock hour (time-gated) ----------------
-  // Runs LAST so a matured challenge from a previous hour-bucket is swept if one
-  // exists. Fresh first run -> SKIP with instructions, never a false PASS.
+  // Searches back through hour-bucket nonces for a BothFailLocked challenge from
+  // any earlier run of case21 and sweeps it once clock > end_time + 3600. A fresh
+  // first run (nothing locked yet) -> SKIP with instructions, never a false PASS.
   it("case23 - resolve_lock sweeps matured lock", async () => {
-    const prev = HOUR_BUCKET - 1;
-    const pda = await challengePda(WALLET, detAlly.publicKey, prev);
-    let a: any = null;
-    try { a = await fetchChallenge(pda.address); } catch (e) { a = null; }
-    if (!a) { skip("case23", "no hour-" + prev + " challenge yet; re-run this suite >1h " +
-      "after case21 created its lock and this branch sweeps it"); return; }
-    if (a.status !== S_LOCKED) { skip("case23", "prev-bucket challenge status " +
-      a.status + ", nothing to sweep"); return; }
+    let swept: any = null, sweepPda: any = null, pending: any = null;
+    for (let back = 1; back <= 48; back++) {
+      const bucket = HOUR_BUCKET - back;
+      const cand = await challengePda(WALLET, detAlly.publicKey, bucket);
+      let a: any = null;
+      try { a = await fetchChallenge(cand.address); } catch (e) { a = null; }
+      if (!a || a.status !== S_LOCKED) continue;
+      const info = await pg.connection.getAccountInfo(cand.address);
+      const endTime = Buffer.from(info.data).readBigInt64LE(164);
+      const now = BigInt(Math.floor(Date.now() / 1000));
+      if (now >= endTime + 3600n) { swept = a; sweepPda = cand.address; break; }
+      if (!pending) pending = "bucket " + bucket + " locked, " + (endTime + 3600n - now) + "s to go";
+    }
+    if (!swept) {
+      skip("case23", pending ? ("lock not matured yet (" + pending + "); re-run later")
+        : "no locked challenge in the last 48 hour buckets; re-run this suite after case21 created one");
+      return;
+    }
+    const pda = { address: sweepPda };
     // sweep against the MINT THE CHALLENGE ITSELF RECORDS — a rerun creates a new
     // session mint, and every token account here must belong to the old one.
-    const lockMint = new web3.PublicKey(a.tokenMint);
+    const lockMint = new web3.PublicKey(swept.tokenMint);
     const escrow = await ataOf(pda.address, lockMint);
     const treasuryAta = await ataOf(TREASURY, lockMint);
-    const info = await pg.connection.getAccountInfo(pda.address);
-    const settledAt = Buffer.from(info.data).readBigInt64LE(243);
-    const elapsed = Number(BigInt(Math.floor(Date.now() / 1000)) - settledAt);
-    if (elapsed < 3600) { skip("case23", elapsed + "s < 3600s lock hour; re-run later"); return; }
     const eB = await bal(escrow);
     await pg.program.methods.resolveLock()
       .accounts({ challenge: pda.address, oracle: WALLET, mint: lockMint,

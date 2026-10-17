@@ -129,9 +129,19 @@ fingerprint are recorded here and cross-checked against what the device chain
 reports. It is never copied from the device chain — a self-signed chain is equally
 self-consistent, and pinning that would certify an attacker-controlled CA.
 
-- Pinned root subject DN: _tbd_
-- Pinned root SPKI SHA-256: _tbd_
-- Runtime mechanism chosen (`npm:` import / injected parser / sidecar service): _tbd_
+- Pinned root subject DN: `serialNumber=f92009e853b6b045` — the Android attestation root
+  carries only a serialNumber RDN and is self-signed (issuer == subject). Computed
+  2026-10-17 from `fixtures/google-attestation-root.pem` with Node's `X509Certificate`,
+  never copied from a device chain.
+- Pinned root SPKI SHA-256: `feb2ea7551ee316ed4bb443c8293b884dbfdea40b603ee3e4f4a897e4580fbae`
+  (SPKI DER → sha256). The same file's full-DER sha256 is
+  `cedb1cb6dc896ae5ec797348bce9286753c2b38ee71ce0fbe34a9a1248800dfc` (1312 bytes) — identical
+  to the device chain's terminal certificate hash in FINDINGS.md, so the pin and the
+  chain's root are the same bytes.
+- Runtime mechanism chosen (`npm:` import / injected parser / sidecar service):
+  pinned inline PEM constant (`PINNED_ATTESTATION_ROOT_PEM` in `x509.ts`, drift-checked
+  against the fixture by `x509.test.ts`). No `npm:` import, no sidecar. ECDSA links go
+  through the injected `@noble/curves` verifier; the RSA link stays on host WebCrypto.
 
 ## MIUI checklist (Task 13, no server needed)
 
@@ -196,32 +206,41 @@ clock observation, so neither clock-jump direction can be evaluated on that run.
 flagged, because flagging would forfeit every honest first report; see the §5 write-up owed
 in Task 19/20.
 
-## Contract test results
+## Contract test results — first full runs (2026-10-17)
 
-- 16 original manual cases: **not run** (Task 4). A baseline is required before
-  Task 10 changes the program, so that a later failure has something to point at.
-- Cases 17–24 (nonce, evidence, lock, reputation): **NOT yet run.** v2 is deployed
-  and its IDL is validated, but execution is blocked on the harness, not the program.
-  Two hard facts found while trying (both measured, not recalled):
-  1. **`beta.solpg.io` as loaded here has NO "Call" tab** (confirmed twice: zero
-     occurrences in the DOM). The manual-test-cases.md "run in the Call tab"
-     instruction cannot be followed literally. The executable fallback is the test
-     sandbox (`tests/anchor.test.ts` + `test`), which is where the v2 suite
-     (`contracts/tests/playground-cases-v2.test.ts`) runs from.
-  2. **The v2 suite compiles past the runner guard and starts, but dies in the
-     `before all` setup on a hand-rolled ATA create**: on-chain
-     "Program log: Error: Associated address does not match seed derivation"
-     from `ATokenGPvbd…` on `create_associated_token_account`. The account order
-     used (`funder, ata, owner, mint, TOKEN, SYSTEM, RENT`) matches the
-     in-practice `@solana/spl-token` JS layout, yet the deployed program still
-     rejects the derived address — so the fix needs a byte-exact diff against the
-     working lib's `createAssociatedTokenAccountInstruction`, NOT a recall guess
-     (docs.rs's deprecated Rust helper lists System before Token, the two sources
-     disagree on indices 4/5). This is the one open bug before cases 17–24 can run.
-  No case has passed; the earlier "0 passing / before-all failing" runs are NOT a
-  baseline. Wallet spent to date on the deploy + failed setup attempts: ~0.24 SOL
-  (deploy) + ~0.005 SOL (partial setups); the failing ATA creates were only
-  simulated so cost fees only.
+The "not run" state recorded here since Task 4 is retired by measured runs:
+
+**Cases 1–16** — corrected suite `contracts/tests/playground-cases.test.ts`, run via
+the Playground-shim runner (`.copilot-tmp/pda-probe/run-v2-suite.mjs`, which encodes
+the same instructions the sandbox compiles) against devnet:
+**23 PASS / 0 FAIL / 1 time-gated SKIP** → `RESULT PASS (1 time-gated/deferred)`.
+Transcripts: `.copilot-tmp/local-cluster/cases1-16-run1.txt` (first run; found the
+case11 trap below) + `cases1-16-run2.txt` (clean rerun; case14 SKIP with the clock).
+- case11 trap (fixed in the suite, probe-verified): the settle's reputation accounts
+  are `init_if_needed` with `payer = oracle`, and those system CPIs run BEFORE
+  constraint checks — a 0-lamport impostor oracle dies with
+  `Transfer: insufficient lamports 0, need 817880` (custom 0x1) and never reaches
+  `NotOracle`. Funded with 0.02 SOL, the identical tx returns
+  `Error Code: NotOracle. Error Number: 6006`
+  (`.copilot-tmp/local-cluster/probe-case11.txt`).
+- case14/15 are time-gated (`refund_unjoined` needs start_time + 3600): the first
+  run seeded a refund challenge and reported SKIP with the remaining clock; the
+  refund itself is exercised by the scheduled follow-up run.
+
+**Cases 17–24** — `contracts/tests/playground-cases-v2.test.ts`: devnet **RESULT
+PASS** on the 2026-10-17 rerun (`.copilot-tmp/local-cluster/v2-suite-run2.txt`;
+run1 found the case24 ATA bug and the case21–23 timing-gate bug, both fixed and
+listed in `volo-errors.md`). First-ever on-chain `settle_challenge` executions are
+measured here: creator-won payout, evidence-hash storage, PASS-with-zero-hash
+rejection, both-unverified lock, and the lock's too-early refusal. case23
+(`resolve_lock`) matures one hour after its challenge's `end_time`; the scheduled
+follow-up run sweeps it.
+
+Harness fixes that made this possible (full list in `volo-errors.md`): ATA create
+order `funder, ata, owner, mint, SYSTEM(4), TOKEN(5)` with data `[1]`
+(CreateIdempotent — plain Create refuses an existing ATA), the v2 raw offsets
+(nonce@175, hashes@179/211, settledAt@243 — only valid with a 32-byte `target_app`),
+and `BN.toArrayLike` 3-arg form.
 
 ## Deviations from the plan
 

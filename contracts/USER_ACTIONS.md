@@ -28,8 +28,15 @@ else for Phase 5 is already written locally.
 
 ## 5.2 Step 2: Execute manual tests (browser)
 
-- [ ] Run the 16 cases in `contracts/tests/manual-test-cases.md` via the Call tab.
-- [ ] Report any FAIL that isn't listed as an expected rejection.
+- [x] ~~Run the 16 cases via the Call tab~~ — `beta.solpg.io` as loaded has no Call
+      tab (0 DOM hits, confirmed twice). The 16 cases now run from the Playground
+      test sandbox instead: `contracts/tests/playground-cases.test.ts` via the shim
+      runner. Dated results **2026-10-17: 23 PASS / 0 FAIL / 1 time-gated SKIP** on
+      devnet; case14's refund and case23's sweep close on the scheduled follow-up
+      run. Cases 17–24 likewise RESULT PASS (`playground-cases-v2.test.ts`).
+      Transcripts under `.copilot-tmp/local-cluster/`.
+- [x] No FAIL left to report; the harness bugs found on the way are recorded in
+      `ATTESTATION_DEPLOY_NOTES.md` and `volo-errors.md`.
 
 ## Phase 6: Supabase oracle (6.1 Steps 4–5 + 6.2 Step 3)
 

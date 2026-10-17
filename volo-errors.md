@@ -273,6 +273,34 @@
 - **Cause**: `ProgramInstructions.createChallenge` built the challenge account with `isSigner = true` — a v1 leftover (v1's challenge WAS a client keypair). v2's challenge is a PDA; it signs via `invoke_signed` on-chain. A signer flag demands a wallet signature that no key can produce — the tx dies at signature verification.
 - **Fix**: `isSigner = false` + regression assertions (`ProgramInstructionsTest`), `IdlParserTest` pins the deployed address, v2 arg/account/struct shapes + non-signer flag. Full app unit suite green: **240/240**.
 
+### Error: v2 case24 — second join reused a non-idempotent ATA create
+- **What happened**: case24's second duel between the same two wallets reused the classic ATA `Create` (data `[0]`) on an already-initialized account; the join died with "Provided owner is not allowed" from `ATokenGPvbd…`.
+- **Fix**: both suites' hand-rolled ATA create now sends `CreateIdempotent` (data `[1]`) — reruns and same-opponent re-joins no-op instead of failing.
+
+### Error: v2 cases 21–23 — the lock challenge could never mature inside case23's search window
+- **What happened**: case21 created its challenge with `window_seconds = 3600`, so `resolve_lock` needs `end_time + LOCK_SECONDS` = create + 7200 s, while case23 searched only the previous-hour bucket (< 2 h) and gated on `settled_at` — the two gates could not intersect, and a 1–2 h rerun would have crashed case23 rather than skipped it.
+- **Fix**: case21 creates with `window_seconds = 60` (maturity = create + 3660 s); case22/case23 gate on the raw `end_time` at offset 164 `+ 3600 s`; case23 searches BACK through bucket nonces 1..48 and sweeps the first matured `BothFailLocked`. A fresh run reports case23 SKIP-with-clock, never a false PASS.
+
+### Error: v2 case21 rerun collision within one hour bucket
+- **What happened**: rerunning the suite inside the same hour bucket re-created the same PDA → `init` collision.
+- **Fix**: case21 reuses an existing bucket challenge (`status == LOCKED`) after asserting the escrow of **the challenge's recorded mint** holds 10; case22 derives escrow/treasury from that recorded `token_mint` (offset 72..104), not the current session's mint. Run 2 exercised the reuse path live.
+
+### Error: case11 — `NotOracle` masked by a zero-lamport impostor oracle
+- **What happened**: the settle's reputation accounts are `init_if_needed` with `payer = oracle`, and Anchor runs those CPIs **before constraint checks**. A freshly generated impostor (0 lamports) died at `SystemProgram: Transfer: insufficient lamports 0, need 817880` — `custom program error: 0x1`, no anchor name — and `NotOracle` never spoke.
+- **Fix (probe-verified)**: fund the impostor 0.02 SOL before the attempt; the identical tx then returns `Error Code: NotOracle. Error Number: 6006`, and a control with the real oracle simulates to success (`.copilot-tmp/local-cluster/probe-case11.txt`).
+- **Lesson**: a negative test that reaches an `init_if_needed` account must fund the payer account first, or it measures the payer's balance instead of the constraint.
+
+### Issue: scratch scripts used a typo'd wallet pubkey (`…GfCctsv…` vs `…GfCCTsv…`)
+- **What happened**: two ad-hoc probes copied the wallet string from an 8-char-prefix display and lowercased `CCT` → `Cct`. base58 is case-sensitive, so the queries targeted a different key (balance 0, bucket PDAs "not found") and a phantom "PDA derivation mismatch" got chased for a while.
+- **Lesson**: copy full pubkeys from files (or re-derive from `id.json`), never from a truncated display; a prefix match proves nothing.
+
+### Issue: PowerShell pipeline exit codes are unreliable through `Tee-Object`
+- **What happened**: `node … | Tee-Object …` reports exit code 1 even when the runner printed `RESULT PASS` (429-retry stderr lines surface as NativeCommandError).
+- **Rule**: trust the runner's `RESULT PASS/FAIL` line in the transcript, not `$LASTEXITCODE`.
+
+### Note: provenance check — on-chain ELF vs local artifact (2026-10-17)
+- **Measured**: ProgramData `77RtiTVT…` body length 365,328 — the pre-fix build's size, because the loader does not shrink the account on a smaller upgrade; the space after the ELF is zero-filled. The ELF's true extent is the first 291,000 bytes: sha256 `ce8acb41…` == local `volo_challenge.so` — byte-for-byte. `lastDeploySlot` 511960495 matches the fix deploy. The full-account sha (`14bd1d0c…`) is NOT the artifact hash; slice `[45 .. 45+291000]` is.
+
 ---
 
-Last updated: `2026-10-17` (ROOT CAUSE fixed: `#[instruction(..)]` prefix decode; rebuilt 291,000 B sha256 `CE8ACB41…`, live on devnet slot 511960495; local + devnet + case17 green; app IDL wired to `DJftv46…`)
+Last updated: `2026-10-17` (ROOT CAUSE fixed: `#[instruction(..)]` prefix decode; rebuilt 291,000 B sha256 `CE8ACB41…`, live on devnet slot 511960495; local + devnet + case17 green; app IDL wired to `DJftv46…`; full contract suites green — v2 cases 17–24 devnet `RESULT PASS`, corrected cases 1–16 `23 PASS / 0 FAIL / 1 time-gated SKIP`; on-chain ELF provenance byte-verified against the local build)
