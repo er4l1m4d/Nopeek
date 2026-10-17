@@ -34,16 +34,25 @@ else for Phase 5 is already written locally.
 ## Phase 6: Supabase oracle (6.1 Steps 4–5 + 6.2 Step 3)
 
 - [ ] Create the Supabase project (0.4 — https://supabase.com, free tier).
-- [ ] SQL Editor → paste `supabase/migrations/20261001_volo_init.sql` → Run.
+- [ ] SQL Editor → paste `supabase/migrations/20261007_nopeek_full_schema.sql` → Run.
+      (This one file replaces the ordered 20261001 + delta path; it also grants
+      `select on settlement_results to anon`, which the Data API needs alongside
+      the RLS policy — a policy filters rows, a grant is what lets the role
+      address the table at all.)
 - [ ] Settings → Functions → Environment: set
-      `SUPABASE_URL = https://<ref>.supabase.co`,
-      `SUPABASE_SERVICE_ROLE_KEY = <service-role key>`,
-      `ORACLE_API_SECRET = <random string>` (function rejects requests missing
-      header `x-oracle-secret` once this is set — remove it if you want it open).
+      `SUPABASE_URL = https://<ref>.supabase.co` and
+      `SUPABASE_SERVICE_ROLE_KEY = <service-role key>`.
+      Do **not** set `ORACLE_API_SECRET` yet. Once it is set, `authorize()` gates
+      *every* route on the `x-oracle-secret` header, and no client code sends that
+      header — `/register-challenge`, `/submit-report` and `/settle` would all 401,
+      and the app's `catch (IOException) { null }` would hide it as a network
+      failure. Tasks 12 and 14 invert this auth model (enroll / nonce / evidence /
+      submit-report public, settle + register-challenge keep the header); set it
+      then, together with a client that actually sends it.
 - [ ] Functions → `oracle` → deploy `supabase/functions/oracle/` (Dashboard
       "Deploy from source" or `supabase functions deploy oracle`). Also disable
-      "Verify JWT" for this function (the app sends its own secret header, not a
-      Supabase JWT).
+      "Verify JWT" for this function (there is no Supabase session in this app;
+      leaving it on 401s every call before your code ever runs).
 - [ ] Test: `curl https://<ref>.supabase.co/functions/v1/oracle/health`
       Expected: `{"status":"alive", ...}` (add `-H "x-oracle-secret: ..."` if set).
 - [ ] 6.2 Step 3 test: call `/register-challenge` with a fake base58 challenge
@@ -84,7 +93,7 @@ else for Phase 5 is already written locally.
 ## Phase 12: release + submission (12.1 Step 3 done for you)
 
 - [x] GitHub release created (branch `plan-execution` + tag `v1.0` pushed):
-      https://github.com/er4l1m4d/Volo/releases/tag/v1.0 — `app-release.apk`
+      https://github.com/er4l1m4d/Nopeek/releases/tag/v1.0 — `app-release.apk`
       attached (signed, R8-minified, **1.38 MB**, apksigner verified).
 - [ ] 12.2 Step 2: install `app-release.apk` on a **second Android phone** →
       app runs → connects wallet → shows demo challenge.

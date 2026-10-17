@@ -4,15 +4,49 @@ DEPLOYED PROGRAM ID — devnet
 DJftv46AvjrbkbUCHR74ntWMXb5r7eHxHo3SXZkox2NM
 
 Cluster          : devnet (https://api.devnet.solana.com)
-Deployed         : 2026-10-10, via Solana Playground project `volo_challenge`
-Deploy tx        : xpRz3urpm1ppkP2MPxz51nD1gRsgwGgv395FpKAc6hLV4AYHhTHTy2puiyNu6LNvSs2aBykZbWN9rhfRAiWaSMi
-Slot             : 509390754 (err: null)
-Verified         : getAccountInfo -> owner BPFLoaderUpgradeab1e11111111111111111111111,
-                   executable=true, space=36, lamports=833120
-ProgramData      : 77RtiTVTiWuSPpH7rptFKeJvMGwtirjrnqgiLsUiwk1a (space 318,685)
-Upgrade authority: 6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj  <- the deploy/oracle wallet
-Rent locked      : 1.62214316 SOL, recoverable with `solana program close <id>`
+Program id       : UNCHANGED across every deploy — each Playground "Deploy" was a
+                   BPFLoader in-place upgrade, never a new id. Upgrade authority is
+                   still 6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj (oracle wallet).
+ProgramData      : 77RtiTVTiWuSPpH7rptFKeJvMGwtirjrnqgiLsUiwk1a
+                   space 365,373 (v1 was 318,685), rent 1.85674508 SOL
 
-Do NOT paste this into the app yet. Task 4 Step 4 wires it into SolanaConfig together
-with the real Supabase project ref, and Task 10 redeploys the program with the v2 layout
-(nonce, evidence hashes, treasury, reputation), which will change this id.
+Deploy history (lastDeploySlot read over RPC, not from the UI):
+  v1  2026-10-10  slot 509390754   tx xpRz3urpm1ppkP2MPxz51nD1...
+  v2  2026-10-13  slot 510566526   tx 4EVUes35P6tCfBLo2uhdSk1P...
+  v2  2026-10-15  slot 511209142   tx 4voAYXE3tL2cvgmkpdVUh4kB...
+  v2  2026-10-16  slot 511671780   (signature not retrievable — the public node had
+                                    already rolled its history index; the slot
+                                    advance is the evidence)
+  v2  2026-10-17  slot 511960495   tx 5S55FR1er1me6nPCf2mhvUPxxwa3gX2jWr4eRxtYDhVL43vPZKkZ8Mztk51CdeDFhenPvJkd7AG3iJSQ1if5h9iR
+                                    (attr fix: #[instruction(..)] full ordered arg list;
+                                    ELF sha256 CE8ACB41…, 291,000 B — byte-verified from
+                                    a `solana program dump`)
+
+Wallet           : 6.21 SOL as of 2026-10-17.
+                   ~1.8567 devnet SOL is stranded in an unclosed deploy buffer,
+                   CzbbLkr7ZVmNtsHESUxtpvG7pLUGHyxpAJ1FD7u9w1BH, left by an aborted
+                   2026-10-14 deploy. Not reclaimable without that buffer's own
+                   keypair or a Solana CLI — neither exists on this machine.
+
+RULE — never accept the Playground UI's "Deployed / Upgraded program ..." text, or a
+familiar-looking signature, as proof of a deploy. A cached signature was replayed
+once in this project and cost ~1.86 SOL. Re-read ProgramData bytes 4..12 as a little-
+endian u64 over RPC and require lastDeploySlot to INCREASE. Note also that a comment-
+only source edit yields a byte-identical ELF: the slot advance proves the upgrade
+transaction ran, not that the program bytes changed.
+
+HISTORICAL (2026-10-15 → 2026-10-17): the warning below was true of the buggy deploy
+and is kept for the record. RESOLVED: the demanded rule was a decode bug — a one-arg
+`#[instruction(nonce: u32)]` made the program read `nonce` from the low 4 bytes of
+`stake_amount` (= 5,000,000). Fixed in `contracts/program/src/lib.rs`, rebuilt and
+redeployed (slot 511960495 above; on-chain ELF sha256 byte-verified). Both IDLs now
+carry this program id and the app's v2 instruction set (app unit suite 240/240).
+Verification: local + devnet full probes, devnet grad (G2 OK, G3 → 2006),
+`playground-case17.test.ts` PASS. See contracts/ATTESTATION_DEPLOY_NOTES.md,
+"RESOLUTION 2026-10-17".
+
+(original warning, kept for the record) DO NOT let Task 11 derive duel PDAs from a
+source rule a deploy has not proven: measured 2026-10-15, the deployed program
+demanded a nonce-invariant PDA that matched neither the v2 nor the v1 source rule,
+so case 17 (re-duelability) could not be demonstrated as built until the attr fix +
+redeploy.

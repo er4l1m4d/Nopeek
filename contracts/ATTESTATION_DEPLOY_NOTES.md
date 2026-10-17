@@ -52,8 +52,8 @@ contents), balance, and the date the airdrop landed.
   this exact address, so the funded wallet and the wallet we can sign with are the same one.
   **Playground keeps wallets in browser localStorage — clearing browser data deletes the
   wallet, and `id.json` is the only backup.**
-- Program id: _tbd_ (see `contracts/DEPLOYED_PROGRAM_ID.txt`)
-- Treasury pubkey: _tbd_ (Task 10)
+- Program id: `DJftv46AvjrbkbUCHR74ntWMXb5r7eHxHo3SXZkox2NM` — **v2 deployed 2026-10-13 as an IN-PLACE UPGRADE; the id did NOT change** (Playground reused the program account and its upgrade authority). Full verify in `contracts/DEPLOYED_PROGRAM_ID.txt`.
+- Treasury pubkey: `6k9TDQtquf2pusu9LHMVACFRtGfCCTsvzfvuifcRWmmj` — the oracle wallet doubles as TREASURY for the both-fail sweep (deliberate, see lib.rs comment; production must choose a real treasury).
 - Devnet balance: **10 SOL**, confirmed on-chain 2026-10-09. Program rent is refundable with
   `solana program close <id>`, so the same balance survives repeated deploy cycles.
 - Keypair exported to Supabase as: _tbd_ (Task 14)
@@ -200,7 +200,28 @@ in Task 19/20.
 
 - 16 original manual cases: **not run** (Task 4). A baseline is required before
   Task 10 changes the program, so that a later failure has something to point at.
-- Cases 17–24 (nonce, evidence, lock, reputation): **not run** (Task 10).
+- Cases 17–24 (nonce, evidence, lock, reputation): **NOT yet run.** v2 is deployed
+  and its IDL is validated, but execution is blocked on the harness, not the program.
+  Two hard facts found while trying (both measured, not recalled):
+  1. **`beta.solpg.io` as loaded here has NO "Call" tab** (confirmed twice: zero
+     occurrences in the DOM). The manual-test-cases.md "run in the Call tab"
+     instruction cannot be followed literally. The executable fallback is the test
+     sandbox (`tests/anchor.test.ts` + `test`), which is where the v2 suite
+     (`contracts/tests/playground-cases-v2.test.ts`) runs from.
+  2. **The v2 suite compiles past the runner guard and starts, but dies in the
+     `before all` setup on a hand-rolled ATA create**: on-chain
+     "Program log: Error: Associated address does not match seed derivation"
+     from `ATokenGPvbd…` on `create_associated_token_account`. The account order
+     used (`funder, ata, owner, mint, TOKEN, SYSTEM, RENT`) matches the
+     in-practice `@solana/spl-token` JS layout, yet the deployed program still
+     rejects the derived address — so the fix needs a byte-exact diff against the
+     working lib's `createAssociatedTokenAccountInstruction`, NOT a recall guess
+     (docs.rs's deprecated Rust helper lists System before Token, the two sources
+     disagree on indices 4/5). This is the one open bug before cases 17–24 can run.
+  No case has passed; the earlier "0 passing / before-all failing" runs are NOT a
+  baseline. Wallet spent to date on the deploy + failed setup attempts: ~0.24 SOL
+  (deploy) + ~0.005 SOL (partial setups); the failing ATA creates were only
+  simulated so cost fees only.
 
 ## Deviations from the plan
 
@@ -222,6 +243,13 @@ Probed by replacing tests/anchor.test.ts with a logging-only script (sends no tr
 - pg.provider does not exist. Use pg.connection and pg.wallet only.
 - Every test file must define describe(), or the runner refuses it and says to use the run command instead.
 - Terminal shows about 20 rows; long console output scrolls away, so keep log lines short.
+- **The runner guard is a case-INSENSITIVE SUBSTRING scan over the WHOLE source,
+  comments included**, banning tokens `window|top|eval|global|document|navigator|localStorage`
+  (measured: a comment word "documented" and a variable `detOpp` (contains "top") each
+  aborted the ENTIRE file before mocha ran, 0 SOL). Any test file must avoid these
+  substrings EVERYWHERE, including prose and identifiers. Also: `BN.toArrayLike` must
+  use the 3-arg `toArrayLike(Buffer,"le",8)` form — the 2-arg form threw a minified
+  "e is not a constructor" inside `before all` here.
 - Confirmed live: pg.program.programId = DJftv46AvjrbkbUCHR74ntWMXb5r7eHxHo3SXZkox2NM, methods = createChallenge, joinChallenge, settleChallenge, refundUnjoined, web3.Keypair and web3.PublicKey.findProgramAddress both present.
 
 ## Oracle deployed - and what that does NOT yet mean (2026-10-11)
@@ -284,6 +312,282 @@ Why not built in that session: ~12h of capacity against a 25h+ task list, and th
 
 Must be measured, not recalled, before Task 11 is designed: whether the Redmi's platform exposes Ed25519 through JCA/Conscrypt at this app's minSdk. If it does not, the tx signer needs a pure-Kotlin ed25519 dependency, which cuts against this project's no-unaudited-crypto convention and is a decision to make out loud.
 
+## Deploy must be verified by RPC, never by the Playground UI (2026-10-14)
+
+A re-Build + re-Deploy attempt reported "Upgraded program DJftv..." with tx
+`4EVUes35...` — **the exact same signature as the 2026-10-13 upgrade**. A new upgrade
+cannot reuse a signature, so the UI was replaying a cached result. RPC proof that
+nothing was deployed: `ProgramData 77RtiTVT...` still reports `lastDeploySlot =
+510566526` (unchanged) and `getSignaturesForAddress(DJftv...)` shows no new
+transaction. Rule going forward: after any Deploy, re-read `lastDeploySlot` from
+ProgramData over RPC and require it to change. Never accept the button text.
+
+Cost of that non-deploy: wallet **8.12518044 → 6.267061 SOL** (~1.86 devnet SOL).
+ProgramData rent is unchanged at 1.85674508 SOL, so the missing SOL is sitting in a
+**deploy buffer that the interrupted flow never closed** (the old buffer
+`9UoL3bZp...` is gone; a newer one holds the rent and its keypair was generated
+inside solpg's flow). It is devnet SOL and the faucet is rate-limited today, but it
+is recoverable later — not real money. Do not repeat the mistake.
+
+## Open blocker: on-chain challenge PDA does not match lib.rs seeds (2026-10-14)
+
+Cases 17–24 still have NOT passed. The v2 sandbox harness is now correct in every
+part it has reached (5 deterministic bugs fixed, see below), and it gets all the way
+to the first on-chain instruction, where **every** `createChallenge` is rejected by
+the program with `AnchorError ... account: challenge, Error Code: ConstraintSeeds,
+Error Number: 2006`.
+
+Measured, not theorised — a ZERO-TRANSACTION probe (0 SOL, no faucet: pure
+`findProgramAddress`, no tx at all) recomputed 60 candidate PDAs for the exact
+verified inputs (`creator = 6k9TDQtq...`, `opponent = 79W1jLVvdkBm3wPu5UsDf5eGU6EUBg6p2WxRFE9xGk8e`
+deterministic via `fromSeed`, nonces = hour buckets 497756/497757 + the suite's
+0/20/30/40/61/62) across 6 seed layouts (`challenge|creator|opponent|nonce_le4`,
+no-nonce, `nonce_be4`, swapped creator/opponent, `nonce_le8`, nonce-before-opponent):
+
+- One address in the program's error pair equals layout **1** =
+  `seeds = [b"challenge", creator, opponent, nonce.to_le_bytes()]` — which is exactly
+  what `contracts/program/src/lib.rs` declares and exactly what the client provides.
+- The other address (`HsD9XjBwRX7Nk1dwcbVjAZUATcxk7oGVfw2hXctAF9my`) matches **none**
+  of the 60 candidates.
+  > **RESOLVED 2026-10-17** — the missing candidate was `u32le(5_000_000)`: the low
+  > 4 bytes of `stake_amount`, which a one-arg `#[instruction(nonce: u32)]` attr made
+  > the program borsh-decode as `nonce`. `HsD9XjBw…` == derive(creator, opponent,
+  > `u32le(5_000_000)`) exactly. See `volo-errors.md` → "RESOLVED — root cause" and
+  > the "RESOLUTION 2026-10-17" section at the end of this file.
+
+So the program's seed expectation cannot be produced from the current source with
+these inputs. Two live hypotheses, and they must be separated before trusting any
+test result — because Task 11 (the app's own PDA derivation) depends on which is true:
+
+1. The deployed binary is not this `lib.rs` (the 2026-10-13 upgrade may itself have
+   shipped a cached/intermediate artifact — the UI cannot be trusted, per above).
+   Decisive test: a Deploy whose `lastDeploySlot` provably changes, then re-run case 17.
+2. The browser's cached IDL mis-encodes the `nonce` argument (the v1 IDL had no
+   `nonce` arg), so the value the program puts in the seed is not what the client
+   used to derive the PDA.
+
+UPDATE 2026-10-14, after two more measurements — and a correction of my own reasoning:
+
+- **Client auto-derivation is ruled out.** The sandbox client IDL declares NO seeds
+  (`IDLSEEDS none declared in client IDL`), so omitting `challenge` fails with
+  `Invalid arguments: challenge not provided.` The override is the only path, and the
+  chain rejects it. Confirmed Left = the account we provide (case17 printed
+  `JS PDAs nonce0=41nUw9XG...` and the error logged `Left: 41nUw9XG...`).
+- **A 2,912-layout zero-SOL sweep (5,824 derivation calls, 0 transactions) found NO
+  match** for the program's expected address across 13 seed prefixes x 7 orderings x
+  8 nonce encodings (le4/be4/le8/be8/u8/decimal-string/BN-32/none) x nonces
+  {497756, 497757, 0, 1}, for both `find_program_address` and no-bump
+  `create_program_address`. So the expectation is not a re-encoding of these inputs;
+  the missing axis is a different *seed source* (mint, an ATA, a hash, an extra seed),
+  or the binary was built from a different revision.
+- **My "redeploy cannot help, the bytecode is v2" conclusion was WRONG and should be
+  reversed.** Finding v2-only strings (reputation seed, EvidenceZero message) in
+  ProgramData proves the binary is *some* v2 build — it does NOT prove it is *this*
+  v2 build. An intermediate v2 draft would carry the same strings with different
+  seeds. So a verified redeploy (require `lastDeploySlot` to change over RPC) is back
+  on the table as the decisive test, not a wasted ~0.24 SOL.
+- Local hand-rolled `find_program_address` (node crypto + BigInt ed25519) FAILED its
+  own self-check (2-3 of 6 known sandbox values reproduced), so never trust PDA
+  numbers computed by it — run sweeps in the sandbox where web3's derivation is known
+  good. Useful constant: the deterministic opponent pubkey is
+  `79W1jLVvdkBm3wPu5UsDf5eGU6EUBg6p2WxRFE9xGk8e`.
+- Repo history for the program is shallow: `b1a3b0a` is the only v2 commit of
+  `contracts/program/src/lib.rs` (Task 10 steps 1-2), preceded by `e1997d6` (first
+  ever successful compile, v1). Nothing after Oct 13 edited it.
+
+Harness bugs already fixed and proven on-chain (keep them, do not re-derive):
+runner guard is a case-insensitive substring scan over the whole source **including
+comments** (`window|top|eval|global|document|navigator|localStorage` — "documented"
+and `detOpp` each killed a whole file); hand-rolled ATA create account order is
+`funder, ata, owner, mint, SYSTEM(4), TOKEN(5)`, no rent account, data `[0]`;
+`getTokenAccountBalance` has no `uiTokenAmount` (use `uiAmountString`);
+`Keypair.fromSecretKey` needs 64 bytes — a 32-byte seed needs `fromSeed`;
+`BN.toArrayLike` needs the 3-arg form; and the v2 raw byte offsets
+(nonce@175, hashes@179/211, settledAt@243) are only valid when `target_app` is
+**exactly 32 bytes**, because Anchor's `String` is variable-length.
+
 ## Device signature encoding - measured on the Redmi, 2026-10-12 (Task 7 Step 6)
 
 Task 7's on-device suite passes 3/3 on 23106RN0DA / API 35. It also produced the measurement that matters most for Task 13: logging NOPEEK_SIGN_SHAPE gave len=72 firstByte=0x30 der=true rawP1363=false, i.e. **AndroidKeyStore signs with SHA256withECDSA and emits DER**, while the oracle's erifyEcdsaSignature() feeds the signature directly to crypto.subtle.verify, which only accepts fixed-width raw r||s, under a comment asserting the device produces raw. That assertion is wrong. Left unfixed, every genuine signature is rejected BAD_SIGNATURE and all oracle tests stay green. Decision: the oracle keeps one pinned encoding (raw P-1363) and the device converts DER->raw, left-padding r and s to 32 bytes; plus an oracle test that a DER-shaped signature is refused, so neither side can drift. Task 13 implements the conversion.
+
+## Task 10 Step 4 outcome 2026-10-15: the deployed program does NOT implement the nonce PDA
+
+Differential probe (2 setup txs, ~0.003 SOL; every createChallenge refused in
+preflight so it cost nothing) against the program deployed TODAY
+(`lastDeploySlot` moved 510566526 -> 511209142, verified over RPC, id unchanged):
+
+| inputs | our PDA (lib.rs rule) | program's expected |
+| --- | --- | --- |
+| creator=6k9TDQ, oppA=3RFMtc, nonce=0 | `EGh1eV1upcsPSbkAqDXKbL1ExeQcpnu2ozY2GDwGQfqV` | `3MtdtiAnbtsSXZ6P4Rxs5FoQYPU7QNKboDHvxrNX2rdE` |
+| creator=6k9TDQ, oppA=3RFMtc, nonce=1 | `DAfyraxckGuCTN4uqhbwndYBvvcbYwkJZei9eN2NCuv6` | `3MtdtiAnbtsSXZ6P4Rxs5FoQYPU7QNKboDHvxrNX2rdE` |
+| creator=6k9TDQ, oppB=79W1jLVv, nonce=0 | `FUPLQSLuAVWh8WnhyGfHBqqGC6uuhABjifQRt72mmxcy` | `HsD9XjBwRX7Nk1dwcbVjAZUATcxk7oGVfw2hXctAF9my` |
+
+Measured behaviour of the on-chain derivation:
+
+- **`nonce` is NOT a seed** - nonce 0 and nonce 1 demand the identical address.
+- **`opponent` IS a seed.** **`mint` is NOT** (two runs, different mints, same pair,
+  same demanded address).
+- Our address never equals theirs.
+  > **RESOLVED 2026-10-17** — both sides were right and wrong: the program's expected
+  > column is `derive(creator, opponent, u32le(5_000_000))` (spot-verified: 79W1jLVv →
+  > `HsD9XjBw…` — the table's third row — plus F6DDz9 → `ETxJHWTx…` and 3cDebc →
+  > `9Z1qp9iV…` on other probes), i.e. the seeds rule always was
+  > `[b"challenge", creator, opponent, u32le(nonce)]` with `nonce` mis-read from the
+  > payload prefix. The stale-Playground-artifact hypothesis in item 3 below is
+  > RETIRED: the binary WAS v2; a one-line attr fix and a redeploy made every case line
+  > up (G2 OK, G3 → 2006, case 17 PASS).
+
+Consequences, stated plainly:
+
+1. **Case 17 (the headline: one pair duelling twice) cannot pass on this deployment**,
+   because re-duelability depends on the nonce being part of the PDA. This is a
+   program/deployment fact, not a test-harness defect - the harness now reaches the
+   on-chain seeds check with real funded inputs.
+2. The demanded rule is also NOT v1's `[CHALLENGE_SEED, creator, opponent]`: that
+   derives `BFQmZQeb76WzyuZjmoakA1DvWZqZp6HM2rH7C7fTZwwW` for this pair, which the
+   program did not ask for either. `git show e1997d6` confirms v1's seeds, and a repo-wide
+   grep finds only ONE `.rs` containing `seeds = [CHALLENGE_SEED, ...]` - the current
+   file - so no alternative draft on disk explains it.
+3. Leading hypothesis, not yet proven: **Playground served a stale/cached build
+   artifact.** Today's "Build" finished in 7.69s, which is far too fast for an Anchor
+   compile (earlier real builds printed LLVM work and took minutes), and the binary
+   DOES contain v2-only strings (`reputation`, EvidenceZero text). So the artifact is
+   some v2 revision - plausibly an *intermediate* one from the earlier
+   compile-fix iterations, whose seeds lacked the nonce, rather than the current file.
+   A cache-busting edit (cosmetic comment in lib.rs) plus a real recompile is the
+   cheapest way to test this.
+4. Search space already eliminated (all zero-SOL, in-sandbox using web3's own
+   derivation, because a local node/BigInt re-implementation FAILED its own self-check
+   against 6 known values and cannot be trusted): ~2,912 and 660 layout combinations
+   across 11-13 seed prefixes x 6-8 nonce encodings x 7-10 orderings including
+   mint/creatorAta as extra seeds, both `findProgramAddress` and no-bump
+   `createProgramAddress`.
+
+**Resolved 2026-10-17.** The demanded rule was `derive(creator, opponent,
+u32le(stake_amount))` — a one-arg `#[instruction(nonce: u32)]` made `nonce` decode
+from the payload prefix (low 4 bytes of `stake_amount` = 5,000,000). The attr fix +
+redeploy means the source rule now holds live; "v2 deployed" is true going forward
+(see "RESOLUTION 2026-10-17" at the end of this file). The caution above was correct
+while it stood.
+
+## A comment-only cache-bust cannot change a deployed program (2026-10-16)
+
+Chosen action: append two comment lines to `src/lib.rs` to force Playground to
+recompile, testing the theory that the earlier 7.69s "Build" served a cached
+artifact. Two builds then ran in ~5-6s with no retrievable compile output (the
+terminal is canvas-rendered and the build rides a pre-existing WebSocket, so the
+absence of compile text can only be inferred from timing, not proven). The deploy
+did reach chain - `lastDeploySlot` advanced 511632821 -> 511671780, verified over
+RPC - but that proves only that the upgrade TRANSACTION executed.
+
+The flaw was in the plan, not the tool: **rustc strips comments, so a comment-only
+edit produces a byte-identical ELF even when the compiler genuinely runs.** A
+comment can never bust a deployed binary's cache. Answering "is the on-chain
+program built from this source?" needs either a *behavioural* change whose effect is
+observable (alter a seed and watch the demanded PDA move), or a real local
+toolchain - and this machine has neither cargo nor anchor, by the disk-space and
+CLI decisions recorded earlier in this file.
+
+The marker was added and then reverted: `git status` is clean for
+`contracts/program/src/lib.rs`, so the contract file is untouched.
+
+Related drift, and its explanation: this deploy started from `lastDeploySlot` 511632821,
+not the 511209142 the previous session recorded. That was NOT a third party - RPC
+tx inspection shows slot 511632821 (2026-10-16T07:17:44Z) and slot 511671780
+(09:52:33Z) were both fee-paid by the same oracle wallet and both belong to this
+thread's cache-bust attempts: the earlier one succeeded on chain even though its
+agent report died on a harness `Signature invalid` error. Lesson: a lost or errored
+agent reply does NOT mean the action never happened - re-read chain state before
+concluding anything, and never assume a missing report means a missing deploy.
+
+## The browser IDE cannot be trusted to compile the duel PDA seeds (2026-10-16)
+
+Decisive experiment, cheap and self-correcting. Instead of interpreting the two
+addresses inside a `ConstraintSeeds` error any further, the seed *literal* was changed
+in source (`b"challenge"` -> `b"challeng2"`), rebuilt, redeployed to the same id, and
+the deployed `ProgramData` was decoded from its bytes.
+
+Results, all measured:
+
+1. **The build is real.** The uploaded bytecode contained a standalone `challeng2`
+   rodata blob and no longer contained the standalone `challenge` seed. A cached
+   artifact was impossible. The "5-7s build means cache" heuristic I relied on is
+   **wrong** - Playground never forwards rustc stdout to the terminal, so there is no
+   compile output to observe, and the seed is the same length, so size is blind too.
+   Only *content* discriminates. This kills the stale-cache theory that the previous
+   session had authorised a new-project spend against.
+2. **Therefore the failure is in the source-to-binary path, not the artifact.** The
+   acceptance test then tried six structurally different PDAs against the running
+   `challeng2` program - `[challeng2, creator, opponent, nonce_le4]` (what the source
+   literally declares), the same without the nonce, and variants substituting
+   limit/stake/window for the nonce - and **none was accepted**; every rejection named
+   account `challenge`. So a binary compiled from this source does not accept the PDA
+   that this source's `seeds` attribute specifies.
+3. Combined with the differential probe (demanded address is invariant to `nonce` and
+   to `mint`, sensitive to `opponent`), the deployed derivation honours neither the v2
+   nor the v1 `seeds` line in this repository. ~4,100 offline candidate layouts
+   (zero-SOL, pure derivation) reproduce none of it.
+
+Why this matters beyond a failing test: Task 11's Kotlin client must derive the same
+PDA, so whichever rule the compiler actually emitted is what the app has to match -
+and it cannot be read off `lib.rs`. **Do not start Task 11 against this toolchain.**
+
+The remaining step that can actually settle it is a real local `anchor build`
+(`cargo`/`rustc` are present at `C:\Users\hp\.cargo\bin`; `anchor` and the Solana CLI
+are not; C: free was 5.7 GiB at the time of writing, which is tighter than the 13.2
+GiB recorded earlier, so re-measure before committing to it). A local build gives a
+comparable artifact and a trustworthy deploy loop; nothing else measured so far can.
+
+Operational notes, each learned the hard way:
+
+- Do NOT issue your own RPC calls while a Playground deploy is uploading. Concurrent
+  fetches on the same socket pool stalled the deploy ~8 minutes at "202 transactions
+  not confirmed". Verify only after "Deployment successful".
+- `wallet.automaticAirdrop` is `true` in this project's localStorage, so every Deploy
+  first attempts a 5 SOL airdrop, which fails with `Internal error` (faucet quota) and
+  is harmless. Disable it with `setting set wallet.automaticAirdrop false` to stop the
+  noise.
+- A lost or cancelled agent reply is not evidence that nothing happened - two deploys
+  in this thread landed on chain while their reports were never delivered. Re-read
+  `lastDeploySlot` before concluding.
+
+State after the experiment: corrupted seed reverted, `lastDeploySlot` 511856415
+(tx `4P5AD1baevPzexUB...`), deployed bytecode re-confirmed to contain the standalone
+`challenge` seed again, program id unchanged, wallet 6.24171456 SOL.
+
+## RESOLUTION 2026-10-17 — attr bug fixed, program live, case 17 green
+
+Root cause (3-way proof, see `volo-errors.md`): `CreateChallenge`'s one-arg
+`#[instruction(nonce: u32)]` made Anchor borsh-decode `nonce` from the instruction-data
+prefix — the low 4 bytes of `u64 stake_amount` = 5,000,000 — so every create demanded
+`derive(creator, opponent, u32le(5_000_000))`, invariant to the client's nonce. The
+historical demands in this file re-derive exactly: `ETxJHWTx…` (F6DDz9), `HsD9XjBw…`
+(79W1jLVv), `9Z1qp9iV…` (3cDebc).
+
+Fix: full ordered attr `#[instruction(stake_amount: u64, target_app: String,
+limit_seconds: u32, window_seconds: u32, nonce: u32)]` — wire format unchanged.
+Rebuilt locally (cargo-build-sbf via the MSVC shim; 291,000 B, sha256 `CE8ACB41…`,
+was 291,080 B `7074F9D6…`) and redeployed: `lastDeploySlot 511856415 → 511960495`
+(tx `5S55FR1er1me6…`), buffer closed, on-chain ELF sha256 byte-verified from a
+`solana program dump`.
+
+Verification ladder (all green): local full probe; devnet full probe; devnet grad
+(G2 canonical OK — the exact old ConstraintSeeds case; G3 `ETxJHWTx…` demand flips to
+2006; G4/G5 OK; G0/G7/G6 still 3012-first, evaluation order unchanged);
+`contracts/tests/playground-case17.test.ts` on devnet PASS (create nonce 0 accepted,
+duplicate refused, nonce 1 accepted, both accounts Created with nonces 0/1).
+
+App wiring fixed (was silently broken): both IDLs carried `"address": "1111…"` and the
+create builder marked the challenge PDA `isSigner = true` (a v1 leftover — v2's PDA
+signs via `invoke_signed`). IDLs rewritten to the v2 playground shape with the deployed
+id (byte-identical, sha256 `FF98FD0D…`), builder fixed, tests pin the address and the
+non-signer flag; app unit suite 240/240.
+
+Rollback path: the pre-fix ELF is kept at `.copilot-tmp/onchain-backup/old-deployed.so`
+on the authoring machine; redeploy with the same command form (same program id, same
+upgrade authority) if the attr fix ever needs reverting.
+
+Provenance note: `contracts/program/idl.json` was hand-synced from the v2 Playground
+export (`idl-from-playground.json`, camelCase old-format) into the new-format shape the
+app parser expects; an `anchor build` regeneration remains the recommended provenance
+step once CI/toolchain access allows (CI is billing-locked).

@@ -403,7 +403,10 @@ impl Reputation {
 }
 
 #[derive(Accounts)]
-#[instruction(nonce: u32)]
+// Anchor deserializes `#[instruction(..)]` args from the instruction-data prefix in
+// declared order, so every handler argument before `nonce` must be listed ahead of it —
+// listing only `nonce` made the seeds read the low 4 bytes of `stake_amount` instead.
+#[instruction(stake_amount: u64, target_app: String, limit_seconds: u32, window_seconds: u32, nonce: u32)]
 pub struct CreateChallenge<'info> {
     #[account(
         init,

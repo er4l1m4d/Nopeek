@@ -230,6 +230,49 @@
 - **Cause**: `HttpURLConnection` with `instanceFollowRedirects=true` silently re-POSTs the body on 307/308 — for `/submit-report` that means double server-side execution (first run consumes the window's nonce).
 - **Fix**: `instanceFollowRedirects = false`; follow 307/308 explicitly, once, with the hop logged. 301/302 on a POST = loud failure.
 
+### Error: Gradle via PowerShell script dies with `NativeCommandError` on stderr
+- **Cause**: PS 5.1 with `$ErrorActionPreference = "Stop"` converts gradlew.bat's stderr output into a terminating error before the build even runs.
+- **Fix**: invoke via `cmd /c "gradlew.bat ... 2>&1"` inside scripts, and judge results from the XML, not the console.
+
 ---
 
-Last updated: `2026-10-13` (Nopeek Colosseum crunch — spine closed: accepted report + settlement, consumeNonce self-burn bug found and fixed)
+## 🆕 Errors — 2026-10-17 (program redeploy: local build → CI pivot)
+
+### Error: `linker link.exe not found` (local `cargo-build-sbf` on Windows)
+- **What caused it**: building `contracts/program` locally with the fresh Solana CLI (cargo-build-sbf 4.4.0, platform-tools v1.57) fails while host-linking build scripts/proc-macros (`quote`, `proc-macro2`, `serde_core`). The SBF toolchain's host is `x86_64-pc-windows-msvc`; this machine has no MSVC linker (no VS Build Tools; `vswhere` finds no install; only TDM-GCC).
+- **Fix**: build on a Linux runner instead — `.github/workflows/build-program.yml` (branch `build/sbf-ci`, repo `er4l1m4d/Nopeek`): checkout → Anza stable → `declare_id` rewired `1111…` → `DJftv46…` via sed → `cargo-build-sbf` → upload `.so` artifact. CI logs record `solana --version` / `cargo-build-sbf --version` / sha256. Deploy locally with `solana program deploy` + upgrade-authority keypair.
+- **Why not WSL**: `wsl.exe` present but **no distro installed**, and C: had only ~2.3 GB free — an install was the riskier path.
+
+### Measurement trap: dummy-account simulations **skip the seeds check** in the deployed binary
+- **What happened**: earlier "the canonical v2 PDA was accepted" readings came from simulations with dummy mint/creatorToken. Controlled experiment (`probe.mjs grad`) → G7 (`challenge` = random garbage pubkey, dummy mint): error is still `3012 mint` — the deployed binary evaluates `mint`/`creator_token` BEFORE `challenge`'s seeds constraint, so with a dummy mint the seeds check never runs at all.
+- **Rule**: when probing an `init` account's seeds, every account earlier in the binary's evaluation order must be real/initialized — otherwise "no ConstraintSeeds error" proves nothing. G3 (real accounts, `challenge` = `ETxJHWTx…`) simulates to **full success**, proving the deployed binary's seeds genuinely differ from the source's `[challenge, creator, opponent, le4(nonce)]`.
+
+### Issue: deployed binary does not match `contracts/program/src/lib.rs` seeds
+- **Evidence**: with all-real accounts the running binary demands `ETxJHWTx…` (creator `6k9TDQ…`, opponent `F6DDz9…`, nonce 0 **and** 1) / `HsD9Xj…` (opponent `79W1jL…`) — invariant to nonce. Exhaustive sweeps (211k canonical layouts × prefixes/pids + all-256-bump create sweeps) reproduce neither address ⇒ not a sibling of any source rule.
+- **Fix (superseded — see next entry)**: redeploying alone was NOT the fix: the CI `.so` built from `5d65f60` carries the same bug. The real fix is the `#[instruction(..)]` attr line — one line of source — then rebuild + redeploy.
+
+### ✅ RESOLVED — root cause: `#[instruction(nonce: u32)]` decoded the wrong 4 bytes
+- **Root cause (3-way proof)**: `CreateChallenge` declared only `#[instruction(nonce: u32)]`. Anchor borsh-decodes `#[instruction(..)]` args from the instruction-data **prefix in declared order**, so `nonce` was read from the first 4 bytes of the payload — the low half of `u64 stake_amount` = **5,000,000** (`0x004C4B40`). Every create therefore demanded `[b"challenge", creator, opponent, u32le(5_000_000)]`, invariant to the client's nonce — exactly what every probe measured:
+  - (6k9TDQ, F6DDz9) → `ETxJHWTx…` == derive(…, u32le(5_000_000)) ✓
+  - (6k9TDQ, 79W1jLVv) → `HsD9XjBw…` == derive(…, u32le(5_000_000)) ✓
+  - (6k9TDQ, 3cDebcs) → `9Z1qp9iV…` == derive(…, u32le(5_000_000)) ✓
+  The "stale/cached artifact" theory is retired: the deployed binary WAS v2 (its bytecode contains every v2-only string); the demanded rule was a decode bug compiled into it.
+- **Fix**: `#[instruction(stake_amount: u64, target_app: String, limit_seconds: u32, window_seconds: u32, nonce: u32)]` — every handler arg listed before `nonce` in decode order. Wire format unchanged; no client change needed.
+- **Rebuild + redeploy**: local `cargo-build-sbf` (MSVC-shim toolchain, CI still billing-locked) → `volo_challenge.so` **291,000 B** sha256 `CE8ACB413404A283…` (was 291,080 B `7074F9D6…`); devnet upgrade `lastDeploySlot 511856415 → 511960495` (tx `5S55FR1er1me6…`), buffer closed; `solana program dump` byte-verified — on-chain ELF sha256 equals the artifact.
+- **Verification ladder (all green)**:
+  1. LOCAL cluster (ledger5): full probe — CREATE nonce 0 accepted, duplicate refused, CREATE nonce 1 accepted, both accounts decode nonce 0/1.
+  2. DEVNET full probe — same result (mint `BMEqfNzH…`).
+  3. DEVNET grad matrix — G2 (`Dh3VGhDh…`, the exact old ConstraintSeeds case) OK(no-err); G4/G5 OK; G3 (`challenge=ETxJHWTx…`, the old demand) now fails **2006**; G0/G7/G6 still 3012 first (evaluation order, unchanged trap).
+  4. `contracts/tests/playground-case17.test.ts` run on devnet in a reconstructed Playground env — **RESULT PASS**: nonce 0 accepted, duplicate refused, nonce 1 accepted, both fetch as Created with nonces 0/1.
+
+### Error: the app sent every instruction to the System Program (`idl.address` placeholder)
+- **Cause**: `app/src/main/assets/idl.json` and `contracts/program/idl.json` still carried `"address": "11111111111111111111111111111111"`; `ProgramInstructions.programIdFrom(idl) = idl.address`, so every app-built transaction targeted the System Program — no duel could ever be created from the app (Task 11 Step 4 would have failed on device).
+- **Fix**: both files rewritten to the v2 playground shape (5 instructions, `nonce` arg, v2 settle args, 13 errors, Challenge(16) + Reputation types) with `"address": "DJftv46…"`; byte-identical (sha256 `FF98FD0D…`).
+
+### Error: the app marked the challenge PDA as a transaction signer
+- **Cause**: `ProgramInstructions.createChallenge` built the challenge account with `isSigner = true` — a v1 leftover (v1's challenge WAS a client keypair). v2's challenge is a PDA; it signs via `invoke_signed` on-chain. A signer flag demands a wallet signature that no key can produce — the tx dies at signature verification.
+- **Fix**: `isSigner = false` + regression assertions (`ProgramInstructionsTest`), `IdlParserTest` pins the deployed address, v2 arg/account/struct shapes + non-signer flag. Full app unit suite green: **240/240**.
+
+---
+
+Last updated: `2026-10-17` (ROOT CAUSE fixed: `#[instruction(..)]` prefix decode; rebuilt 291,000 B sha256 `CE8ACB41…`, live on devnet slot 511960495; local + devnet + case17 green; app IDL wired to `DJftv46…`)
