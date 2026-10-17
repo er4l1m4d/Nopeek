@@ -223,9 +223,9 @@ case11 trap below) + `cases1-16-run2.txt` (clean rerun; case14 SKIP with the clo
   `NotOracle`. Funded with 0.02 SOL, the identical tx returns
   `Error Code: NotOracle. Error Number: 6006`
   (`.copilot-tmp/local-cluster/probe-case11.txt`).
-- case14/15 are time-gated (`refund_unjoined` needs start_time + 3600): the first
-  run seeded a refund challenge and reported SKIP with the remaining clock; the
-  refund itself is exercised by the scheduled follow-up run.
+- case14/15 are time-gated (`refund_unjoined` needs start_time + 3600): run 1
+  seeded a refund challenge and reported SKIP with the remaining clock; the
+  follow-up sweep below executed the refund (first-ever on-chain `refund_unjoined`).
 
 **Cases 17–24** — `contracts/tests/playground-cases-v2.test.ts`: devnet **RESULT
 PASS** on the 2026-10-17 rerun (`.copilot-tmp/local-cluster/v2-suite-run2.txt`;
@@ -233,14 +233,30 @@ run1 found the case24 ATA bug and the case21–23 timing-gate bug, both fixed an
 listed in `volo-errors.md`). First-ever on-chain `settle_challenge` executions are
 measured here: creator-won payout, evidence-hash storage, PASS-with-zero-hash
 rejection, both-unverified lock, and the lock's too-early refusal. case23
-(`resolve_lock`) matures one hour after its challenge's `end_time`; the scheduled
-follow-up run sweeps it.
+(`resolve_lock`) matures one hour after its challenge's `end_time`; the follow-up
+sweep below closed it (first-ever on-chain `resolve_lock`).
 
 Harness fixes that made this possible (full list in `volo-errors.md`): ATA create
 order `funder, ata, owner, mint, SYSTEM(4), TOKEN(5)` with data `[1]`
 (CreateIdempotent — plain Create refuses an existing ATA), the v2 raw offsets
 (nonce@175, hashes@179/211, settledAt@243 — only valid with a 32-byte `target_app`),
 and `BN.toArrayLike` 3-arg form.
+
+**Follow-up sweep (2026-10-17 — one background job at the later of the two
+maturities; both time-gated closures landed).**
+- `v2-suite-run3.txt`: `RESULT PASS` 11/11, 0 skipped — **case23 swept the matured
+  lock: "escrow 10 -> 0, treasury +10" (first-ever on-chain `resolve_lock`)**. The
+  same run created and locked bucket 497839's challenge ("today's pair for case23
+  rerun" — the carry-forward artifact so the next sweep has a matured lock), and
+  case22 exercised the too-early refusal at −54 s past `end_time`.
+- `cases1-16-run3.txt`: `RESULT PASS` 22 PASS / 0 FAIL / 1 SKIP — **case14 refunded
+  the seed: "status 3, escrow 5 -> 0" (first-ever on-chain `refund_unjoined`)**,
+  with case15 then SKIPping by design (the too-early branch was proven on the fresh
+  seed in runs 1–2, so no time-gated run ever reports a false PASS).
+
+With these two, every never-executed v2 instruction has now executed on devnet:
+`settle_challenge` (creator-won, both-pass, opponent-won, both lock variants),
+`resolve_lock`, `refund_unjoined`.
 
 ## Deviations from the plan
 
