@@ -100,6 +100,18 @@ export interface VerifyDeps {
   consumeNonce(nonceB64: string, challengePubkey: string, walletPubkey: string): Promise<NonceStatus>;
 }
 
+/**
+ * The freshness window (check 14) and the nonce expiry (check 9) are the SAME
+ * deadline by design: the device requests its nonce with
+ * expiresAt = windowEnd + GRACE_SECONDS, and a report inside the grace window
+ * therefore always carries an unconsumed, unexpired nonce. The Kotlin side pins
+ * the same constant (EvidenceReporter.GRACE_SECONDS = 60); a divergence between
+ * the two would create a band where REPORT_LATE passes but the nonce is already
+ * expired — the confusing failure mode the review flagged. 60 s is the value the
+ * device has always enforced, so the oracle now matches it.
+ */
+export const GRACE_SECONDS = 60;
+
 export interface ReportInput {
   /** The exact bytes the device signed. Never re-encoded on either side. */
   canonicalBytes: Uint8Array;
@@ -123,7 +135,7 @@ export interface ReportInput {
  * The names published at /evidence/<hash> and rendered by the Evidence screen.
  * Stable strings: a rename here is a change to a public artifact.
  */
-const CHECK_NAMES = [
+export const CHECK_NAMES = [
   "chain", "revocation", "attestation", "hardware", "payload",
   "nonce-bound", "enrolled", "signature", "nonce", "boot",
   "package", "terms", "consistency", "freshness",

@@ -26,7 +26,6 @@ class MainActivity : ComponentActivity() {
         walletManager.attach(this)
         ChallengeRepository.getInstance(this).startPolling()
         DemoSeeder.seedIfNeeded(this)
-        runEagerRecovery()
         setContent {
             CompositionLocalProvider(LocalActivityResultSender provides mwaSender) {
                 NopeekTheme {
@@ -36,11 +35,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        runEagerRecovery()
+    }
+
     /**
      * The eager half of the two-chances-to-report design (plan Task 13): when the app
-     * opens, any window that closed while the app was dead gets its report now. The
-     * scheduled worker is the first chance; MIUI force-stops and battery savers are why
-     * one chance is not enough.
+     * is foregrounded, any window that closed while the app was dead or backgrounded
+     * gets its report now. The scheduled worker is the first chance; MIUI force-stops
+     * and battery savers are why one chance is not enough.
+     *
+     * Runs from onResume, NOT onCreate (review-found): onCreate only fires on a new
+     * process. A user returning via the recents switcher — the exact "force-stop, set
+     * the phone down, come back" path Review Focus 5 describes — would skip recovery
+     * entirely, because the process was still alive and only onResume ran.
      *
      * The local wallet comes from prefs, not from the in-memory WalletManager: recovery
      * runs precisely when that state is gone (force-stop → fresh process). A duel row
@@ -61,6 +70,11 @@ class MainActivity : ComponentActivity() {
                 for (params in candidates) {
                     ReportScheduler.reportNowIfDue(this@MainActivity, params)
                 }
+            }.onFailure {
+                // "Failure is logged, never thrown into the UI" (plan Task 13 Step 3).
+                // A bare runCatching swallows Room/DAO regressions silently — a stranded
+                // recovery would then look identical to "nothing was due".
+                android.util.Log.e("NOPEEK_RECOVERY", "eager recovery failed", it)
             }
         }
     }

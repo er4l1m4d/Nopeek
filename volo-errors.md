@@ -301,6 +301,24 @@
 ### Note: provenance check — on-chain ELF vs local artifact (2026-10-17)
 - **Measured**: ProgramData `77RtiTVT…` body length 365,328 — the pre-fix build's size, because the loader does not shrink the account on a smaller upgrade; the space after the ELF is zero-filled. The ELF's true extent is the first 291,000 bytes: sha256 `ce8acb41…` == local `volo_challenge.so` — byte-for-byte. `lastDeploySlot` 511960495 matches the fix deploy. The full-account sha (`14bd1d0c…`) is NOT the artifact hash; slice `[45 .. 45+291000]` is.
 
+### Error: Task 14's test gate never ran — report storage was inline in index.ts and rejections were never written
+- **What happened** (retro review, 2026-10-17): the plan's seven named Task 14 tests did not exist; the new DB logic lived inline in `index.ts`, which tsconfig excludes, so no Node test could reach it. Worse, the handler skipped storing rejected submissions entirely ("Task 14's follow-up") while the ledger claimed the behaviour present — the honesty slide had no denominator data. And `/settle` selected ALL report rows while its comment claimed "latest VERIFIED report": the moment rejections were stored, a forged-but-rejected row could have driven a payout — the exact fund-loss class the project exists to prevent.
+- **Fix**: report storage moved into `store.ts` (`insertVerifiedReport` / `insertRejectedReport` / `latestVerifiedReports` / `verifiedEvidenceByHash`) with five new tests (suite 91 → 96); rejections are stored with `verified=false` + `reject_reason` when the payload decoded far enough to attribute them (`wallet_pubkey` is NOT NULL — earlier failures stay log-only); settle reads verified rows only.
+- **Lesson**: "deployed and probed" is not "tested" — a handler excluded from the typecheck project is a handler with no test seam; the DI seam the plan named exists precisely for this, and skipping it hid three defects at once.
+
+### Error: duplicate accepted report answered 500 with Postgres text — and the client retried forever
+- **What happened**: Task 13's two-chances design (worker + eager path) legitimately double-fires across processes; the second insert hit `usage_reports_one_verified_per_side` and the handler returned a raw 500 carrying the constraint text. `EvidenceReporter` treats 5xx as retryable, so the loser looped re-minting nonces against a permanent condition.
+- **Fix**: the store maps the duplicate (23505 / duplicate-key / constraint name) to `InsertConflictError`; the handler answers 409 `REPORT_ALREADY_ACCEPTED`, which the client treats as a verdict. Any OTHER insert error stays a retryable 500 — the first cut wrapped every error as a conflict, which would have told a transient failure to give up.
+- **Lesson**: a unique constraint on an expected race is a domain outcome, not a server fault; and an error-class wrapper that does not discriminate turns "retryable" into "permanent" invisibly.
+
+### Error: the eager recovery hook ran in onCreate, so the primary force-stop path never recovered
+- **What happened** (Task 13 review): `runEagerRecovery()` was called from `onCreate`, which fires only on a new process. The Review Focus 5 scenario — force-stop, window lapses, user returns via the recents switcher — has a LIVE process, so only `onResume` ran and recovery was skipped. Also the `runCatching` wrapper swallowed every exception with no log: a stranded recovery looked identical to "nothing due".
+- **Fix**: moved to `onResume`; `onFailure` now logs to `NOPEEK_RECOVERY`. Kotlin suite 240/240 after.
+- **Lesson**: lifecycle hooks are part of a feature's contract; "it works when launched fresh" is the weakest of the launch paths, not proof.
+
+### Note: review-gate sweep (Tasks 13/14, 2026-10-17) — six Criticals found, six fixed, deployed twice
+- Full findings + the open Importants/Minors live in `contracts/ATTESTATION_DEPLOY_NOTES.md` § "Review gate (retro)". Oracle suite 91→96, Kotlin 240/240, tsc clean, deployed to `ybcavetnzivwsfnwzvtd`, post-deploy probes green (`/health`, 404, 400).
+
 ---
 
-Last updated: `2026-10-17` (ROOT CAUSE fixed: `#[instruction(..)]` prefix decode; rebuilt 291,000 B sha256 `CE8ACB41…`, live on devnet slot 511960495; local + devnet + case17 green; app IDL wired to `DJftv46…`; full contract suites green — v2 cases 17–24 devnet `RESULT PASS`, corrected cases 1–16 `23 PASS / 0 FAIL / 1 time-gated SKIP`; on-chain ELF provenance byte-verified against the local build)
+Last updated: `2026-10-17` (ROOT CAUSE fixed: `#[instruction(..)]` prefix decode; rebuilt 291,000 B sha256 `CE8ACB41…`, live on devnet slot 511960495; local + devnet + case17 green; app IDL wired to `DJftv46…`; full contract suites green — v2 cases 17–24 devnet `RESULT PASS`, corrected cases 1–16 `23 PASS / 0 FAIL / 1 time-gated SKIP`; on-chain ELF provenance byte-verified against the local build; retro review gate for Tasks 13/14 run — six Criticals fixed + redeployed)

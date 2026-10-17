@@ -258,6 +258,63 @@ With these two, every never-executed v2 instruction has now executed on devnet:
 `settle_challenge` (creator-won, both-pass, opponent-won, both lock variants),
 `resolve_lock`, `refund_unjoined`.
 
+## Review gate (retro) — Tasks 13/14 (2026-10-17, Phase 2 step 5)
+
+Two independent reviewer passes over the Task 13 range (`ff874b5..ad4af29` minus the
+Task 14 commit) and the Task 14 range (`ea6ccff..a1b74a7`). Verdicts: Task 14
+"With fixes", Task 13 "No — with fixes" — six Critical findings, all fixed and
+deployed the same day. The oracle suite grew 91 → **96** (five new Task 14 storage
+tests), the Kotlin suite stayed **240/240**.
+
+**Task 14 Criticals — fixed (commit below, deployed to `ybcavetnzivwsfnwzvtd`):**
+1. `index.test.ts` never existed and the report DB logic was inline in `index.ts`
+   (excluded from tsc, untestable). The logic now lives in `store.ts` — the plan's
+   dependency-injection seam — as `insertVerifiedReport` / `insertRejectedReport` /
+   `latestVerifiedReports` / `verifiedEvidenceByHash`, covered by five new tests
+   (verified-row shape + byte-exact `\x` canonical bytes, duplicate-submission via
+   both unique constraints, rejected-row `verified=false` + `reject_reason`,
+   settle's verified-only selection, evidence lookup/404).
+2. Rejected submissions are now STORED (`verified=false` + `reject_reason`, detail
+   folded into the reason) — attributable rejections only: `wallet_pubkey` is NOT
+   NULL, so chain/attestation/unparseable failures (no honest wallet to name) stay
+   log-only. Storage failure never masks the verdict.
+3. `/settle` now reads only `verified = true` rows (`latestVerifiedReports`): the
+   old query selected every row while claiming "latest VERIFIED" — benign until
+   finding 2 landed, then a rejected row's client-decoded numbers could have driven
+   a payout. That was the fund-loss class.
+
+Also fixed (Task 14 Importants, small and adjacent): 64,000-char bounds on the
+public `/submit-report` fields (the same cap `/enroll` already had); duplicate
+accepted report → domain 409 `REPORT_ALREADY_ACCEPTED` instead of a raw 500 with
+Postgres text (the client was retrying 5xx forever); `/evidence` payload now
+matches the plan interface (`verifiedAt`, `checksPassed` = the 14 published names,
+only-verified rows served) plus a self-enforcing re-hash of the served bytes.
+The grace mismatch (oracle 300 s vs device 60 s) is unified: checks.ts now exports
+`GRACE_SECONDS = 60` and both the freshness check and the device's nonce expiry use
+that one deadline.
+
+**Task 13 Criticals — fixed:**
+1. Eager recovery moved `onCreate` → `onResume` (onCreate fires only on a new
+   process; the Review Focus 5 "force-stop → return via recents" path never ran it),
+   and the `runCatching` now logs via `onFailure` instead of swallowing silently.
+2. Grace mismatch — closed from the oracle side (above); the device constant was
+   already 60 and its comment now names the pairing.
+3. Cross-process worker-vs-eager double submission — closed at the protocol level
+   by the 409 above: the loser receives `REPORT_ALREADY_ACCEPTED` as a 4xx verdict
+   (no retry loop), and `usage_reports_one_verified_per_side` guarantees exactly
+   one winner. The proposed Room `claimed_reports` table would only save the loser
+   one wasted nonce/mint, so it was ruled unnecessary schema churn (recorded, not
+   built).
+
+**Open (recorded, not fixed — beyond the criticals the user scoped):** Task 13
+Importants — redirect follow capped at one hop, E2E should assert `checksPassed`
+contents, `UsageSyncParams.reportTime` is a dead parameter, no test pins the
+committed Supabase key's `role=anon`; Minors in both reports. The positive
+`/evidence` probe (Task 14 Step 3) still needs a fresh device-signed report
+(Phase 3). Redeployments this day: two (fix batch + the 23505 discrimination
+refinement); post-deploy probes: `/health` alive, unknown-hash 404, garbage
+submit 400.
+
 ## Deviations from the plan
 
 - **Task 1 Step 1:** staged with `git add -u` plus the pre-flight doc instead of

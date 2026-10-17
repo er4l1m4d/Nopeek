@@ -15,20 +15,66 @@
  * two definitions to drift, and the first one to be relaxed wins.
  */
 
+import type { RejectReason } from "./checks.ts";
+
 export interface StoreRow { [column: string]: unknown }
 
-export interface StoreQuery {
+export interface StoreQuery
+  extends PromiseLike<{ data: StoreRow[] | null; error: { message: string } | null }> {
   select(columns: string): StoreQuery;
-  eq(column: string, value: string): StoreQuery;
+  eq(column: string, value: string | number | boolean): StoreQuery;
+  /** PostgREST ordering; only the shape the oracle uses is modelled. */
+  order(column: string, options: { ascending?: boolean }): StoreQuery;
+  limit(count: number): StoreQuery;
   maybeSingle(): Promise<{ data: StoreRow | null; error: { message: string } | null }>;
+  /** PostgREST chains .select() on an insert result, then .single(). */
+  single(): Promise<{ data: StoreRow | null; error: { message: string } | null }>;
   upsert(
     row: StoreRow, options: { onConflict: string },
   ): Promise<{ data: StoreRow[] | null; error: { message: string } | null }>;
-  insert(row: StoreRow): Promise<{ data: StoreRow[] | null; error: { message: string } | null }>;
+  /**
+   * PostgREST: `insert()` returns a builder that is BOTH chainable
+   * (`.select().maybeSingle()/.single()`) AND thenable (`await insert(r)` resolves
+   * to {data, error}). The fake below models both shapes.
+   */
+  insert(row: StoreRow): StoreQuery & Promise<{ data: StoreRow[] | null; error: { message: string } | null }>;
 }
 
 export interface StoreDb {
-  from(table: "install_keys" | "report_nonces"): StoreQuery;
+  from(table: "install_keys" | "report_nonces" | "usage_reports"): StoreQuery;
+}
+
+/** One accepted (verified) submission per side of a challenge. */
+export interface VerifiedReport {
+  challengePubkey: string;
+  walletPubkey: string;
+  evidenceHash: string;
+  usedSeconds: number;
+  tamperSignals: string[];
+  windowStartMs: number;
+  windowEndMs: number;
+  signatureB64: string;
+  chainPem: string;
+  /** The exact bytes the device signed. Stored as bytea verbatim; never re-encoded. */
+  canonicalBytes: Uint8Array;
+  packageName: string;
+  deviceActiveSeconds: number;
+  eventCount: number;
+  eventSetDigestHex: string;
+}
+
+/**
+ * A failed verification to be written (verified = false) for the honesty slide.
+ * Only attributable rejections are stored: the schema's wallet_pubkey is NOT NULL,
+ * and an unparseable payload has no honest wallet to name — those stay log-only.
+ */
+export interface RejectedReport {
+  challengePubkey: string;
+  walletPubkey: string;
+  usedSeconds: number;
+  tamperSignals: string[];
+  rejectReason: RejectReason;
+  detail: string | null;
 }
 
 export interface EnrollInput {
@@ -172,4 +218,149 @@ export async function issueNonce(
   if (error) throw new Error(`nonce: report_nonces insert failed: ${error.message}`);
 
   return { nonceB64, expiresAt: input.expiresAt };
+}
+
+/**
+ * Accepts a verified evidence bundle into the store.
+ *
+ * The canonical bytes come from the in-memory `Uint8Array` that the verifier
+ * hashed — they are re-encoded as a `\x`-prefixed hex literal so PostgREST writes
+ * the exact same bytes it verified against, byte for byte (see the ledger note
+ * about a verification that then fails LATER burning the nonce). Returns the row
+ * id on success, or throws a named error on a duplicate (the 23505 unique
+ * violation on `usage_reports_one_verified_per_side`).
+ */
+export async function insertVerifiedReport(db: StoreDb, report: VerifiedReport): Promise<string> {
+  const canonicalHex =
+    "\\x" + [...report.canonicalBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const { data, error } = await db
+    .from("usage_reports")
+    .insert({
+      challenge_pubkey: report.challengePubkey,
+      wallet_pubkey: report.walletPubkey,
+      used_seconds: report.usedSeconds,
+      tamper_signals: report.tamperSignals,
+      window_start: new Date(report.windowStartMs).toISOString(),
+      window_end: new Date(report.windowEndMs).toISOString(),
+      verified: true,
+      evidence_hash: report.evidenceHash,
+      signature_b64: report.signatureB64,
+      cert_chain_pem: report.chainPem,
+      canonical_bytes: canonicalHex,
+      package_name: report.packageName,
+      device_active_seconds: report.deviceActiveSeconds,
+      event_count: report.eventCount,
+      event_set_digest: report.eventSetDigestHex,
+    })
+    .select("id")
+    .single();
+  if (error) {
+    // Distinguish the ONE error class that maps to a 409 verdict (a duplicate
+    // accepted report — Task 13's two-chances design double-firing across
+    // processes) from everything else, which stays a retryable 500. The real
+    // PostgrestError carries code "23505"; the fake (and older clients) only
+    // carry the message, so both signals are checked.
+    const dup =
+      (error as { code?: string }).code === "23505" ||
+      /duplicate key value/i.test(error.message) ||
+      /usage_reports_one_verified_per_side|usage_reports_evidence_hash_unique/.test(error.message);
+    if (dup) throw new InsertConflictError(error.message);
+    throw new Error(`report: verified insert failed: ${error.message}`);
+  }
+  if (!data) throw new Error("report: verified insert returned no row");
+  return data.id as string;
+}
+
+/**
+ * Records a rejected submission as verified = false + reject_reason.
+ *
+ * The row is written so the deck's honesty slide has denominator data and so the
+ * evidence trail can show "this report was refused, not just absent". The reason
+ * carries the verifier's detail inline (the schema has one text column for both).
+ * Callers must only invoke this when the payload decoded far enough to attribute
+ * the report (fields exist); earlier failures have no honest wallet to name.
+ * A storage failure here must never mask the rejection verdict itself.
+ */
+export async function insertRejectedReport(db: StoreDb, report: RejectedReport): Promise<void> {
+  const { error } = await db
+    .from("usage_reports")
+    .insert({
+      challenge_pubkey: report.challengePubkey,
+      wallet_pubkey: report.walletPubkey,
+      used_seconds: report.usedSeconds,
+      tamper_signals: report.tamperSignals,
+      verified: false,
+      reject_reason: report.detail
+        ? `${report.rejectReason}: ${report.detail}`
+        : report.rejectReason,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(`report: usage_reports reject insert failed: ${error.message}`);
+}
+
+/**
+ * Distinguishes the one DB error class that maps to a retryable 409 from all
+ * others (which stay 500). The class name is what callers branch on.
+ */
+export class InsertConflictError extends Error {
+  constructor(message: string) { super(message); this.name = "InsertConflictError"; }
+  static is(e: unknown, message?: string): boolean {
+    return e instanceof Error && e.name === "InsertConflictError" &&
+      (message === undefined || e.message.includes(message));
+  }
+}
+
+/** The columns /settle needs from each side's latest VERIFIED report. */
+export interface SettleReportRow {
+  wallet_pubkey: string;
+  used_seconds: number;
+  tamper_signals: string[] | null;
+  reported_at: string;
+  evidence_hash: string | null;
+}
+
+/**
+ * The latest VERIFIED report per wallet for a challenge, newest first.
+ *
+ * The `verified = true` filter is the fund-loss guard: a REJECTED row carries
+ * client-decoded usage numbers and must never be read as a verdict. (The comment
+ * in index.ts used to claim "latest VERIFIED report" while the query selected all
+ * rows — the filter now lives here where a test can pin it.)
+ */
+export async function latestVerifiedReports(
+  db: StoreDb,
+  challengePubkey: string,
+): Promise<SettleReportRow[]> {
+  const { data, error } = await db
+    .from("usage_reports")
+    .select("wallet_pubkey, used_seconds, tamper_signals, reported_at, evidence_hash")
+    .eq("challenge_pubkey", challengePubkey)
+    .eq("verified", true)
+    .order("reported_at", { ascending: false });
+  if (error) throw new Error(`settle: usage_reports lookup failed: ${error.message}`);
+  return (data ?? []) as unknown as SettleReportRow[];
+}
+
+/**
+ * The verified evidence bundle for a hash, or null when no accepted report
+ * carries it. The `verified = true` filter keeps the public route from serving
+ * a rejection's bytes as if they were accepted evidence.
+ */
+export async function verifiedEvidenceByHash(
+  db: StoreDb,
+  evidenceHash: string,
+): Promise<StoreRow | null> {
+  const { data, error } = await db
+    .from("usage_reports")
+    .select(
+      "challenge_pubkey, wallet_pubkey, used_seconds, tamper_signals, window_start, window_end, " +
+        "reported_at, verified, evidence_hash, signature_b64, cert_chain_pem, canonical_bytes, " +
+        "package_name, device_active_seconds, event_count, event_set_digest",
+    )
+    .eq("evidence_hash", evidenceHash)
+    .eq("verified", true)
+    .maybeSingle();
+  if (error) throw new Error(`evidence: usage_reports lookup failed: ${error.message}`);
+  return data;
 }

@@ -4,9 +4,17 @@ import {
   settleOutcome,
   type Verdict,
 } from "./determine_result.ts";
-import { productionDeps, verifyReport, type NonceStatus } from "./checks.ts";
+import { CHECK_NAMES as PUBLISHED_CHECK_NAMES, GRACE_SECONDS, productionDeps, verifyReport, type NonceStatus } from "./checks.ts";
 import { authorizeRequest } from "./auth.ts";
-import { enrollKey, issueNonce } from "./store.ts";
+import {
+  enrollKey,
+  insertRejectedReport,
+  insertVerifiedReport,
+  InsertConflictError,
+  issueNonce,
+  latestVerifiedReports,
+  verifiedEvidenceByHash,
+} from "./store.ts";
 import {
   makeNobleEcdsaVerifier,
   parseRevokedFeed,
@@ -321,6 +329,20 @@ async function handleSubmitReport(req: Request): Promise<Response> {
     }, 400);
   }
 
+  // /submit-report is public and unauthenticated, and every field here is attacker-
+  // chosen before verification. The same bound /enroll applies to its chainPem —
+  // a public route must not hand unbounded input to the DER walker, the pure-JS
+  // ECDSA verifier, and (on success) a row insert.
+  const oversized = (["canonicalBytesB64", "signatureB64", "chainPem"] as const)
+    .filter((k) => (b[k] as string).length > 64_000);
+  if (oversized.length > 0) {
+    return json({
+      error: "report rejected: field exceeds 64,000 chars",
+      fields: oversized,
+      reason: "PAYLOAD_UNPARSEABLE",
+    }, 413);
+  }
+
   // The claims being checked have to come from the challenge we are settling, not from
   // whoever is submitting. A caller that could supply its own target package or window
   // could simply describe a duel it actually won.
@@ -356,7 +378,9 @@ async function handleSubmitReport(req: Request): Promise<Response> {
       chainPem: b.chainPem as string,
       submittedAtMs: Date.now(),
       windowEndMs,
-      graceSeconds: 300,
+      // The shared freshness constant (see GRACE_SECONDS in checks.ts): the same
+      // deadline the device's nonce expiry enforces, not a second, looser one.
+      graceSeconds: GRACE_SECONDS,
       expectedTargetPackage: ch.target_app as string,
       expectedWindowStartMs: windowStartMs,
     },
@@ -364,50 +388,77 @@ async function handleSubmitReport(req: Request): Promise<Response> {
   );
 
   if (!result.ok) {
-    // Nothing is stored for a rejected report, so a forgery attempt cannot occupy the
-    // one-report-per-challenge slot or influence settlement. The reason is returned to
-    // the caller and logged; persisting it for the Evidence screen is Task 14's follow-up.
+    // Rejected submissions ARE stored (plan Task 14: "a rejected submission is stored
+    // with verified = false plus reject_reason") — that row is the honesty slide's
+    // denominator and the audit trail of abuse attempts. The schema was built for it
+    // (verified default false + reject_reason + the verified-and-reject_reason
+    // exclusion CHECK); skipping the write here was the reviewer-found gap.
+    // Attributable rejections (the payload decoded far enough to name the wallet and
+    // window) are stored; earlier failures — chain, attestation, unparseable bytes —
+    // have no honest wallet to name (wallet_pubkey is NOT NULL), so those stay
+    // log-only. Either way the caller still learns the verdict first.
     console.log(`REJECT ${b.challengePubkey} ${result.reason} ${result.detail ?? ""}`.trim());
+    if (result.fields) {
+      try {
+        await insertRejectedReport(db, {
+          challengePubkey: b.challengePubkey as string,
+          walletPubkey: result.fields.walletPubkey,
+          usedSeconds: result.fields.usedSeconds,
+          tamperSignals: result.fields.tamperSignals,
+          rejectReason: result.reason,
+          detail: result.detail ?? null,
+        });
+      } catch (storeErr) {
+        console.log(`REJECT-STORE-FAILED ${b.challengePubkey} ${(storeErr as Error).message}`);
+      }
+    }
     return json({ error: "report rejected", reason: result.reason, detail: result.detail }, 400);
   }
 
-  const { data, error } = await db
-    .from("usage_reports")
-    .insert({
-      challenge_pubkey: result.fields.challengePubkey,
+  try {
+    const id = await insertVerifiedReport(db, {
+      challengePubkey: result.fields.challengePubkey,
       // Everything below comes from `result.fields`, i.e. the values decoded from the
       // exact bytes the device signed and the hardware key attested. Storing the request
       // body here would let a report be verified against one number and settled on
       // another: the attestation would prove bytes the ledger never recorded.
-      wallet_pubkey: result.fields.walletPubkey,
-      used_seconds: result.fields.usedSeconds,
-      tamper_signals: result.fields.tamperSignals,
-      window_start: new Date(result.fields.windowStartMs).toISOString(),
-      window_end: new Date(result.fields.windowEndMs).toISOString(),
+      walletPubkey: result.fields.walletPubkey,
+      usedSeconds: result.fields.usedSeconds,
+      tamperSignals: result.fields.tamperSignals,
+      windowStartMs: result.fields.windowStartMs,
+      windowEndMs: result.fields.windowEndMs,
       // The evidence itself, so GET /evidence/<hash> can publish what anyone needs to
       // re-run the fourteen checks offline — the whole "judge cannot dismiss it" claim
-      // (spec 4.4). The migration's unique index on evidence_hash backs this column;
-      // leaving it null, as the insert did before, made the route unimplementable.
-      verified: true,
-      evidence_hash: result.evidenceHash,
-      signature_b64: b.signatureB64 as string,
-      cert_chain_pem: b.chainPem as string,
-      canonical_bytes: "\\x" + [...canonicalBytes].map((b) => b.toString(16).padStart(2, "0")).join(""),
-      package_name: result.fields.packageName,
-      device_active_seconds: result.fields.deviceActiveSeconds,
-      event_count: result.fields.eventCount,
-      event_set_digest: result.fields.eventSetDigestHex,
-    })
-    .select("id")
-    .single();
-  if (error) return json({ error: error.message }, 500);
-
-  return json({
-    ok: true,
-    id: data.id,
-    evidenceHash: result.evidenceHash,
-    checksPassed: result.checks,
-  });
+      // (spec 4.4). The migration's unique index on evidence_hash backs this column.
+      evidenceHash: result.evidenceHash,
+      signatureB64: b.signatureB64 as string,
+      chainPem: b.chainPem as string,
+      canonicalBytes,
+      packageName: result.fields.packageName,
+      deviceActiveSeconds: result.fields.deviceActiveSeconds,
+      eventCount: result.fields.eventCount,
+      eventSetDigestHex: result.fields.eventSetDigestHex,
+    });
+    return json({
+      ok: true,
+      id,
+      evidenceHash: result.evidenceHash,
+      checksPassed: result.checks,
+    });
+  } catch (insertErr) {
+    // 23505 on usage_reports_one_verified_per_side: Task 13's design gives every
+    // window two chances (worker + eager path), so the same side legitimately
+    // double-fires across processes. The FIRST accepted report is the settlement
+    // input; the duplicate is an expected 409 the client treats as a verdict, not
+    // a retryable 500 with Postgres text in the body.
+    if (InsertConflictError.is(insertErr)) {
+      return json({
+        error: "a verified report already exists for this side of the challenge",
+        reason: "REPORT_ALREADY_ACCEPTED",
+      }, 409);
+    }
+    return json({ error: (insertErr as Error).message }, 500);
+  }
 }
 
 interface RegisterChallengeBody {
@@ -498,12 +549,15 @@ async function handleSettle(req: Request): Promise<Response> {
     return json({ error: `challenge is ${challenge.status}, expected ACTIVE` }, 409);
   }
 
-  const { data: reports, error: rErr } = await db
-    .from("usage_reports")
-    .select("wallet_pubkey, used_seconds, tamper_signals, reported_at, evidence_hash")
-    .eq("challenge_pubkey", pk)
-    .order("reported_at", { ascending: false });
-  if (rErr) return json({ error: rErr.message }, 500);
+  // The verified filter is the fund-loss guard (review-found): a REJECTED row
+  // carries client-decoded usage numbers and must never be read as a verdict.
+  // The selection + filter live in store.ts where a test pins them.
+  let reports;
+  try {
+    reports = await latestVerifiedReports(db, pk);
+  } catch (rErr) {
+    return json({ error: (rErr as Error).message }, 500);
+  }
 
   const latest = (pubkey: string) =>
     (reports ?? []).find((r) => r.wallet_pubkey === pubkey);
@@ -580,17 +634,14 @@ async function handleEvidence(hash: string): Promise<Response> {
   if (!/^[0-9a-f]{64}$/.test(hash)) {
     return json({ error: "evidence hash must be 64 lowercase hex chars" }, 400);
   }
-  const { data, error } = await db
-    .from("usage_reports")
-    .select(
-      "challenge_pubkey, wallet_pubkey, used_seconds, tamper_signals, window_start, window_end, " +
-        "reported_at, verified, evidence_hash, signature_b64, cert_chain_pem, canonical_bytes, " +
-        "package_name, device_active_seconds, event_count, event_set_digest",
-    )
-    .eq("evidence_hash", hash)
-    .eq("verified", true)
-    .maybeSingle();
-  if (error) return json({ error: error.message }, 500);
+  // The lookup + verified filter live in store.ts where a test pins them (a
+  // rejection's bytes must never be served as accepted evidence).
+  let data;
+  try {
+    data = await verifiedEvidenceByHash(db, hash);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
   if (!data) return json({ error: "no accepted report carries this evidence hash" }, 404);
 
   // PostgREST returns bytea as a "\x..." hex string; the bundle publishes base64, which is
@@ -602,12 +653,20 @@ async function handleEvidence(hash: string): Promise<Response> {
     const bytes = new Uint8Array(body.length / 2);
     for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(body.slice(i * 2, i * 2 + 2), 16);
     canonicalBytesB64 = btoa(String.fromCharCode(...bytes));
+    // The URL's contract is self-enforcing or it is nothing: the bytes served must
+    // hash to the hash requested, or the route is serving a mismatched bundle (a
+    // storage/encoding regression) under a 200. Checked here, on every read.
+    const servedHash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+      .map((x) => x.toString(16).padStart(2, "0")).join("");
+    if (servedHash !== hash) {
+      return json({ error: "stored bytes do not hash to the requested evidence hash" }, 500);
+    }
   }
 
   return json({
     evidenceHash: data.evidence_hash,
     verified: data.verified,
-    reportedAt: data.reported_at,
+    verifiedAt: data.reported_at,
     challengePubkey: data.challenge_pubkey,
     walletPubkey: data.wallet_pubkey,
     packageName: data.package_name,
@@ -620,6 +679,9 @@ async function handleEvidence(hash: string): Promise<Response> {
     windowEnd: data.window_end,
     // The re-verification material: bytes + signature + chain. With these three anyone
     // can re-run every check from chain anchoring down to signature, without trusting us.
+    // Only fully-verified rows are ever served, so the 14 published check names are the
+    // verification summary (checks.ts CHECK_NAMES); a per-row array would restate it.
+    checksPassed: PUBLISHED_CHECK_NAMES,
     canonicalBytesB64,
     signatureB64: data.signature_b64,
     chainPem: data.cert_chain_pem,

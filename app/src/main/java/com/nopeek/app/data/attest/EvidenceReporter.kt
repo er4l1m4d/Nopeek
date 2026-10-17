@@ -297,7 +297,13 @@ class OracleEvidenceTransport : EvidenceTransport {
     }
 
     private companion object {
-        /** Must match the oracle's grace window, or the expiry it stores is not the one used. */
+        /**
+         * Must equal the oracle's GRACE_SECONDS (checks.ts), or the expiry it stores is
+         * not the one its freshness check uses — a divergence creates a band where
+         * REPORT_LATE passes but the nonce is already expired. The oracle previously
+         * used 300 while the device used 60; the oracle now imports this same 60, so
+         * the effective deadline on both sides is windowEnd + 60 s.
+         */
         const val GRACE_SECONDS = 60
     }
 }
