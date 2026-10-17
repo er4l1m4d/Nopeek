@@ -8,8 +8,7 @@ import androidx.work.WorkerParameters
 import com.nopeek.app.data.UsageReport
 import com.nopeek.app.data.VerificationStatus
 import com.nopeek.app.data.attest.ReportOutcome
-import com.nopeek.app.data.verify.CommitmentVerifier
-import com.nopeek.app.data.verify.LocalRuleCommitmentVerifier
+import com.nopeek.app.data.verify.selectVerifier
 import java.util.concurrent.TimeUnit
 
 object UsageSyncParamsReader {
@@ -57,8 +56,6 @@ internal class UsageWorker(
     params: WorkerParameters
 ) : Worker(context, params) {
 
-    private val verifier: CommitmentVerifier = LocalRuleCommitmentVerifier()
-
     private val collector = UsageEventCollector(applicationContext)
 
     override fun doWork(): Result {
@@ -97,13 +94,30 @@ internal class UsageWorker(
             eventSetDigestHex = eventSet.eventSetDigestHex,
         )
 
-        // Plan 8.1 Step 3: tamper signals present -> mark the challenge for
-        // verification. Decided through CommitmentVerifier rather than by reading
-        // the signals directly, so there is exactly one place in the app that
-        // turns evidence into a verdict — Task 15 swaps the binding, not this call
-        // site. Behavior-identical: CommitmentVerifierTest pins verify()==UNVERIFIED
-        // to flagForVerification for every combination of the four signals.
-        if (verifier.verify(report, parsed.limitSeconds) == VerificationStatus.UNVERIFIED) {
+        // Plan 8.1 Step 3: tamper signals -> mark the challenge for verification.
+        // Task 15: the verifier is NOT hard-bound in the worker any more; the
+        // outcome of submission picks the authority and stamps the report with
+        // the oracle's verdict (when the oracle answered). The verdict decision
+        // itself — verify()==UNVERIFIED -> PENDING_VERIFICATION — is unchanged;
+        // only which source it consults differs.
+        // Task 13: the signed, attested submission replaces the legacy body that
+        // carried only the app's own number. The oracle now refuses a submission
+        // with no evidence at all (EVIDENCE_MISSING), so this call is the
+        // difference between a report that settles and a report that is filed and
+        // ignored.
+        val outcome = ReportScheduler.submitReport(
+            applicationContext, report, parsed.targetPackage, parsed.graceSeconds,
+        )
+        // The oracle's answer, when present, is the authority; otherwise the local
+        // rule is the offline fallback. selectVerifier stamps verified/rejectReason
+        // and returns the verifier to consult, so this is the ONE branch in the
+        // worker that reasons about "who decides this".
+        val (chosenVerifier, decidedReport) = selectVerifier(outcome, report)
+
+        // PENDING_VERIFICATION is keyed to UNVERIFIED, which is what both verifiers
+        // agree to when the evidence is not fully accepted: tamper signals, a
+        // transport failure (no verdict yet), or a rejected submission.
+        if (chosenVerifier.verify(decidedReport, parsed.limitSeconds) == VerificationStatus.UNVERIFIED) {
             try {
                 kotlinx.coroutines.runBlocking {
                     com.nopeek.app.data.local.AppDatabase.getInstance(applicationContext)
@@ -115,17 +129,11 @@ internal class UsageWorker(
             }
         }
 
-        // Task 13: the signed, attested submission replaces the legacy body that carried only
-        // the app's own number. The oracle now refuses a submission with no evidence at all
-        // (EVIDENCE_MISSING), so this call is the difference between a report that settles and
-        // a report that is filed and ignored.
-        val outcome = ReportScheduler.submitReport(
-            applicationContext, report, parsed.targetPackage, parsed.graceSeconds,
-        )
+        // A refusal is a verdict: the oracle answered, and re-running cannot
+        // un-answer it. Only UNREACHABLE (transport failure) is retried —
+        // reporting a transport failure as success would strand the window with
+        // no report and no retry.
         return when (outcome) {
-            // A refusal is a verdict: the oracle answered, and re-running cannot un-answer it.
-            // Only an unreachable oracle is retried — reporting a transport failure as success
-            // would strand the window with no report and no retry.
             is ReportOutcome.TransportFailed -> Result.retry()
             else -> Result.success()
         }

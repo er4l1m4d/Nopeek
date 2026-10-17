@@ -1,5 +1,6 @@
 package com.nopeek.app.data.verify
 
+import com.nopeek.app.data.attest.ReportOutcome
 import com.nopeek.app.data.TamperSignals
 import com.nopeek.app.data.UsageReport
 import com.nopeek.app.data.VerificationStatus
@@ -131,4 +132,56 @@ class CommitmentVerifierTest {
         windowEnd = 1727626800L,
         tamperSignals = signals,
     )
+
+    // ---------------------------------------------------------------------------
+    // Task 15: the oracle verdict, not the device's number, drives settlement when
+    // the app can reach the oracle. selectVerifier is the one selector that owns
+    // "which path is authoritative" — the worker calls verify() on its result and
+    // reads no signal fields directly afterwards.
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun oracleAcceptedOutcomeUsesTheOracleVerifierAndMarksTheReportVerified() {
+        // The oracle answered "this is real evidence" — the device's local number is
+        // no longer the authority; it is evidence only, subject to the oracle's
+        // PASS/FAIL bound as recorded on-chain.
+        val (verifier, report) = selectVerifier(
+            ReportOutcome.Accepted("deadbeef"), local = report(usedSeconds = 300),
+        )
+        assertTrue(verifier is OracleVerdictCommitmentVerifier)
+        assertEquals(true, report.verified)
+        assertEquals("deadbeef", report.evidenceHash)
+        assertEquals(null, report.rejectReason)
+    }
+
+    @Test
+    fun oracleRefusedOutcomeUsesTheOracleVerifierAndMarksTheReportRejected() {
+        // Same rule in the other direction: a refused submission is a verdict the
+        // oracle rendered; the local verifier must not re-derive PASS from the
+        // device's own usage number after the oracle said no.
+        val (verifier, report) = selectVerifier(
+            ReportOutcome.Rejected("BAD_SIGNATURE"), local = report(usedSeconds = 300),
+        )
+        assertTrue(verifier is OracleVerdictCommitmentVerifier)
+        assertEquals(false, report.verified)
+        assertEquals("BAD_SIGNATURE", report.rejectReason)
+    }
+
+    @Test
+    fun transportFailureOrUnreachedWindowFallsBackToTheLocalRule() {
+        // No oracle answer exists: a network miss, or a window that was due but
+        // never submitted (NotYetDue). The local rule is fallback ONLY — never the
+        // input to settlement when the oracle was reachable.
+        for (outcome in listOf<ReportOutcome>(
+            ReportOutcome.TransportFailed("timeout"), ReportOutcome.NotYetDue,
+        )) {
+            val (verifier, report) = selectVerifier(outcome, local = report(usedSeconds = 300))
+            assertEquals("fallback for $outcome", LocalRuleCommitmentVerifier::class, verifier::class)
+            // The fallback path never stamps oracle fields: it computes from the
+            // device numbers alone, exactly as UsageReportTest pins it.
+            assertEquals(false, report.verified)
+            assertEquals(null, report.evidenceHash)
+            assertEquals(null, report.rejectReason)
+        }
+    }
 }

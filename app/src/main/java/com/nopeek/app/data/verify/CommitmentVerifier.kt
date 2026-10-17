@@ -2,6 +2,7 @@ package com.nopeek.app.data.verify
 
 import com.nopeek.app.data.UsageReport
 import com.nopeek.app.data.VerificationStatus
+import com.nopeek.app.data.attest.ReportOutcome
 
 /**
  * The one seam between "what the device measured" and "whether the commitment was
@@ -45,4 +46,40 @@ class OracleVerdictCommitmentVerifier : CommitmentVerifier {
         if (report.tamperSignals.isCompromised()) return VerificationStatus.UNVERIFIED
         return if (report.usedSeconds <= limitSeconds) VerificationStatus.PASS else VerificationStatus.FAIL
     }
+}
+
+/**
+ * The Task 15 selector: which verifier is authoritative for THIS report, and the
+ * verdict fields to stamp onto it from that source.
+ *
+ * One rule only — nothing above the interface reads the fields it sets, so the
+ * worker stays behavior-identical and only its authority source changes:
+ *
+ * - Accepted | Rejected by the oracle: the oracle's verdict is real. Stamp the
+ *   report's verified/rejectReason/evidenceHash from that answer and use the
+ *   oracle verifier. The device's own usedSeconds is evidence the oracle
+ *   ratified, never the authority.
+ * - Transport failed, or the window was never even submitted (NotYetDue): no
+ *   oracle answer exists, so the local rule is the offline fallback. It stamps
+ *   nothing — the report keeps its defaults so resolveResult() /
+ *   flagForVerification() stay the sole authority for that path.
+ *
+ * Returning the chosen verifier alongside the (possibly-stamped) report is what
+ * lets this single decision be proven in a JVM test with no network or keystore.
+ */
+fun selectVerifier(
+    outcome: ReportOutcome,
+    local: UsageReport,
+): Pair<CommitmentVerifier, UsageReport> = when (outcome) {
+    is ReportOutcome.Accepted -> {
+        val stamped = local.copy(verified = true, evidenceHash = outcome.evidenceHash)
+        Pair(OracleVerdictCommitmentVerifier(), stamped)
+    }
+    is ReportOutcome.Rejected -> {
+        val stamped = local.copy(verified = false, rejectReason = outcome.reason)
+        Pair(OracleVerdictCommitmentVerifier(), stamped)
+    }
+    // TransportFailed and NotYetDue both mean: no oracle verdict to read yet.
+    is ReportOutcome.TransportFailed,
+    ReportOutcome.NotYetDue -> Pair(LocalRuleCommitmentVerifier(), local)
 }
